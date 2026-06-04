@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "urdf-robot-model",
+  "owner": "mjunaidca",
+  "repo": "robolearn",
+  "path": ".claude/skills/urdf-robot-model",
+  "branch": "main",
+  "sha": "85996c8c28822cdeb15f581019e831b5d08bdaae",
+  "source": "manual"
+}

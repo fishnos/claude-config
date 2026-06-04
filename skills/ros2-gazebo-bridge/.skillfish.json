@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "ros2-gazebo-bridge",
+  "owner": "mjunaidca",
+  "repo": "robolearn",
+  "path": ".claude/skills/ros2-gazebo-bridge",
+  "branch": "main",
+  "sha": "cca2e6d1d62a00afa9c2e0d33d16ee43fade7671",
+  "source": "manual"
+}

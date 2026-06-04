@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "ros2-publisher-subscriber",
+  "owner": "mjunaidca",
+  "repo": "robolearn",
+  "path": ".claude/skills/ros2-publisher-subscriber",
+  "branch": "main",
+  "sha": "75dededdae0a17d48d511338a74de9f16470e756",
+  "source": "manual"
+}

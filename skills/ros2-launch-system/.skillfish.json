@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "ros2-launch-system",
+  "owner": "mjunaidca",
+  "repo": "robolearn",
+  "path": ".claude/skills/ros2-launch-system",
+  "branch": "main",
+  "sha": "ac15808bba354f09b8360456f6b79523efe94e6c",
+  "source": "manual"
+}
