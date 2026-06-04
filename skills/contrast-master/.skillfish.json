@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "contrast-master",
+  "owner": "community-access",
+  "repo": "accessibility-agents",
+  "path": ".gemini/extensions/a11y-agents/skills/contrast-master",
+  "branch": "main",
+  "sha": "b191fb9deabbe479fa540668adc96901d73cb3fd",
+  "source": "manual"
+}

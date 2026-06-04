@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "ros2-custom-interfaces",
+  "owner": "mjunaidca",
+  "repo": "robolearn",
+  "path": ".claude/skills/ros2-custom-interfaces",
+  "branch": "main",
+  "sha": "10dcdfa8d02ef4a31e7aa2151174e3892f42cd62",
+  "source": "manual"
+}

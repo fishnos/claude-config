@@ -1,0 +1,45 @@
+# Allowlist strategy: ignore EVERYTHING by default.
+# Only explicitly whitelisted config is tracked.
+# New files (caches, transcripts, secrets) can never leak by accident.
+*
+
+# --- tracked config (allowlist) ---
+!.gitignore
+!README.md
+!CLAUDE.md
+!settings.json
+!statusline-command.sh
+
+!rules/
+!rules/**
+
+!skills/
+!skills/**
+
+!hooks/
+!hooks/**
+
+# --- hard excludes (defense in depth, even if whitelisted above by mistake) ---
+.DS_Store
+*.bak
+*.orig
+*.log
+.credentials.json
+settings.local.json
+history.jsonl
+projects/
+sessions/
+session-env/
+shell-snapshots/
+file-history/
+paste-cache/
+plugins/
+cache/
+debug/
+telemetry/
+tasks/
+backups/
+downloads/
+ide/
+stats-cache.json
+mcp-needs-auth-cache.json

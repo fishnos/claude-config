@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "gazebo-world-builder",
+  "owner": "mjunaidca",
+  "repo": "robolearn",
+  "path": ".claude/skills/gazebo-world-builder",
+  "branch": "main",
+  "sha": "4d2c164d70c6723bf4a06470fc8aeb65780f3be2",
+  "source": "manual"
+}

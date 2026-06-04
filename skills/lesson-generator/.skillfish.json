@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "lesson-generator",
+  "owner": "mjunaidca",
+  "repo": "robolearn",
+  "path": ".claude/skills/lesson-generator",
+  "branch": "main",
+  "sha": "3bbe5e8ae7332feb54929de3c6fc0842693509c5",
+  "source": "manual"
+}
