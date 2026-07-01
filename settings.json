@@ -38,6 +38,7 @@
     "refreshInterval": 10
   },
   "enabledPlugins": {
+    "ecc@ecc": true,
     "superpowers@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
@@ -53,6 +54,12 @@
     "claude-mem@thedotmack": true
   },
   "extraKnownMarketplaces": {
+    "ecc": {
+      "source": {
+        "source": "github",
+        "repo": "affaan-m/ECC"
+      }
+    },
     "claude-code-plugins": {
       "source": {
         "source": "github",
@@ -90,8 +97,10 @@
       }
     }
   },
-  "effortLevel": "xhigh",
+  "effortLevel": "high",
+  "fastMode": true,
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "tui": "fullscreen"
 }
