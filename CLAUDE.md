@@ -1,6 +1,7 @@
 # Global Instructions
 
 ## Communication Style
+
 At the start of every session, invoke the `caveman:caveman` skill (full mode) using the Skill tool before responding to anything. Never respond without it active.
 
 ---
@@ -18,7 +19,9 @@ Treat every frontend task as an **orchestra of skills, not single-shot tool call
 Run these phases for any non-trivial UI work. Skip a phase only with explicit justification.
 
 ### 1. Discover & Shape
+
 Establish intent, audience, constraints, and aesthetic direction before any code.
+
 - `superpowers:brainstorming` — surface real requirements, kill assumptions
 - `shape` — structured UX/UI discovery interview, produces a brief
 - `ui-ux-pro-max` — pick a style family (67), palette (96), font pairing (57), tech stack defaults
@@ -27,12 +30,14 @@ Establish intent, audience, constraints, and aesthetic direction before any code
 Output of this phase: a written design brief + chosen style + palette + type system. Do not skip to code.
 
 ### 2. Architect
+
 - `frontend-design:frontend-design` — distinctive component/page generation that avoids generic AI patterns
 - `vercel:nextjs` / `vercel:next-cache-components` / `vercel:routing-middleware` — App Router, PPR, cacheLife/cacheTag, middleware patterns
 - `vercel:shadcn` — shadcn/ui composition, custom registries, theming
 - `superpowers:writing-plans` — for any multi-file change, write the plan first
 
 ### 3. Build
+
 - `mcp__magic__21st_magic_component_builder` — high-quality component scaffolds from natural language
 - `mcp__magic__21st_magic_component_inspiration` — pull reference components when stuck on direction
 - `mcp__magic__logo_search` — real brand assets, never fake logos
@@ -41,25 +46,27 @@ Output of this phase: a written design brief + chosen style + palette + type sys
 - `supabase:supabase` — auth, data, realtime, storage, RLS
 
 ### 4. Refine (run iteratively, not once)
+
 Pick the right skill for the symptom — never blanket-apply.
 
-| Symptom | Skill |
-|---|---|
-| Bland, generic, too safe | `bolder` |
-| Loud, overstimulating, garish | `quieter` |
-| Cluttered, busy, low signal | `distill` |
-| Monochromatic, flat | `colorize` |
-| Weak rhythm, crowded, misaligned | `layout` |
-| Type feels off, weak hierarchy | `typeset` |
-| Confusing copy, bad errors | `clarify` |
-| Static, lifeless | `animate` |
+| Symptom                                | Skill       |
+| -------------------------------------- | ----------- |
+| Bland, generic, too safe               | `bolder`    |
+| Loud, overstimulating, garish          | `quieter`   |
+| Cluttered, busy, low signal            | `distill`   |
+| Monochromatic, flat                    | `colorize`  |
+| Weak rhythm, crowded, misaligned       | `layout`    |
+| Type feels off, weak hierarchy         | `typeset`   |
+| Confusing copy, bad errors             | `clarify`   |
+| Static, lifeless                       | `animate`   |
 | Wants to wow / shaders / scroll-driven | `overdrive` |
-| Functional but joyless | `delight` |
-| Doesn't fit other screens | `adapt` |
-| Slow, janky, heavy bundle | `optimize` |
-| Prose has AI tells | `stop-slop` |
+| Functional but joyless                 | `delight`   |
+| Doesn't fit other screens              | `adapt`     |
+| Slow, janky, heavy bundle              | `optimize`  |
+| Prose has AI tells                     | `stop-slop` |
 
 ### 5. Audit & Polish (mandatory before "done")
+
 - `audit` — a11y / perf / responsive / anti-patterns scored report
 - `critique` — UX scoring, persona testing, anti-pattern detection
 - `polish` — final micro-detail pass on alignment, spacing, consistency
@@ -67,6 +74,7 @@ Pick the right skill for the symptom — never blanket-apply.
 - `vercel:verification` — full-story end-to-end check (browser → API → data → response)
 
 ### 6. Ship
+
 - `superpowers:verification-before-completion` — never claim done without evidence
 - `vercel:deployments-cicd` / `vercel:deploy` — preview / production
 - `vercel:env-vars` — env hygiene
@@ -131,6 +139,7 @@ The umbrella skill `impeccable` orchestrates many of these and is appropriate wh
 - **Verify before claiming done** — `superpowers:verification-before-completion`. Run lint, typecheck, build, and visually test in browser for UI work.
 - **Test in browser** — for any UI change, start the dev server and use the feature. Type-check passes ≠ feature works.
 - **No decorative comments** — no banner comments, no obvious `// what` comments. Only non-obvious _why_.
+- **Clear variable names** — every name must say what it holds, spelled out. Never abbreviate to save keystrokes: write `table` not `tbl`, `quaternion` not `q`, `position_weight` not `pos_w`, `entry`/`config` not `e`, `index` not `i` (loop counters `i`/`j` are the only accepted exception). Prefer a named record (dataclass/NamedTuple) over positional tuples so fields are `thing.position` not `thing[2]`. A reader should never have to guess what a name means.
 
 ---
 
