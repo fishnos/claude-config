@@ -15,19 +15,49 @@ Version-controlled `~/.claude` configuration. Tracks **config only** — never t
 
 Everything else is ignored via allowlist `.gitignore` (`*` first, then explicit `!` entries). New runtime files can never be committed by accident.
 
+## Cross-platform
+
+This config runs on **macOS, Windows, and any Linux/BSD distro**. Platform-specific
+behavior lives in `hooks/` as Node scripts (not shell one-liners), so a single tracked
+config works everywhere:
+
+| Hook               | Script            | Behavior                                                                                       |
+| ------------------ | ----------------- | ---------------------------------------------------------------------------------------------- |
+| `Notification`     | `hooks/notify.js` | Desktop notification + sound. macOS → `osascript`/`afplay`; Windows → PowerShell balloon + beep; Linux → `notify-send` + first available player (`mpv`/`ffplay`/`paplay`/`pw-play`), else `canberra-gtk-play`. |
+| `PostToolUse`      | `hooks/format.js` | Formats the edited file with `npx prettier --write`.                                            |
+
+Every external call is **best-effort**: a missing notifier, sound player, or Prettier
+degrades silently instead of failing the hook. The hook commands resolve the config dir
+via Node (`CLAUDE_CONFIG_DIR` or `~/.claude`), so they work under both POSIX shells and
+Windows `cmd.exe` without relying on shell-specific `~`/`$HOME` expansion.
+
+### Prerequisites
+
+- **[Node.js](https://nodejs.org/)** (provides `node` + `npx`) — required by the hooks,
+  the statusline (`npx ccstatusline`), and Prettier formatting.
+  - macOS: `brew install node` · Windows: `winget install OpenJS.NodeJS` · Debian/Ubuntu: `sudo apt install nodejs npm` · Arch: `sudo pacman -S nodejs npm` · Fedora: `sudo dnf install nodejs`
+- **Optional, for the Notification hook's extras** (each degrades gracefully if absent):
+  - Linux: `notify-send` (libnotify) + any of `mpv` / `ffmpeg` / `pulseaudio-utils` / `pipewire`; optional `libcanberra`.
+  - macOS / Windows: nothing extra — `osascript` / PowerShell ship with the OS.
+
 ## Set up on a new machine
 
 ```sh
-# fresh machine, no ~/.claude yet
-git clone git@github.com:<you>/claude-config.git ~/.claude
+# fresh machine, no ~/.claude yet — pick ONE remote form:
+git clone https://github.com/<you>/claude-config.git ~/.claude   # HTTPS (works with `gh auth`)
+git clone git@github.com:<you>/claude-config.git ~/.claude       # SSH
 
 # ~/.claude already exists (Claude Code already run)
 cd ~/.claude
 git init
-git remote add origin git@github.com:<you>/claude-config.git
+git remote add origin https://github.com/<you>/claude-config.git
 git fetch origin
-git checkout -f main   # overwrites local config with repo version
+git checkout -f main   # overwrites TRACKED config with repo version; runtime files untouched
 ```
+
+On **Windows**, run the same commands in PowerShell or Git Bash; `~` maps to `%USERPROFILE%`
+(`git clone ... "$env:USERPROFILE\.claude"` in PowerShell). Machine-local preferences that
+shouldn't sync (e.g. `theme`) go in `settings.local.json`, which is git-ignored.
 
 Claude Code recreates all runtime files (history, sessions, plugin cache) on first launch. Plugins reinstall automatically from `enabledPlugins` + `extraKnownMarketplaces` in `settings.json`.
 
@@ -47,6 +77,12 @@ done
 
 If you install a new skill with `npx skills add`, it lands in `~/.agents/skills` as a real directory. To bring it under version control: move it into `~/.claude/skills/`, symlink back (as above), commit.
 
+On **Windows**, use a directory junction instead of a POSIX symlink:
+
+```powershell
+New-Item -ItemType Junction -Path "$env:USERPROFILE\.agents\skills\<name>" -Target "$env:USERPROFILE\.claude\skills\<name>"
+```
+
 ## Avoiding merge conflicts
 
 - Runtime files are untracked — machines never conflict over them.
@@ -58,5 +94,5 @@ If you install a new skill with `npx skills add`, it lands in `~/.agents/skills`
 ## Rules
 
 - **Never commit secrets.** No API keys, tokens, or credentials in any tracked file — this repo may be cloned anywhere.
-- Credentials live in macOS Keychain / `.credentials.json` (ignored), never here.
+- Credentials live in the OS keychain (macOS Keychain, Windows Credential Manager, or libsecret on Linux) or `.credentials.json` (ignored), never here.
 - Before adding a new path to the allowlist, grep it for secrets first.
