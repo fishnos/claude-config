@@ -19,6 +19,9 @@
 !hooks/
 !hooks/**
 
+!zed/
+!zed/**
+
 # --- hard excludes (defense in depth, even if whitelisted above by mistake) ---
 .DS_Store
 *.bak
