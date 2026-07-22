@@ -46,3 +46,6 @@ downloads/
 ide/
 stats-cache.json
 mcp-needs-auth-cache.json
+
+__pycache__/
+*.pyc
