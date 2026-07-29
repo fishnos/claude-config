@@ -29,6 +29,14 @@ usage:
   claude-sol --sol-forget         delete the stored key from this machine
   claude-sol --sol-help           this message
 
+openrouter spend limit (openrouter is the source of truth):
+  claude-sol --sol-limit               show limit, usage, and any active raise
+  claude-sol --sol-limit-raise <usd>   raise the key's limit via the api for today
+  claude-sol --sol-limit-reset         drop it back to the baseline now
+  claude-sol --sol-provision-setup     store the provisioning key the api needs
+
+a raise expires at midnight utc: the next launch after that puts the limit back.
+
 everything else is passed through to claude untouched.
 
 config: tools/claude-sol/config.defaults (shared, non-secret)
@@ -77,6 +85,27 @@ run_setup() {
     esac
 }
 
+run_provision_setup() {
+    printf 'a provisioning key is a separate openrouter key that can manage other keys.\n' >&2
+    printf 'create one at https://openrouter.ai/settings/provisioning-keys\n' >&2
+
+    entered_key=$(sol_prompt_key 'enter openrouter provisioning key: ')
+
+    if [ -z "$entered_key" ]; then
+        printf 'no key entered, nothing stored.\n' >&2
+
+        return 1
+    fi
+
+    chosen_backend=$(sol_write_provisioning_key "$entered_key") || {
+        printf 'failed to store the provisioning key.\n' >&2
+
+        return 1
+    }
+
+    printf 'provisioning key stored via backend: %s\n' "$chosen_backend" >&2
+}
+
 run_doctor() {
     claude_binary=$(sol_find_claude_binary || true)
     key_source=$(sol_key_source || true)
@@ -90,6 +119,14 @@ run_doctor() {
     printf 'max output tokens %s\n' "${CLAUDE_SOL_MAX_OUTPUT_TOKENS:-(claude default)}"
     printf 'preferred store   %s\n' "$(sol_preferred_backend)"
     printf 'key source        %s\n' "$key_source"
+
+    if sol_read_provisioning_key >/dev/null 2>&1; then
+        printf 'provisioning key  stored (limit commands available)\n'
+    else
+        printf 'provisioning key  absent (run claude-sol --sol-provision-setup)\n'
+    fi
+
+    printf 'baseline limit    %s\n' "${CLAUDE_SOL_BASELINE_LIMIT:-(none set)}"
 
     if [ "$key_source" = none ]; then
         printf 'key               missing — run claude-sol --sol-setup\n'
@@ -130,6 +167,26 @@ case ${1:-} in
         ;;
     --sol-doctor)
         run_doctor
+
+        exit $?
+        ;;
+    --sol-limit)
+        sol_run_limit_command "$tool_directory" show
+
+        exit $?
+        ;;
+    --sol-limit-raise)
+        sol_run_limit_command "$tool_directory" raise "${2:-}"
+
+        exit $?
+        ;;
+    --sol-limit-reset)
+        sol_run_limit_command "$tool_directory" reset
+
+        exit $?
+        ;;
+    --sol-provision-setup)
+        run_provision_setup
 
         exit $?
         ;;
@@ -177,6 +234,10 @@ if [ -n "$CLAUDE_SOL_MAX_OUTPUT_TOKENS" ]; then
     CLAUDE_CODE_MAX_OUTPUT_TOKENS=$CLAUDE_SOL_MAX_OUTPUT_TOKENS
 
     export CLAUDE_CODE_MAX_OUTPUT_TOKENS
+fi
+
+if sol_limit_reset_is_due; then
+    sol_run_limit_command "$tool_directory" auto-reset || printf 'could not reset the raised spend limit — run claude-sol --sol-limit-reset\n' >&2
 fi
 
 exec "$claude_binary" "$@"
