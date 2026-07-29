@@ -23,6 +23,14 @@ usage:
   claude-sol --sol-forget         delete the stored key from this machine
   claude-sol --sol-help           this message
 
+openrouter spend limit (openrouter is the source of truth):
+  claude-sol --sol-limit               show limit, usage, and any active raise
+  claude-sol --sol-limit-raise <usd>   raise the key's limit via the api for today
+  claude-sol --sol-limit-reset         drop it back to the baseline now
+  claude-sol --sol-provision-setup     store the provisioning key the api needs
+
+a raise expires at midnight utc: the next launch after that puts the limit back.
+
 everything else is passed through to claude untouched.
 
 config: tools\claude-sol\config.defaults   (shared, non-secret)
@@ -99,6 +107,21 @@ function Invoke-SolDoctor {
     Write-Host ('credential store  dpapi (current windows user)')
     Write-Host ('key source        {0}' -f $keySource)
 
+    if (Read-SolProvisioningKey) {
+        Write-Host 'provisioning key  stored (limit commands available)'
+    }
+    else {
+        Write-Host 'provisioning key  absent (run claude-sol --sol-provision-setup)'
+    }
+
+    $baselineLabel = '(none set)'
+
+    if ($configuration.CLAUDE_SOL_BASELINE_LIMIT) {
+        $baselineLabel = $configuration.CLAUDE_SOL_BASELINE_LIMIT
+    }
+
+    Write-Host ('baseline limit    {0}' -f $baselineLabel)
+
     if ($keySource -eq 'none') {
         Write-Host 'key               missing — run claude-sol --sol-setup'
 
@@ -154,6 +177,39 @@ switch ($firstArgument) {
     '--sol-doctor' {
         exit (Invoke-SolDoctor)
     }
+    '--sol-limit' {
+        exit (Invoke-SolLimitCommand -ToolDirectory $toolDirectory -Configuration $configuration -Command 'show')
+    }
+    '--sol-limit-raise' {
+        $requestedLimit = ''
+
+        if ($ClaudeArguments.Count -gt 1) {
+            $requestedLimit = $ClaudeArguments[1]
+        }
+
+        exit (Invoke-SolLimitCommand -ToolDirectory $toolDirectory -Configuration $configuration -Command 'raise' -Argument $requestedLimit)
+    }
+    '--sol-limit-reset' {
+        exit (Invoke-SolLimitCommand -ToolDirectory $toolDirectory -Configuration $configuration -Command 'reset')
+    }
+    '--sol-provision-setup' {
+        Write-Host 'a provisioning key is a separate openrouter key that can manage other keys.'
+        Write-Host 'create one at https://openrouter.ai/settings/provisioning-keys'
+
+        $enteredKey = Read-SolApiKeyFromPrompt -Prompt 'enter openrouter provisioning key'
+
+        if (-not $enteredKey) {
+            Write-Host 'no key entered, nothing stored.'
+
+            exit 1
+        }
+
+        $storedPath = Write-SolProvisioningKey -ProvisioningKey $enteredKey
+
+        Write-Host ('provisioning key stored at {0}' -f $storedPath)
+
+        exit 0
+    }
     '--sol-forget' {
         if (Remove-SolApiKey) {
             Write-Host 'stored key removed from this machine.'
@@ -197,6 +253,10 @@ if ($configuration.CLAUDE_SOL_SMALL_MODEL) {
 
 if ($configuration.CLAUDE_SOL_MAX_OUTPUT_TOKENS) {
     $env:CLAUDE_CODE_MAX_OUTPUT_TOKENS = $configuration.CLAUDE_SOL_MAX_OUTPUT_TOKENS
+}
+
+if (Test-SolLimitResetDue) {
+    Invoke-SolLimitCommand -ToolDirectory $toolDirectory -Configuration $configuration -Command 'auto-reset' | Out-Null
 }
 
 $passthroughArguments = @()

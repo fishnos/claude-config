@@ -26,6 +26,8 @@ function Import-SolConfig {
         CLAUDE_SOL_SMALL_MODEL                = ''
         CLAUDE_SOL_MAX_OUTPUT_TOKENS          = ''
         CLAUDE_SOL_KEY_VALIDATION_URL         = 'https://openrouter.ai/api/v1/key'
+        CLAUDE_SOL_BASELINE_LIMIT             = ''
+        CLAUDE_SOL_KEY_HASH                   = ''
     }
 
     $configurationFiles = @(
@@ -244,4 +246,136 @@ function Find-SolClaudeCommand {
     }
 
     return $null
+}
+
+function Get-SolProvisioningCredentialFile {
+    return (Join-Path (Get-SolConfigDirectory) 'provisioning-credentials.dpapi')
+}
+
+function Get-SolLimitStateFile {
+    return (Join-Path (Get-SolConfigDirectory) 'limit-state.json')
+}
+
+function Read-SolProvisioningKey {
+    if ($env:CLAUDE_SOL_PROVISIONING_KEY) {
+        return $env:CLAUDE_SOL_PROVISIONING_KEY
+    }
+
+    $credentialFile = Get-SolProvisioningCredentialFile
+
+    if (-not (Test-Path -LiteralPath $credentialFile)) {
+        return $null
+    }
+
+    try {
+        $encryptedText = (Get-Content -LiteralPath $credentialFile -Raw).Trim()
+
+        if (-not $encryptedText) {
+            return $null
+        }
+
+        $secureKey = ConvertTo-SecureString -String $encryptedText
+
+        return (New-Object System.Net.NetworkCredential('', $secureKey)).Password
+    }
+    catch {
+        Write-Warning "stored provisioning key could not be decrypted by this windows account: $($_.Exception.Message)"
+
+        return $null
+    }
+}
+
+function Write-SolProvisioningKey {
+    param([Parameter(Mandatory)][string] $ProvisioningKey)
+
+    if (-not (Test-SolDpapiSupported)) {
+        throw 'dpapi is only available on windows — use the posix launcher on this platform.'
+    }
+
+    $configDirectory = Get-SolConfigDirectory
+
+    if (-not (Test-Path -LiteralPath $configDirectory)) {
+        New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
+    }
+
+    $credentialFile = Get-SolProvisioningCredentialFile
+    $secureKey = ConvertTo-SecureString -String $ProvisioningKey -AsPlainText -Force
+    $encryptedText = ConvertFrom-SecureString -SecureString $secureKey
+
+    Set-Content -LiteralPath $credentialFile -Value $encryptedText -NoNewline -Encoding ascii
+
+    Protect-SolFileAcl -FilePath $credentialFile
+
+    return $credentialFile
+}
+
+function Find-SolNodeCommand {
+    $resolvedCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+
+    if ($resolvedCommand) {
+        return $resolvedCommand.Source
+    }
+
+    return $null
+}
+
+function Test-SolLimitResetDue {
+    $statePath = Get-SolLimitStateFile
+
+    if (-not (Test-Path -LiteralPath $statePath)) {
+        return $false
+    }
+
+    try {
+        $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+    }
+    catch {
+        return $false
+    }
+
+    if (-not $state.reset_on) {
+        return $false
+    }
+
+    $today = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+
+    return ($today -ge $state.reset_on)
+}
+
+function Invoke-SolLimitCommand {
+    param(
+        [Parameter(Mandatory)][string] $ToolDirectory,
+        [Parameter(Mandatory)] $Configuration,
+        [Parameter(Mandatory)][string] $Command,
+        [string] $Argument
+    )
+
+    $nodeCommand = Find-SolNodeCommand
+
+    if (-not $nodeCommand) {
+        Write-Host 'limit management needs node on PATH.'
+
+        return 1
+    }
+
+    $inferenceKey = Read-SolApiKey
+    $provisioningKey = Read-SolProvisioningKey
+
+    $env:SOL_BASE_URL = $Configuration.CLAUDE_SOL_BASE_URL
+    $env:SOL_INFERENCE_KEY = if ($inferenceKey) { $inferenceKey } else { '' }
+    $env:SOL_PROVISIONING_KEY = if ($provisioningKey) { $provisioningKey } else { '' }
+    $env:SOL_STATE_FILE = Get-SolLimitStateFile
+    $env:SOL_BASELINE_LIMIT = $Configuration.CLAUDE_SOL_BASELINE_LIMIT
+    $env:SOL_KEY_HASH = $Configuration.CLAUDE_SOL_KEY_HASH
+
+    $scriptPath = Join-Path $ToolDirectory 'lib\sol-limit.js'
+
+    if ($Argument) {
+        & $nodeCommand $scriptPath $Command $Argument
+    }
+    else {
+        & $nodeCommand $scriptPath $Command
+    }
+
+    return $LASTEXITCODE
 }

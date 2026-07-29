@@ -57,7 +57,7 @@ sol_load_config() {
             case " $seen_setting_names " in
                 *" $config_name "*) ;;
                 *)
-                    seen_setting_names="$seen_setting_names $config_name"
+                    seen_setting_names="${seen_setting_names}${config_name} "
 
                     eval "environment_value=\${$config_name:-}"
                     eval "SOL_ENVIRONMENT_SNAPSHOT_$config_name=\$environment_value"
@@ -68,7 +68,16 @@ sol_load_config() {
         done < "$config_file"
     done
 
-    for config_name in $seen_setting_names; do
+    remaining_setting_names=$seen_setting_names
+
+    while [ -n "$remaining_setting_names" ]; do
+        config_name=${remaining_setting_names%% *}
+        remaining_setting_names=${remaining_setting_names#"$config_name" }
+
+        if [ -z "$config_name" ]; then
+            break
+        fi
+
         eval "environment_value=\$SOL_ENVIRONMENT_SNAPSHOT_$config_name"
 
         if [ -n "$environment_value" ]; then
@@ -82,6 +91,8 @@ sol_load_config() {
     : "${CLAUDE_SOL_SMALL_MODEL:=}"
     : "${CLAUDE_SOL_MAX_OUTPUT_TOKENS:=}"
     : "${CLAUDE_SOL_KEY_VALIDATION_URL:=https://openrouter.ai/api/v1/key}"
+    : "${CLAUDE_SOL_BASELINE_LIMIT:=}"
+    : "${CLAUDE_SOL_KEY_HASH:=}"
 }
 
 sol_has_command() {
@@ -314,4 +325,149 @@ sol_find_claude_binary() {
     done
 
     return 1
+}
+
+CLAUDE_SOL_PROVISIONING_ACCOUNT_NAME=openrouter-provisioning-key
+
+sol_provisioning_credentials_file() {
+    printf '%s/provisioning-credentials\n' "$(sol_config_directory)"
+}
+
+sol_limit_state_file() {
+    printf '%s/limit-state.json\n' "$(sol_config_directory)"
+}
+
+sol_read_provisioning_key() {
+    if [ -n "${CLAUDE_SOL_PROVISIONING_KEY:-}" ]; then
+        printf '%s\n' "$CLAUDE_SOL_PROVISIONING_KEY"
+
+        return 0
+    fi
+
+    if sol_keychain_available; then
+        keychain_value=$(security find-generic-password -s "$CLAUDE_SOL_SERVICE_NAME" -a "$CLAUDE_SOL_PROVISIONING_ACCOUNT_NAME" -w 2>/dev/null)
+
+        if [ -n "$keychain_value" ]; then
+            printf '%s\n' "$keychain_value"
+
+            return 0
+        fi
+    fi
+
+    if sol_has_command secret-tool; then
+        secret_service_value=$(secret-tool lookup service "$CLAUDE_SOL_SERVICE_NAME" account "$CLAUDE_SOL_PROVISIONING_ACCOUNT_NAME" 2>/dev/null)
+
+        if [ -n "$secret_service_value" ]; then
+            printf '%s\n' "$secret_service_value"
+
+            return 0
+        fi
+    fi
+
+    provisioning_path=$(sol_provisioning_credentials_file)
+
+    if [ -f "$provisioning_path" ]; then
+        file_value=$(sed -n 's/^OPENROUTER_PROVISIONING_KEY=//p' "$provisioning_path" | head -n 1)
+
+        if [ -n "$file_value" ]; then
+            printf '%s\n' "$file_value"
+
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+sol_write_provisioning_key() {
+    provisioning_key=$1
+    backend=$(sol_preferred_backend)
+
+    case $backend in
+        keychain)
+            security add-generic-password -U -s "$CLAUDE_SOL_SERVICE_NAME" -a "$CLAUDE_SOL_PROVISIONING_ACCOUNT_NAME" -D 'claude-sol openrouter provisioning key' -w "$provisioning_key" >/dev/null 2>&1 || return 1
+            ;;
+        secret-service)
+            printf '%s' "$provisioning_key" | secret-tool store --label='claude-sol openrouter provisioning key' service "$CLAUDE_SOL_SERVICE_NAME" account "$CLAUDE_SOL_PROVISIONING_ACCOUNT_NAME" >/dev/null 2>&1 || return 1
+            ;;
+        file)
+            config_directory=$(sol_config_directory)
+            provisioning_path=$(sol_provisioning_credentials_file)
+
+            mkdir -p "$config_directory" || return 1
+            chmod 700 "$config_directory" 2>/dev/null
+
+            previous_umask=$(umask)
+            umask 077
+
+            if ! printf 'OPENROUTER_PROVISIONING_KEY=%s\n' "$provisioning_key" > "$provisioning_path"; then
+                umask "$previous_umask"
+
+                return 1
+            fi
+
+            umask "$previous_umask"
+            chmod 600 "$provisioning_path" 2>/dev/null
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    printf '%s\n' "$backend"
+}
+
+sol_find_node() {
+    for candidate_command in node nodejs; do
+        resolved_node=$(command -v "$candidate_command" 2>/dev/null)
+
+        if [ -n "$resolved_node" ]; then
+            printf '%s\n' "$resolved_node"
+
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+sol_run_limit_command() {
+    tool_directory=$1
+    shift
+
+    node_binary=$(sol_find_node) || {
+        printf 'limit management needs node on PATH.\n' >&2
+
+        return 1
+    }
+
+    SOL_BASE_URL=$CLAUDE_SOL_BASE_URL
+    SOL_INFERENCE_KEY=$(sol_read_key || printf '')
+    SOL_PROVISIONING_KEY=$(sol_read_provisioning_key || printf '')
+    SOL_STATE_FILE=$(sol_limit_state_file)
+    SOL_BASELINE_LIMIT=$CLAUDE_SOL_BASELINE_LIMIT
+    SOL_KEY_HASH=$CLAUDE_SOL_KEY_HASH
+
+    export SOL_BASE_URL SOL_INFERENCE_KEY SOL_PROVISIONING_KEY SOL_STATE_FILE SOL_BASELINE_LIMIT SOL_KEY_HASH
+
+    "$node_binary" "$tool_directory/lib/sol-limit.js" "$@"
+}
+
+sol_limit_reset_is_due() {
+    state_path=$(sol_limit_state_file)
+
+    [ -f "$state_path" ] || return 1
+
+    reset_on=$(sed -n 's/.*"reset_on"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$state_path" | head -n 1)
+
+    [ -n "$reset_on" ] || return 1
+
+    today_number=$(date -u +%Y%m%d)
+    reset_number=$(printf '%s' "$reset_on" | tr -d -)
+
+    case $reset_number in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+
+    [ "$today_number" -ge "$reset_number" ]
 }
