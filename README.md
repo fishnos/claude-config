@@ -11,6 +11,7 @@ Version-controlled `~/.claude` configuration. Tracks **config only** — never t
 | `rules/`                | Global rule files                       |
 | `skills/`               | Custom skills                           |
 | `hooks/`                | Hook scripts                            |
+| `tools/`                | Portable launchers (see `claude-sol`)   |
 | `statusline-command.sh` | Statusline script                       |
 
 Everything else is ignored via allowlist `.gitignore` (`*` first, then explicit `!` entries). New runtime files can never be committed by accident.
@@ -82,6 +83,22 @@ On **Windows**, use a directory junction instead of a POSIX symlink:
 ```powershell
 New-Item -ItemType Junction -Path "$env:USERPROFILE\.agents\skills\<name>" -Target "$env:USERPROFILE\.claude\skills\<name>"
 ```
+
+## claude-sol (openrouter model, any machine)
+
+`tools/claude-sol/` ships a `claude-sol` command that runs Claude Code against an
+OpenRouter model instead of an Anthropic login. Plain `claude` is unaffected.
+
+```sh
+sh ~/.claude/tools/claude-sol/bootstrap.sh                       # macOS / Linux / WSL
+powershell -ExecutionPolicy Bypass -File $env:USERPROFILE\.claude\tools\claude-sol\bootstrap.ps1
+```
+
+One command per machine: installs Claude Code only if missing, prompts once for the
+OpenRouter key with hidden input, and stores it in the OS credential store — macOS
+Keychain, Secret Service on Linux, DPAPI on Windows, falling back to a mode-600 file
+only where no keyring exists. The key never enters this repo, `settings.json`, or a shell
+rc file. Details and per-machine overrides: `tools/claude-sol/README.md`.
 
 ## Avoiding merge conflicts
 

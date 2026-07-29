@@ -1,0 +1,182 @@
+#!/usr/bin/env sh
+set -eu
+
+script_real_path=$0
+
+while [ -L "$script_real_path" ]; do
+    link_target=$(readlink "$script_real_path")
+
+    case $link_target in
+        /*) script_real_path=$link_target ;;
+        *) script_real_path=$(dirname "$script_real_path")/$link_target ;;
+    esac
+done
+
+tool_directory=$(cd "$(dirname "$script_real_path")" && pwd)
+
+. "$tool_directory/lib/sol-common.sh"
+
+sol_load_config "$tool_directory"
+
+print_help() {
+    cat <<'HELP'
+claude-sol — claude code driven by an openrouter model
+
+usage:
+  claude-sol [claude args...]     launch claude code against openrouter
+  claude-sol --sol-setup          store or replace the openrouter api key
+  claude-sol --sol-doctor         show resolved config and credential state
+  claude-sol --sol-forget         delete the stored key from this machine
+  claude-sol --sol-help           this message
+
+everything else is passed through to claude untouched.
+
+config: tools/claude-sol/config.defaults (shared, non-secret)
+        ~/.config/claude-sol/config     (per-machine overrides)
+HELP
+}
+
+run_setup() {
+    existing_source=$(sol_key_source || true)
+
+    if [ "$existing_source" != none ]; then
+        printf 'existing key found in %s — it will be replaced.\n' "$existing_source" >&2
+    fi
+
+    entered_key=$(sol_prompt_key 'enter openrouter api key: ')
+
+    if [ -z "$entered_key" ]; then
+        printf 'no key entered, nothing stored.\n' >&2
+
+        return 1
+    fi
+
+    validation_status=0
+    sol_validate_key "$entered_key" || validation_status=$?
+
+    if [ "$validation_status" -eq 0 ]; then
+        printf 'key accepted by openrouter.\n' >&2
+    elif [ "$validation_status" -eq 1 ]; then
+        printf 'openrouter rejected that key (401/403). nothing stored.\n' >&2
+
+        return 1
+    else
+        printf 'could not reach openrouter to verify the key — storing it anyway.\n' >&2
+    fi
+
+    chosen_backend=$(sol_write_key "$entered_key") || {
+        printf 'failed to store the key.\n' >&2
+
+        return 1
+    }
+
+    case $chosen_backend in
+        keychain) printf 'stored in the macos keychain (service claude-sol).\n' >&2 ;;
+        secret-service) printf 'stored in the desktop keyring (service claude-sol).\n' >&2 ;;
+        file) printf 'no secure keyring available — stored in %s with mode 600.\n' "$(sol_credentials_file)" >&2 ;;
+    esac
+}
+
+run_doctor() {
+    claude_binary=$(sol_find_claude_binary || true)
+    key_source=$(sol_key_source || true)
+
+    printf 'platform          %s %s\n' "$(uname -s 2>/dev/null)" "$(uname -m 2>/dev/null)"
+    printf 'launcher          %s\n' "$script_real_path"
+    printf 'claude binary     %s\n' "${claude_binary:-NOT FOUND}"
+    printf 'base url          %s\n' "$CLAUDE_SOL_BASE_URL"
+    printf 'model             %s\n' "$CLAUDE_SOL_MODEL"
+    printf 'small model       %s\n' "${CLAUDE_SOL_SMALL_MODEL:-(claude default)}"
+    printf 'max output tokens %s\n' "${CLAUDE_SOL_MAX_OUTPUT_TOKENS:-(claude default)}"
+    printf 'preferred store   %s\n' "$(sol_preferred_backend)"
+    printf 'key source        %s\n' "$key_source"
+
+    if [ "$key_source" = none ]; then
+        printf 'key               missing — run claude-sol --sol-setup\n'
+
+        return 1
+    fi
+
+    api_key=$(sol_read_key)
+
+    printf 'key               %s\n' "$(sol_mask_key "$api_key")"
+
+    validation_status=0
+    sol_validate_key "$api_key" || validation_status=$?
+
+    if [ "$validation_status" -eq 0 ]; then
+        printf 'openrouter        reachable, key valid\n'
+    elif [ "$validation_status" -eq 1 ]; then
+        printf 'openrouter        key rejected (401/403) — run claude-sol --sol-setup\n'
+
+        return 1
+    else
+        printf 'openrouter        unreachable or unexpected response (not necessarily a key problem)\n'
+    fi
+
+    [ -n "$claude_binary" ] || return 1
+}
+
+case ${1:-} in
+    --sol-help)
+        print_help
+
+        exit 0
+        ;;
+    --sol-setup)
+        run_setup
+
+        exit $?
+        ;;
+    --sol-doctor)
+        run_doctor
+
+        exit $?
+        ;;
+    --sol-forget)
+        if sol_delete_key; then
+            printf 'stored key removed from this machine.\n' >&2
+        else
+            printf 'no stored key found.\n' >&2
+        fi
+
+        exit 0
+        ;;
+esac
+
+claude_binary=$(sol_find_claude_binary) || {
+    printf 'claude code is not installed or not on PATH.\n' >&2
+    printf 'run: sh %s/bootstrap.sh\n' "$tool_directory" >&2
+
+    exit 127
+}
+
+api_key=$(sol_read_key) || {
+    printf 'no openrouter api key on this machine.\n' >&2
+    printf 'run: claude-sol --sol-setup\n' >&2
+
+    exit 78
+}
+
+ANTHROPIC_BASE_URL=$CLAUDE_SOL_BASE_URL
+ANTHROPIC_AUTH_TOKEN=$api_key
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=$CLAUDE_SOL_MODEL
+CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=$CLAUDE_SOL_DISABLE_EXPERIMENTAL_BETAS
+
+export ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_MODEL CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS
+
+if [ -n "$CLAUDE_SOL_SMALL_MODEL" ]; then
+    ANTHROPIC_DEFAULT_HAIKU_MODEL=$CLAUDE_SOL_SMALL_MODEL
+    ANTHROPIC_SMALL_FAST_MODEL=$CLAUDE_SOL_SMALL_MODEL
+
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_SMALL_FAST_MODEL
+fi
+
+if [ -n "$CLAUDE_SOL_MAX_OUTPUT_TOKENS" ]; then
+    CLAUDE_CODE_MAX_OUTPUT_TOKENS=$CLAUDE_SOL_MAX_OUTPUT_TOKENS
+
+    export CLAUDE_CODE_MAX_OUTPUT_TOKENS
+fi
+
+exec "$claude_binary" "$@"

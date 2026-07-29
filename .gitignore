@@ -19,6 +19,9 @@
 !hooks/
 !hooks/**
 
+!tools/
+!tools/**
+
 !zed/
 !zed/**
 
@@ -46,6 +49,9 @@ downloads/
 ide/
 stats-cache.json
 mcp-needs-auth-cache.json
+credentials
+credentials.dpapi
+*.dpapi
 
 __pycache__/
 *.pyc
