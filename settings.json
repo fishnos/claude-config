@@ -112,5 +112,26 @@
   "theme": "custom:sugarplum",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "skillOverrides": {
+    "spacetimedb-auth": "off",
+    "spacetimedb-cli": "off",
+    "spacetimedb-client-c-sharp": "off",
+    "spacetimedb-client-rust": "off",
+    "spacetimedb-client-typescript": "off",
+    "spacetimedb-client-unreal": "off",
+    "spacetimedb-clients": "off",
+    "spacetimedb-databases": "off",
+    "spacetimedb-deploy": "off",
+    "spacetimedb-http": "off",
+    "spacetimedb-procedures": "off",
+    "spacetimedb-quickstarts": "off",
+    "spacetimedb-reducers": "off",
+    "spacetimedb-serialization": "off",
+    "spacetimedb-sql": "off",
+    "spacetimedb-tables": "off",
+    "spacetimedb-tutorials": "off",
+    "spacetimedb-upgrade": "off",
+    "spacetimedb-views": "off"
+  }
 }

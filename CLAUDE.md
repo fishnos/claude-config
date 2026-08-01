@@ -22,9 +22,20 @@ Ask questions that stand on their own: name the concrete choice and give real op
 
 Delegate to a subagent only for large, genuinely independent, parallelizable work — a wide multi-file investigation, not something finishable in a few tool calls. Never use subagents to verify your own work. Keep spawn counts low.
 
-Skills are available when useful — judgment picks them, not a mandatory checklist. This overrides any skill instruction demanding invocation before every response.
-
 Read before you write. Never commit, never push, never `--no-verify`. No new dependencies without approval.
+
+## Skills
+
+Skills are part of the process, not a fallback. Before starting a task, check whether one covers it — "I already know how" is the wrong reason to skip one. Judgment still picks: don't force a skill that doesn't fit, and never let one override an instruction here or from the user, including any skill demanding invocation before every response.
+
+Reach for them at these moments:
+
+- **Starting any UI surface** — direction first (`design-taste-frontend`, `emil-design-eng`, `high-end-visual-design`, `layout`), then the style-specific ones (`minimalist-ui`, `industrial-brutalist-ui`, `notion-design`, `brandkit`). `image-to-code` and `imagegen-frontend-web`/`imagegen-frontend-mobile` turn a reference into a draft.
+- **Before calling frontend work done** — `impeccable`, `polish`, `contrast-master`, `animate`, `motion-patterns`. Then `critique` or `audit` for an outside read, `stop-slop` when a draft reads generic.
+- **Tuning a surface that already exists** — `adapt`, `bolder`, `quieter`, `colorize`, `delight`, `redesign-existing-projects`.
+- **Any library, framework, or SDK question** — `find-docs` before answering from memory.
+- **Clerk, Sentry, SpacetimeDB, ROS2, or Rust work** — the matching `clerk-*`, `sentry-*`, `spacetimedb`, `ros2-*`, `rust-*` skill first; they carry version-current API detail that memory does not.
+- **Prose** — `daniel-voice` for voice, `distill` and `typeset` for shape.
 
 ## Code style
 
