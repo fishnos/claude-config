@@ -55,3 +55,6 @@ credentials.dpapi
 
 __pycache__/
 *.pyc
+
+# scratch: prepared commit messages, not part of the config
+.commit-msgs/
