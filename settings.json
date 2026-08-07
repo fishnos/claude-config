@@ -28,6 +28,35 @@
           {
             "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','format.js'))\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/style-check.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/git-guard.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/review-reminder.py\"",
+            "timeout": 15
           }
         ]
       }
