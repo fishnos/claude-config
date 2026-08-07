@@ -22,15 +22,38 @@ This config runs on **macOS, Windows, and any Linux/BSD distro**. Platform-speci
 behavior lives in `hooks/` as Node scripts (not shell one-liners), so a single tracked
 config works everywhere:
 
-| Hook               | Script            | Behavior                                                                                       |
-| ------------------ | ----------------- | ---------------------------------------------------------------------------------------------- |
-| `Notification`     | `hooks/notify.js` | Desktop notification + sound. macOS → `osascript`/`afplay`; Windows → PowerShell balloon + beep; Linux → `notify-send` + first available player (`mpv`/`ffplay`/`paplay`/`pw-play`), else `canberra-gtk-play`. |
-| `PostToolUse`      | `hooks/format.js` | Formats the edited file with `npx prettier --write`.                                            |
+| Hook           | Script            | Behavior                                                                                                                                                                                                       |
+| -------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Notification` | `hooks/notify.js` | Desktop notification + sound. macOS → `osascript`/`afplay`; Windows → PowerShell balloon + beep; Linux → `notify-send` + first available player (`mpv`/`ffplay`/`paplay`/`pw-play`), else `canberra-gtk-play`. |
+| `PostToolUse`  | `hooks/format.js` | Formats the edited file with `npx prettier --write`.                                                                                                                                                           |
 
 Every external call is **best-effort**: a missing notifier, sound player, or Prettier
 degrades silently instead of failing the hook. The hook commands resolve the config dir
 via Node (`CLAUDE_CONFIG_DIR` or `~/.claude`), so they work under both POSIX shells and
 Windows `cmd.exe` without relying on shell-specific `~`/`$HOME` expansion.
+
+### Engineering-standard hooks (POSIX only)
+
+Three additional hooks enforce the standards documented in [Engineering standards](#engineering-standards). Unlike the Node hooks above, these are **Python 3 and POSIX-only** — they are invoked as `python3 "$HOME/.claude/hooks/<script>"`, which neither resolves nor executes under Windows `cmd.exe`.
+
+| Hook                          | Script                     | Behavior                                                                                                                                                                                                                                                                                     |
+| ----------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PreToolUse` (`Bash`)         | `hooks/git-guard.py`       | **Denies** `push`, force-push, `--no-verify`, `reset --hard`, `clean -f`, `git add -A` from `$HOME`, and staged credentials (AWS/GitHub/OpenAI/Anthropic/Slack/GitLab keys, private keys, JWTs). **Warns** on logic staged without tests, >1000 staged lines, and malformed commit subjects. |
+| `PostToolUse` (`Edit\|Write`) | `hooks/style-check.py`     | Flags style-guide violations a formatter cannot fix: `@ts-ignore`, `var`, `debugger`, `.only`, loose `==`, bare `except:`, mutable default arguments, wildcard imports.                                                                                                                      |
+| `Stop`                        | `hooks/review-reminder.py` | Requires one self-review pass before work is reported done. Fires at most once per session, and only when source files were edited.                                                                                                                                                          |
+
+On Windows these fail to launch and are skipped — Claude Code logs the failure and continues, so nothing breaks, but **the guard rails are simply absent there**. Porting them to Node would restore parity; until then, treat Windows as unguarded.
+
+`hooks/test_hooks.py` is the regression suite for all three — 37 cases, including deliberate false-positive tests, a bypass test (`FOO=1 git push` must still be denied), and a check that the suite itself never mutates live state. Run it after any change:
+
+```sh
+python3 ~/.claude/hooks/test_hooks.py
+```
+
+Two caveats worth knowing:
+
+- The style checks are **regex-based** and cannot distinguish code from a string literal or comment, so fixture data containing bad code will be flagged. The hook says so in its own output.
+- `git-guard.py` denies **all** pushes by design. To push deliberately, set the escape variable (see [Pushing](#pushing)).
 
 ### Prerequisites
 
@@ -83,6 +106,37 @@ On **Windows**, use a directory junction instead of a POSIX symlink:
 ```powershell
 New-Item -ItemType Junction -Path "$env:USERPROFILE\.agents\skills\<name>" -Target "$env:USERPROFILE\.claude\skills\<name>"
 ```
+
+## Engineering standards
+
+`skills/` carries a set of skills that encode a single engineering bar, compiled from primary sources rather than summarized from memory. `CLAUDE.md` names the moment each one applies, so they trigger without being asked for.
+
+| Skill                | Source                                                     | Applies when                                                    |
+| -------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| `google-code-review` | google/eng-practices reviewer guide (7 pages, verbatim)    | Reviewing any diff — including self-review before claiming done |
+| `google-cl-author`   | google/eng-practices CL author guide (3 pages, verbatim)   | Sizing a change, writing a description, answering review        |
+| `google-style`       | google/styleguide — 10 language guides, full text          | Writing or editing code in any covered language                 |
+| `google-testing`     | Software Engineering at Google, ch. 11–14                  | Writing or reviewing tests; choosing a test double              |
+| `git-workflow`       | Conventional Commits 1.0.0, SemVer 2.0.0, Keep a Changelog | Commit messages, branching, merging, versioning, releases       |
+| `react-testing`      | Testing Library + MSW v2 docs                              | React/Next.js tests                                             |
+| `ros2-testing`       | ros2_documentation testing tutorials                       | ROS 2 unit, integration, simulation, and hardware-in-loop tests |
+
+Each `SKILL.md` is the operational rules; `references/` holds the unabridged source for depth. `skills/google-style/references/` is ~1 MB of style-guide text — the bulk of this repo's size, and the reason it is worth having offline.
+
+Where Google's rules collide with framework requirements, the skill states the exception rather than leaving it to be discovered: `google-style` documents that Next.js `page.tsx`/`layout.tsx`/`route.ts` **must** use default exports despite the guide's blanket ban.
+
+## Pushing
+
+`hooks/git-guard.py` denies `git push` unconditionally, matching `CLAUDE.md`'s "never commit, never push". That is deliberate: pushes should be a human decision.
+
+Two ways through, both explicit:
+
+```sh
+! git push origin main                      # you run it, in your own shell
+CLAUDE_ALLOW_PUSH=1 git push origin main    # per-invocation escape, when you asked for a push
+```
+
+The escape is read from **the command text, not the environment**, so it has to be typed for each push and cannot be exported once to disable the guard. Force-push stays blocked either way — use `--force-with-lease --force-if-includes`, and never on a shared branch.
 
 ## claude-sol (openrouter model, any machine)
 
