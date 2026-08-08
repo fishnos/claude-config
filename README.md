@@ -32,28 +32,43 @@ degrades silently instead of failing the hook. The hook commands resolve the con
 via Node (`CLAUDE_CONFIG_DIR` or `~/.claude`), so they work under both POSIX shells and
 Windows `cmd.exe` without relying on shell-specific `~`/`$HOME` expansion.
 
-### Engineering-standard hooks (POSIX only)
+### Engineering-standard hooks
 
-Three additional hooks enforce the standards documented in [Engineering standards](#engineering-standards). Unlike the Node hooks above, these are **Python 3 and POSIX-only** — they are invoked as `python3 "$HOME/.claude/hooks/<script>"`, which neither resolves nor executes under Windows `cmd.exe`.
+Three additional hooks enforce the standards documented in [Engineering standards](#engineering-standards). Like the two above they are Node, invoked through the same `node -e` bootstrap, so they run identically on macOS, Windows, and Linux.
 
-| Hook                          | Script                     | Behavior                                                                                                                                                                                                                                                                                     |
-| ----------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PreToolUse` (`Bash`)         | `hooks/git-guard.py`       | **Denies** `push`, force-push, `--no-verify`, `reset --hard`, `clean -f`, `git add -A` from `$HOME`, and staged credentials (AWS/GitHub/OpenAI/Anthropic/Slack/GitLab keys, private keys, JWTs). **Warns** on logic staged without tests, >1000 staged lines, and malformed commit subjects. |
-| `PostToolUse` (`Edit\|Write`) | `hooks/style-check.py`     | Flags style-guide violations a formatter cannot fix: `@ts-ignore`, `var`, `debugger`, `.only`, loose `==`, bare `except:`, mutable default arguments, wildcard imports.                                                                                                                      |
-| `Stop`                        | `hooks/review-reminder.py` | Requires one self-review pass before work is reported done. Fires at most once per session, and only when source files were edited.                                                                                                                                                          |
+| Hook                          | Script                     | Behavior                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PreToolUse` (`Bash`)         | `hooks/git-guard.js`       | **Denies** `push`, force-push, `--no-verify`, `reset --hard`, `clean -f`, `git add -A` from the home directory, and staged credentials (AWS/GitHub/OpenAI/Anthropic/Slack/GitLab keys, private keys, JWTs). **Warns** on logic staged without tests, >1000 staged lines, and commit messages that break the subject, wrapping, or body-length conventions -- whether passed with `-m` or by file with `-F`. |
+| `PostToolUse` (`Edit\|Write`) | `hooks/style-check.js`     | Flags style-guide violations a formatter cannot fix: `@ts-ignore`, `var`, `debugger`, `.only`, loose `==`, bare `except:`, mutable default arguments, wildcard imports.                                                                                                                                                                                                                                     |
+| `Stop`                        | `hooks/review-reminder.js` | Requires one self-review pass before work is reported done. Fires at most once per session, and only when source files were edited.                                                                                                                                                                                                                                                                         |
 
-On Windows these fail to launch and are skipped — Claude Code logs the failure and continues, so nothing breaks, but **the guard rails are simply absent there**. Porting them to Node would restore parity; until then, treat Windows as unguarded.
+`hooks/lib/` holds the parts all three share: `hook-io.js` for the stdin/stdout protocol, git invocation, and the fail-open wrapper; `paths.js` for path classification.
 
-`hooks/test_hooks.py` is the regression suite for all three — 37 cases, including deliberate false-positive tests, a bypass test (`FOO=1 git push` must still be denied), and a check that the suite itself never mutates live state. Run it after any change:
+Four things make these portable rather than accidentally POSIX:
+
+- **No `$HOME` and no `~`.** The `node -e` bootstrap resolves the config dir from `CLAUDE_CONFIG_DIR` or `os.homedir()`, so it works where `cmd.exe` performs no expansion.
+- **Separators are normalized** before any path match. Windows hands over `src\__tests__\a.test.ts`, which would otherwise miss every `/`-anchored pattern and be misfiled as production logic.
+- **Command splitting covers both shells** — `&&`, `||`, `;`, `|`, and the bare `&` that `cmd.exe` chains with.
+- **CRLF is stripped** before content checks, so `$`-anchored rules keep matching on checkouts made with `autocrlf`.
+
+Requires **Node ≥ 14.14** (`fs.rmSync`), well below the version the rest of this config already needs.
+
+`hooks/test-hooks.js` is the regression suite for all three — 74 cases, including deliberate false-positive tests, a bypass test (`FOO=1 git push` must still be denied), Windows-shaped inputs (backslash paths, CRLF, `&` chaining), and a check that the suite itself never mutates live state. It is platform-neutral too: no shell invocation, and the hooks are spawned via `process.execPath`. Run it after any change:
 
 ```sh
-python3 ~/.claude/hooks/test_hooks.py
+node ~/.claude/hooks/test-hooks.js
+```
+
+`hooks/validate-config.js` checks the config as a whole rather than the hooks alone: every script parses and loads, `settings.json` points only at files that exist, the hooks behave correctly through the real bootstrap, the regression suite passes, the counts and claims in this README match reality, the skills resolve from both `~/.claude/skills` and `~/.agents/skills`, and no tracked file carries a credential. Run it on a new machine, or after changing anything here:
+
+```sh
+node ~/.claude/hooks/validate-config.js
 ```
 
 Two caveats worth knowing:
 
 - The style checks are **regex-based** and cannot distinguish code from a string literal or comment, so fixture data containing bad code will be flagged. The hook says so in its own output.
-- `git-guard.py` denies **all** pushes by design. To push deliberately, set the escape variable (see [Pushing](#pushing)).
+- `git-guard.js` denies **all** pushes by design. To push deliberately, set the escape variable (see [Pushing](#pushing)).
 
 ### Prerequisites
 
@@ -127,7 +142,7 @@ Where Google's rules collide with framework requirements, the skill states the e
 
 ## Pushing
 
-`hooks/git-guard.py` denies `git push` unconditionally, matching `CLAUDE.md`'s "never commit, never push". That is deliberate: pushes should be a human decision.
+`hooks/git-guard.js` denies `git push` unconditionally, matching `CLAUDE.md`'s "never commit, never push". That is deliberate: pushes should be a human decision.
 
 Two ways through, both explicit:
 
