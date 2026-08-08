@@ -31,8 +31,7 @@
           },
           {
             "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/style-check.py\"",
-            "timeout": 15
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','style-check.js'))\""
           }
         ]
       }
@@ -43,8 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/git-guard.py\"",
-            "timeout": 15
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','git-guard.js'))\""
           }
         ]
       }
@@ -55,8 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/review-reminder.py\"",
-            "timeout": 15
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','review-reminder.js'))\""
           }
         ]
       }

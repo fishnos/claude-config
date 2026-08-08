@@ -36,6 +36,18 @@ The near-universal convention, from the Linux kernel through GitHub tooling:
 
 **Body.** Explains **why** the change exists and what it does at a level the diff can't show: the problem, the approach, the alternatives rejected, the known shortcomings. The diff already says what changed line by line — don't restate it. Wrap at 72 characters, because git indents log output by 4 and terminals are 80. Omit the body only when the subject genuinely says everything.
 
+**A body earns its length by answering three questions, then stopping:**
+
+1. **Why was this needed?** The problem, not the solution.
+2. **Why this approach?** Including the obvious alternative you rejected, and why.
+3. **What's still wrong or unverified?** Known shortcomings, untested paths, caveats.
+
+Everything else belongs somewhere that stays current when the code changes — how the code works goes in a comment, how to use it goes in the README, what changed line by line is already in the diff. A commit message is the only one of those that can never be updated, so it should carry only what will still be true and still be needed in a year.
+
+The failure mode to watch for is a body that reads as a changelog of your own debugging session: every defect found, every dead end. That is interesting to the author on the day and noise to everyone after. If a reader would have to skim it to find the decision, it is too long.
+
+Length is a symptom, not the rule — a genuinely intricate change can justify thirty lines. But past that, check that you are still answering the three questions rather than narrating.
+
 **Never** use `-m` for a commit that needs a body. Write it in the editor.
 
 ## Conventional Commits

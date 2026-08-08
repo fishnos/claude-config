@@ -96,7 +96,9 @@ Server Components can't be rendered by Testing Library. Extract their logic into
 
 One commit is one self-contained change that builds and passes tests on its own — that's what makes `bisect` and `revert` work. Never mix a refactor with a behavior change, or formatting with logic.
 
-Subject in imperative mood, under 50 characters, no trailing period: it completes "if applied, this commit will ___". Body wrapped at 72, explaining **why** — the problem, the approach, what was rejected. Omit the body only when the subject genuinely says everything. Match the repo's existing convention over any general rule; check `git log` before the first commit in an unfamiliar repo.
+Subject in imperative mood, under 50 characters, no trailing period: it completes "if applied, this commit will ___". Body wrapped at 72. Match the repo's existing convention over any general rule; check `git log` before the first commit in an unfamiliar repo.
+
+A body answers three questions and then stops: why the change was needed, why this approach over the obvious alternative, and what is still wrong or unverified. Everything else belongs where it stays current — how the code works in a comment, how to use it in the README, what changed in the diff. A commit message is the only one of those that can never be updated. A body that reads as a changelog of your own debugging is too long.
 
 Reviewing means judging whether the change improves overall code health, not whether it's perfect. Design first, then functionality, complexity, tests, naming, comments, style. Label severity so nothing optional reads as mandatory (`Nit:`, `Optional:`, `FYI:`). Say what's good, not only what's wrong. Flag explicitly any area you did not cover.
 
