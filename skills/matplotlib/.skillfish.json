@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "matplotlib",
+  "owner": "microck",
+  "repo": "ordinary-claude-skills",
+  "path": "skills_all/claude-scientific-skills/scientific-skills/matplotlib",
+  "branch": "main",
+  "sha": "41f46df12066def93304bc4e839f30efe4bb6a6f",
+  "source": "manual"
+}
