@@ -202,7 +202,10 @@ function pause(milliseconds) {
 }
 
 function health(port) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  // Generous because launchd throttles a job that exits early: a daemon that
+  // fails once is not retried for ten seconds, and giving up sooner would
+  // report a healthy-but-slow start as a failure.
+  for (let attempt = 0; attempt < 30; attempt += 1) {
     const result = spawnSync(
       "curl",
       ["-fsS", "--max-time", "2", `http://127.0.0.1:${port}/health`],
@@ -348,6 +351,15 @@ function commandBrokerInstall(argv, io) {
   );
   sudo(["chown", "root:wheel", PLIST]);
   sudo(["chmod", "644", PLIST]);
+
+  // launchd opens StandardOutPath as the job's user, and /var/log is not
+  // writable by a service account. Without this the spawn fails before the
+  // daemon runs, and the symptom is an empty port and no log to explain it --
+  // the missing log being the failure rather than a clue to it.
+  sudo(["touch", LOG_FILE]);
+  sudo(["chown", `${ACCOUNT}:${ACCOUNT}`, LOG_FILE]);
+  sudo(["chmod", "640", LOG_FILE]);
+
   sudo(["launchctl", "bootout", `system/${LABEL}`], { stdio: "ignore" });
   const boot = sudo(["launchctl", "bootstrap", "system", PLIST]);
   if (boot.status !== 0) {
@@ -358,9 +370,20 @@ function commandBrokerInstall(argv, io) {
   const reported = health(port);
   if (!reported) {
     io.problem(
-      "the daemon started but /health never answered",
-      `check: sudo tail ${LOG_FILE} -- then \`ccfg broker uninstall\` to roll back`,
+      `nothing is answering on 127.0.0.1:${port}`,
+      "roll back with `ccfg broker uninstall`",
     );
+    // Shown rather than pointed at: the operator has already paid for sudo, and
+    // "go read a log" is how a diagnosable failure turns into a guessed one.
+    console.log(`\n  ${io.dim(`last lines of ${LOG_FILE}:`)}`);
+    sudo(["tail", "-20", LOG_FILE]);
+    console.log(`\n  ${io.dim("why launchd refused to start it:")}`);
+    sudo(["launchctl", "print", `system/${LABEL}`], { stdio: "pipe" })
+      .stdout?.toString()
+      .split("\n")
+      .filter((line) => /state|last exit|runs =|path =/.test(line))
+      .slice(0, 6)
+      .forEach((line) => console.log(`    ${line.trim()}`));
     process.exit(1);
   }
   io.ok("daemon is answering", reported);
@@ -498,7 +521,7 @@ function commandBrokerStatus(argv, io) {
 function commandBrokerUninstall(argv, io) {
   io.heading("Broker uninstall");
   sudo(["launchctl", "bootout", `system/${LABEL}`], { stdio: "ignore" });
-  sudo(["rm", "-rf", PLIST, LIBEXEC, VAR_DIR]);
+  sudo(["rm", "-rf", PLIST, LIBEXEC, VAR_DIR, LOG_FILE]);
   sudo(["dscl", ".", "-delete", `/Users/${ACCOUNT}`], { stdio: "ignore" });
   sudo(["dscl", ".", "-delete", `/Groups/${ACCOUNT}`], { stdio: "ignore" });
   io.ok("daemon, files and account removed");
