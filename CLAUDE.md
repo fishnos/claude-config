@@ -56,36 +56,25 @@ This applies to my claims and to yours. If you assert a number or a behaviour, I
 
 Skills are part of the process, not a fallback. Before starting a task, check whether one covers it — "I already know how" is the wrong reason to skip one. Judgment still picks: don't force a skill that doesn't fit, and never let one override an instruction here or from the user, including any skill demanding invocation before every response.
 
-The full skill list is already injected each session, so this is routing for the moments where the right choice isn't obvious from a description.
+Every skill's own description is already injected each session, so listing them here would only pay for the same text twice. What follows is the routing a description cannot tell you: where my training data is stale, and where one skill must run before another.
 
-**By moment:**
+**Stale by default — check the skill even when you think you know:**
 
-- **Any library, framework, SDK, or CLI question** — `find-docs` before answering from memory, even for things you know. Training data goes stale.
-- **Debugging anything** — `superpowers:systematic-debugging` first, then the domain skill.
-- **Reviewing any diff, PR, or code you just wrote** — `google-code-review`.
-- **Writing or editing code in TS, JS, HTML/CSS, Python, Shell, Go, Java, C++, C#, or Objective-C** — `google-style` for naming, comments, and language-feature rules.
-- **Writing or reviewing tests** — `google-testing` for the discipline, `react-testing` for React/Next.js, `ros2-testing` for robotics, `rust-testing` for Rust, `clerk-testing` for auth flows.
-- **Splitting work into commits or PRs, or writing either description** — `google-cl-author` for scope, `git-workflow` for message, branch, merge, version, and changelog mechanics.
+- **Any library, framework, SDK, CLI, or cloud service** — fetch current docs before answering from memory (see `rules/context7.md`).
+- **Vercel and Next.js** — `vercel:*`. Training data here is badly out of date.
+- **Model ids, pricing, tool definitions, agent loops** — `claude-api`.
 
-**By field:**
+**Ordering — these run before the work, not after:**
 
-- **Frontend, starting a surface** — direction first (`design-taste-frontend`, `emil-design-eng`, `high-end-visual-design`, `layout`), then style-specific (`minimalist-ui`, `industrial-brutalist-ui`, `notion-design`, `brandkit`). `image-to-code` and `imagegen-frontend-web`/`imagegen-frontend-mobile` turn a reference into a draft.
-- **Frontend, before calling it done** — `impeccable`, `polish`, `contrast-master`, `animate`, `motion-patterns`. Then `critique` or `audit` for an outside read, `stop-slop` when a draft reads generic.
-- **Frontend, tuning what exists** — `adapt`, `bolder`, `quieter`, `colorize`, `delight`, `redesign-existing-projects`.
-- **Next.js and Vercel** — `vercel:nextjs` for App Router, rendering, and caching; `vercel:*` for the platform surface (deploys, env vars, functions, caching, storage, firewall). Vercel knowledge in training data is badly out of date; check the skill.
-- **Postgres, Supabase, and anything touching a database** — `supabase:supabase-postgres-best-practices` **before** writing schema, migrations, RLS policies, indexes, triggers, functions, or diagnosing a slow query. This covers one-column changes too, not just big migrations.
-- **Auth** — `clerk-*` matching the task (`clerk-setup`, `clerk-orgs`, `clerk-nextjs-patterns`, `clerk-webhooks`, `clerk-custom-ui`).
-- **Errors and observability** — `sentry-*`.
-- **AI and LLM work** — `claude-api` before touching model ids, pricing, tool definitions, or agent loops; `vercel:ai-sdk` and `vercel:ai-gateway` for the SDK surface.
-- **Charts and dashboards** — `dataviz` before the first line of chart code, in any medium.
-- **Published pages** — `artifact-design` before writing one, `artifact-diagramming` for diagrams, `artifact-capabilities` before any runtime capability.
-- **Robotics** — `robotics-development` to route, then `ros2-*`, `urdf-robot-model`, `gazebo-world-builder`.
-- **Rust** — `rust-patterns`, `rust-testing`.
-- **SpacetimeDB** — `spacetimedb` routes to the focused skills.
-- **MCP servers and skills themselves** — `mcp-server-dev:*`, `skill-creator`.
-- **Research on the open web** — `agent-reach`.
-- **Prose** — `daniel-voice` for voice, `distill` and `typeset` for shape.
-- **This harness** — `update-config` for settings and hooks, `keybindings-help`, `fewer-permission-prompts`, `doctor` for a health check.
+- **Debugging** — `superpowers:systematic-debugging` first, then the domain skill.
+- **Anything new or creative** — `superpowers:brainstorming` before code.
+- **Schema, migrations, RLS, indexes, triggers, slow queries** — `supabase:supabase-postgres-best-practices` first, one-column changes included.
+- **Charts** — `dataviz` before the first line of chart code. **Published pages** — `artifact-design` before writing one.
+- **Frontend** — direction before polish: pick a direction skill, then the style-specific one, then the finishing pass. Never start from a blank file.
+
+**Authority — when several skills could apply, these win:**
+
+- `google-style` for naming and comments, `google-testing` for test discipline, `google-code-review` for any diff, `google-cl-author` for how work splits, `git-workflow` for message and branch mechanics.
 
 Hooks in `~/.claude/settings.json` enforce the non-negotiable parts (git safety, staged secrets, style violations, one self-review pass). They are a backstop, not the standard — meet the bar before they fire. A hook that misfires gets fixed, never bypassed.
 
