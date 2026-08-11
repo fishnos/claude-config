@@ -28,6 +28,7 @@ const {
   valueRejection,
   maskSecret,
   normalizeVariable,
+  brokeredRoute,
   wireProfile,
   shellProfileTargets,
   PROFILE_OPEN,
@@ -246,6 +247,65 @@ check(
   "a long key keeps an identifying hint",
   maskSecret("ctx7sk-" + "a".repeat(30) + "wxyz"),
   "ctx7…wxyz",
+);
+
+console.log("\nBroker detection\n--------------------");
+
+// Read from ~/.claude.json rather than the broker's config, which this user
+// cannot read by design. What the agent can see is what ccfg reports.
+const CONTEXT7 = {
+  variable: "CONTEXT7_API_KEY",
+  server: "context7",
+  location: ["headers", "CONTEXT7_API_KEY"],
+};
+
+check(
+  "a loopback url carrying the proxy token is a broker route",
+  brokeredRoute(
+    {
+      mcpServers: {
+        context7: {
+          url: "http://127.0.0.1:8787/context7",
+          headers: { "x-ccfg-token": "t" },
+        },
+      },
+    },
+    CONTEXT7,
+  ),
+  "http://127.0.0.1:8787/context7",
+);
+
+check(
+  "a direct https server is not brokered",
+  brokeredRoute(
+    {
+      mcpServers: {
+        context7: {
+          url: "https://mcp.context7.com/mcp",
+          headers: { CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}" },
+        },
+      },
+    },
+    CONTEXT7,
+  ),
+  null,
+);
+
+// Someone else's local proxy is not ours, and treating it as ours would stop
+// ccfg supplying a key that is still genuinely needed.
+check(
+  "a loopback url without the token is not ours",
+  brokeredRoute(
+    { mcpServers: { context7: { url: "http://127.0.0.1:9000/context7" } } },
+    CONTEXT7,
+  ),
+  null,
+);
+
+check(
+  "an absent server is not brokered",
+  brokeredRoute({ mcpServers: {} }, CONTEXT7),
+  null,
 );
 
 console.log("\nShell profile wiring\n--------------------");
