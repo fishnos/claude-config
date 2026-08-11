@@ -1,14 +1,115 @@
 {
   "$schema": "https://json-schema.org/claude-code-settings.json",
   "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(file:*)",
+      "Bash(stat:*)",
+      "Bash(du:*)",
+      "Bash(df:*)",
+      "Bash(tree:*)",
+      "Bash(pwd)",
+      "Bash(which:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(diff:*)",
+      "Bash(uniq:*)",
+      "Bash(jq:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git blame:*)",
+      "Bash(git describe:*)",
+      "Bash(git shortlog:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run format:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm test:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm view:*)",
+      "Bash(npm info:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx prettier:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx jest:*)",
+      "Bash(npx ctx7@latest:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh repo list:*)",
+      "Bash(gh search:*)",
+      "Bash(gh auth status)",
+      "Bash(vercel env ls:*)",
+      "Bash(vercel whoami)",
+      "Bash(supabase migration list:*)"
+    ],
     "deny": [
       "Bash(git commit *)",
       "Bash(git rebase *)",
       "Bash(git push *)",
-      "Bash(git merge *)"
+      "Bash(git merge *)",
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.*.local)",
+      "Read(**/.env.production)",
+      "Read(**/id_rsa*)",
+      "Read(**/id_ed25519*)",
+      "Read(**/.ssh/**)",
+      "Read(**/.aws/**)",
+      "Read(**/.netrc)",
+      "Read(**/.npmrc)",
+      "Read(**/*.pem)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(**/.gnupg/**)",
+      "Read(**/.config/gcloud/**)",
+      "Read(**/.config/gh/**)",
+      "Read(**/.config/21st/**)",
+      "Read(**/.docker/config.json)",
+      "Read(**/credentials.json)",
+      "Read(**/secrets.env)"
     ]
   },
   "model": "opus[1m]",
+  "skillOverrides": {
+    "spacetimedb-auth": "off",
+    "spacetimedb-cli": "off",
+    "spacetimedb-client-c-sharp": "off",
+    "spacetimedb-client-rust": "off",
+    "spacetimedb-client-typescript": "off",
+    "spacetimedb-client-unreal": "off",
+    "spacetimedb-clients": "off",
+    "spacetimedb-databases": "off",
+    "spacetimedb-deploy": "off",
+    "spacetimedb-http": "off",
+    "spacetimedb-procedures": "off",
+    "spacetimedb-quickstarts": "off",
+    "spacetimedb-reducers": "off",
+    "spacetimedb-serialization": "off",
+    "spacetimedb-sql": "off",
+    "spacetimedb-tables": "off",
+    "spacetimedb-tutorials": "off",
+    "spacetimedb-upgrade": "off",
+    "spacetimedb-views": "off"
+  },
   "hooks": {
     "Notification": [
       {
@@ -22,6 +123,15 @@
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','evidence-log.js'))\""
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write",
         "hooks": [
@@ -57,11 +167,33 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','config-sentinel.js'))\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','repo-context.js'))\""
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
     "type": "command",
-    "command": "npx -y ccstatusline@latest",
+    "command": "npx -y ccstatusline@2.2.27",
     "padding": 0,
     "refreshInterval": 10
   },
@@ -139,25 +271,5 @@
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
   "voiceEnabled": true,
-  "skillOverrides": {
-    "spacetimedb-auth": "off",
-    "spacetimedb-cli": "off",
-    "spacetimedb-client-c-sharp": "off",
-    "spacetimedb-client-rust": "off",
-    "spacetimedb-client-typescript": "off",
-    "spacetimedb-client-unreal": "off",
-    "spacetimedb-clients": "off",
-    "spacetimedb-databases": "off",
-    "spacetimedb-deploy": "off",
-    "spacetimedb-http": "off",
-    "spacetimedb-procedures": "off",
-    "spacetimedb-quickstarts": "off",
-    "spacetimedb-reducers": "off",
-    "spacetimedb-serialization": "off",
-    "spacetimedb-sql": "off",
-    "spacetimedb-tables": "off",
-    "spacetimedb-tutorials": "off",
-    "spacetimedb-upgrade": "off",
-    "spacetimedb-views": "off"
-  }
+  "autoCompactWindow": 400000
 }

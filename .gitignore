@@ -32,6 +32,8 @@
 *.log
 .credentials.json
 settings.local.json
+secrets.env
+shell-init.sh
 history.jsonl
 projects/
 sessions/
