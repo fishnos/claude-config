@@ -190,7 +190,22 @@ What it enforces, each covered by a case in `tools/test-broker.js`:
 - Requests carry a shared token, compared in constant time.
 - Logs record a route and a status. Never a body, a header, or a query string.
 
-**Not yet installed.** The daemon and its suite are here; creating the service account and the launchd job is not automated, so nothing is running and no key is behind it today. Until that lands, the keychain is the boundary in practice — protection against copies and accidental disclosure, not against a process that wants the key.
+Install it with `ccfg broker install`. It creates the service account, copies the daemon and its interpreter somewhere root-owned, writes the config, loads the launchd job, waits for `/health`, and only then repoints `~/.claude.json`. Nothing is echoed: the keys go from the keychain into a 0600 file through a pipe.
+
+```sh
+ccfg broker install     # walks each step, asks before it changes anything
+ccfg broker status      # is it running, and can this user still read the keys?
+ccfg broker seal        # remove the keys from your login keychain
+ccfg broker uninstall   # daemon, files and account
+```
+
+Two refusals are worth knowing about, because they are the difference between a boundary and a decoration:
+
+**The interpreter must be untouchable.** Homebrew installs into a prefix owned by the logged-in user, so a daemon running `/opt/homebrew/bin/node` executes a binary that this user — and therefore the agent — can replace, and the replacement would run as the broker with the config open to it. The install checks the whole ancestor chain for user ownership and for group- or world-writable directories, and picks an interpreter that links only against system libraries so it can be copied somewhere root-owned and still start. If it cannot find one, it stops rather than installing something that only looks isolated.
+
+**The keys have to leave your keychain.** Everything up to that point is inert: while the login keychain still holds them, anything running as you can read them and the broker is just an extra hop. That step is separate, prompted, and reported by `ccfg broker status`, which warns for as long as any managed key remains.
+
+Twelve of the suite's cases cover the installer's own logic — the tamper check, route building, and the plist — but the install path itself has never run end to end here. `ccfg broker uninstall` is the rollback.
 
 ## Shared agent skills (~/.agents)
 

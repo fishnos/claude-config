@@ -12,12 +12,21 @@
 process.env.CCFG_BROKER_ALLOW_HTTP = "1";
 process.env.CCFG_BROKER_QUIET = "1";
 
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const http = require("http");
 const {
   createServer,
   loopbackHost,
   validateRoutes,
 } = require("./ccfg-broker.js");
+const {
+  tamperableBy,
+  selfContained,
+  brokerRoutes,
+  renderPlist,
+} = require("./ccfg-broker-install.js");
 
 /** The message validateRoutes refuses with, or null when it accepts. */
 function rejectionFrom(routes) {
@@ -294,6 +303,140 @@ async function main() {
 
   broker.close();
   upstream.close();
+
+  console.log("\nInstaller: interpreter trust\n--------------------");
+
+  // The account boundary is only as good as the binary launchd executes. A
+  // Homebrew prefix is owned by the logged-in user, so an interpreter there
+  // could be swapped for one that prints the config -- and it would run as the
+  // broker. This check is what refuses that install.
+  const OTHER_UID = 99999;
+
+  check(
+    "a system binary is trusted",
+    tamperableBy("/usr/bin/true", OTHER_UID),
+    null,
+  );
+
+  check(
+    "a binary owned by the excluded user is refused",
+    String(tamperableBy("/usr/bin/true", 0)).includes("owned by uid 0"),
+    true,
+  );
+
+  const ownedDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-owned-"));
+  const ownedFile = path.join(ownedDir, "node");
+  fs.writeFileSync(ownedFile, "");
+  check(
+    "a binary this user owns is refused",
+    String(tamperableBy(ownedFile, process.getuid())).includes("owned by uid"),
+    true,
+  );
+
+  // Ownership is not the only way in: write access to any parent directory is
+  // write access to what it holds.
+  const looseDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-loose-"));
+  fs.chmodSync(looseDir, 0o777);
+  const looseFile = path.join(looseDir, "node");
+  fs.writeFileSync(looseFile, "");
+  fs.chmodSync(looseFile, 0o755);
+  check(
+    "a binary in a world-writable directory is refused",
+    String(tamperableBy(looseFile, OTHER_UID)).includes(
+      "group- or world-writable",
+    ),
+    true,
+  );
+
+  check(
+    "a system binary links only system libraries",
+    selfContained("/bin/ls"),
+    true,
+  );
+
+  fs.rmSync(ownedDir, { recursive: true, force: true });
+  fs.rmSync(looseDir, { recursive: true, force: true });
+
+  console.log("\nInstaller: routes and plist\n--------------------");
+
+  const MANAGED = [
+    {
+      variable: "CONTEXT7_API_KEY",
+      server: "context7",
+      location: ["headers", "CONTEXT7_API_KEY"],
+    },
+    { variable: "STDIO_KEY", server: "shadcn", location: ["env", "STDIO_KEY"] },
+  ];
+
+  const live = {
+    mcpServers: {
+      context7: { type: "http", url: "https://mcp.context7.com/mcp" },
+      shadcn: { type: "stdio" },
+    },
+  };
+
+  check(
+    "an https server becomes a route",
+    JSON.stringify(brokerRoutes(MANAGED, live, null).context7),
+    JSON.stringify({
+      upstream: "https://mcp.context7.com/mcp",
+      header: "CONTEXT7_API_KEY",
+      secret: "CONTEXT7_API_KEY",
+    }),
+  );
+
+  check(
+    "a stdio server is not brokered",
+    brokerRoutes(MANAGED, live, null).shadcn,
+    undefined,
+  );
+
+  // Re-running the install must not pin the broker to itself: by then the live
+  // config names loopback, and the real upstream is only in the stored config.
+  const alreadyInstalled = {
+    routes: {
+      context7: {
+        upstream: "https://mcp.context7.com/mcp",
+        header: "CONTEXT7_API_KEY",
+        secret: "CONTEXT7_API_KEY",
+      },
+    },
+  };
+  const brokered = {
+    mcpServers: {
+      context7: { type: "http", url: "http://127.0.0.1:8787/context7" },
+    },
+  };
+  check(
+    "reinstalling keeps the original upstream",
+    brokerRoutes(MANAGED, brokered, alreadyInstalled).context7.upstream,
+    "https://mcp.context7.com/mcp",
+  );
+  check(
+    "a loopback url is never adopted as an upstream",
+    brokerRoutes(MANAGED, brokered, null).context7,
+    undefined,
+  );
+
+  const plist = renderPlist({
+    nodePath: "/usr/local/libexec/ccfg-broker/node",
+    scriptPath: "/usr/local/libexec/ccfg-broker/ccfg-broker.js",
+  });
+  check(
+    "the daemon runs as the broker account",
+    plist.includes("<string>_ccfgbroker</string>"),
+    true,
+  );
+  check(
+    "the daemon runs the root-owned interpreter",
+    plist.includes("<string>/usr/local/libexec/ccfg-broker/node</string>"),
+    true,
+  );
+  check(
+    "the daemon restarts if it dies",
+    plist.includes("<key>KeepAlive</key><true/>"),
+    true,
+  );
 
   console.log(`\nPASS ${passed}  FAIL ${failed}`);
   process.exit(failed === 0 ? 0 : 1);
