@@ -14,6 +14,10 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
+// Split out because standing up a daemon is a different job from managing this
+// config, and it is the only part that needs sudo.
+const brokerInstall = require("./ccfg-broker-install.js");
+
 const CONFIG_DIR =
   process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
 const CLAUDE_JSON = path.join(os.homedir(), ".claude.json");
@@ -1273,8 +1277,30 @@ function commandInstall(argv = []) {
   console.log("    3. ccfg doctor           " + dim("verify the whole setup"));
 }
 
+// Handed to the broker installer rather than imported by it: the installer
+// needs this file's helpers, and this file registers the installer's commands.
+// Passing them one way keeps that from becoming a require cycle.
+const IO = {
+  CONFIG_DIR,
+  CLAUDE_JSON,
+  KEYCHAIN_SERVICE,
+  MANAGED_SECRETS,
+  keychainGet,
+  readJson,
+  writeJson,
+  backupFile,
+  heading,
+  ok,
+  warn,
+  problem,
+  bold,
+  dim,
+  yellow,
+};
+
 const COMMANDS = {
   doctor: commandDoctor,
+  broker: (argv) => brokerInstall.commandBroker(argv, IO),
   evidence: commandEvidence,
   clean: commandClean,
   test: commandTest,
@@ -1305,6 +1331,8 @@ ${bold("ccfg")} -- manage this Claude Code configuration
                       prompts without echo; an inline value is refused
   ${bold("keys migrate")}        replace plaintext keys in ~/.claude.json with \${VAR}
   ${bold("keys scrub")} [--yes]   find/redact plaintext keys left behind in backups
+  ${bold("broker install")}      run the key broker as a root-owned service account
+                      status | seal | uninstall
   ${bold("evidence")} [session]   list the commands a session actually ran
   ${bold("shell-init")}          print the shell profile line (--write to add it for you)
   ${bold("clean")} [--yes]       gzip idle logs, prune caches older than 30 days
