@@ -1175,6 +1175,7 @@ function commandTest() {
   const suites = [
     path.join(CONFIG_DIR, "hooks", "test-hooks.js"),
     path.join(CONFIG_DIR, "tools", "test-ccfg.js"),
+    path.join(CONFIG_DIR, "tools", "test-broker.js"),
   ];
   let worst = 0;
   for (const suite of suites) {

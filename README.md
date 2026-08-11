@@ -144,7 +144,7 @@ node ~/.claude/tools/ccfg.js install
 | `ccfg keys migrate` | Replaces plaintext keys in `~/.claude.json` with `${VAR}`, saving the values first.         |
 | `ccfg shell-init`   | Prints the profile line; `--write` adds it to your profile for you (idempotent).            |
 | `ccfg clean`        | Gzips idle logs, prunes caches older than 30 days. Dry run unless `--yes`.                  |
-| `ccfg test`         | Runs the hook and ccfg regression suites.                                                   |
+| `ccfg test`         | Runs the hook, ccfg and broker regression suites.                                           |
 | `ccfg validate`     | Runs the full config validator.                                                             |
 | `ccfg backup`       | Snapshots `settings.json`, `CLAUDE.md`, `hooks/`, and `~/.claude.json`.                     |
 
@@ -174,6 +174,23 @@ ccfg keys set CONTEXT7_API_KEY   # prompts; a value on the command line is refus
 Migration is not rotation. A key that was ever plaintext on disk should be rotated at the provider first, then stored with `keys set`. `ccfg doctor` and the `SessionStart` hook both fail loudly while any plaintext key remains.
 
 To manage a new server's key, add an entry to `MANAGED_SECRETS` in `tools/ccfg.js` — every command picks it up from there.
+
+### The broker
+
+The keychain protects a key from being copied off the machine. It does not protect it from this machine: anything running as your user can read it, and the agent runs as your user. `tools/ccfg-broker.js` closes that gap by moving the key somewhere your user cannot reach.
+
+It is a loopback HTTP proxy meant to run as a dedicated service account under launchd. Claude Code points at `http://127.0.0.1:<port>/<route>` with no credential anywhere in its config; the broker adds the real key and forwards to an upstream pinned at config time. The agent keeps the capability — it can call the API — without the disclosure. Reading the key then requires root, and root requires your password.
+
+What it enforces, each covered by a case in `tools/test-broker.js`:
+
+- The caller cannot influence how the proxy authenticates. `Authorization`, `Cookie`, `x-api-key` and friends are stripped from every request, so a local process cannot supply its own credential or use a route as an open relay.
+- The credential never travels back down. The same headers are stripped from the response, so an upstream that echoes the key cannot hand it to the caller through us.
+- The caller names a route, never a URL. Upstreams are pinned in config and the daemon refuses to start on a non-https one, rather than discovering it per request.
+- The `Host` header must be loopback. Binding to 127.0.0.1 alone does not stop DNS rebinding; checking the host does.
+- Requests carry a shared token, compared in constant time.
+- Logs record a route and a status. Never a body, a header, or a query string.
+
+**Not yet installed.** The daemon and its suite are here; creating the service account and the launchd job is not automated, so nothing is running and no key is behind it today. Until that lands, the keychain is the boundary in practice — protection against copies and accidental disclosure, not against a process that wants the key.
 
 ## Shared agent skills (~/.agents)
 
