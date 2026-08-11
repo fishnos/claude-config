@@ -76,6 +76,18 @@ function configDir() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
 }
 
+/**
+ * Where the evidence log lives. Defined once because three separate callers read
+ * it -- the logger, the Stop reminder, and `ccfg evidence`. Spelled out in each,
+ * a renamed env var would silently split them into two locations.
+ */
+function evidenceDir() {
+  return (
+    process.env.CLAUDE_EVIDENCE_DIR ||
+    path.join(configDir(), "cache", "evidence")
+  );
+}
+
 /** Run a read-only git command. Returns stdout, or '' if git is absent or fails. */
 function git(args, cwd) {
   try {
@@ -104,4 +116,13 @@ function run(body) {
   process.exit(0);
 }
 
-module.exports = { readPayload, deny, warn, block, configDir, git, run };
+module.exports = {
+  readPayload,
+  deny,
+  warn,
+  block,
+  configDir,
+  evidenceDir,
+  git,
+  run,
+};

@@ -24,7 +24,7 @@ function markerDir() {
   );
 }
 
-const REMINDER = `Before you report this work as done, run one self-review pass (google-code-review):
+const REVIEW_STEPS = `Before you report this work as done, run one self-review pass (google-code-review):
 
 1. Re-read every line you changed, not just the parts you remember writing.
 2. Design -- do the pieces interact sensibly, and does this belong here?
@@ -33,12 +33,39 @@ const REMINDER = `Before you report this work as done, run one self-review pass 
 4. Tests -- does a test actually fail if this code breaks? Are they in this change?
 5. Naming -- every name says what it holds, spelled out.
 6. Comments -- why, not what. Delete any comment that restates the code.
-7. Style -- google-style is the authority for the language you just wrote.
+7. Style -- google-style is the authority for the language you just wrote.`;
 
-Then say plainly what you verified and what you did not. If something is untested or
-unfinished, say so explicitly rather than implying it works.
+// "What did you not verify?" rather than "did you verify?" -- the first is a
+// question this reader answers well, the second invites a yes.
+const EVIDENCE_STEPS = `Then split the report in two, explicitly:
 
-This reminder fires once per session; it will not fire again.`;
+- VERIFIED -- each claim next to the command whose output you actually saw.
+- NOT VERIFIED -- everything asserted from reading, inference, or memory. Anything
+  about performance, or about what code does at runtime, belongs here unless a
+  command produced it. Say what would settle each one.
+
+A claim with no command behind it is an assumption. Label it as one now, while it is
+still cheap: after a compaction it reads as established fact and gets built on.`;
+
+/** Count of Bash commands this session actually ran, from the evidence log. */
+function commandsRun(sessionId) {
+  const file = path.join(io.evidenceDir(), `${sessionId || "unknown"}.jsonl`);
+  try {
+    return fs.readFileSync(file, "utf8").split("\n").filter(Boolean).length;
+  } catch {
+    return 0;
+  }
+}
+
+function buildReminder(sessionId) {
+  const executed = commandsRun(sessionId);
+  const ledger =
+    executed > 0
+      ? `\n\nYou ran ${executed} shell command(s) this session (\`ccfg evidence\` lists them).\nThat is the whole of what you observed directly. Everything else is inference.`
+      : `\n\nYou ran no shell commands this session, so nothing in this report was\nobserved directly. Say so rather than implying otherwise.`;
+
+  return `${REVIEW_STEPS}\n\n${EVIDENCE_STEPS}${ledger}\n\nThis reminder fires once per session; it will not fire again.`;
+}
 
 /** Markers accumulate one per session; drop those no live session can still match. */
 function pruneMarkers(directory) {
@@ -105,5 +132,5 @@ io.run(() => {
   if (payload.stop_hook_active) return;
   if (!touchedSource(payload.transcript_path)) return;
   if (alreadyFired(payload.session_id)) return;
-  io.block(REMINDER);
+  io.block(buildReminder(payload.session_id));
 });
