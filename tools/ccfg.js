@@ -279,6 +279,26 @@ function rawConfiguredValue(claudeJson, secret) {
 
 const PLACEHOLDER = /^\$\{([A-Z0-9_]+)\}$/;
 
+/**
+ * The broker route a server points at, or null.
+ *
+ * Detected from ~/.claude.json rather than the broker's own config, which is
+ * deliberately unreadable by this user: a tool that needed to read that file to
+ * describe itself would be admitting the isolation does not hold. A loopback
+ * url carrying the proxy token is enough to tell, and it is what the agent
+ * itself sees.
+ */
+function brokeredRoute(claudeJson, secret) {
+  const server =
+    claudeJson && claudeJson.mcpServers && claudeJson.mcpServers[secret.server];
+  if (!server || typeof server.url !== "string") return null;
+  const loopback = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\//.test(
+    server.url,
+  );
+  const tokened = Boolean(server.headers && server.headers["x-ccfg-token"]);
+  return loopback && tokened ? server.url : null;
+}
+
 /* --------------------------------------------------------------- commands */
 
 function commandKeysList() {
@@ -287,15 +307,24 @@ function commandKeysList() {
   for (const secret of MANAGED_SECRETS) {
     const raw = rawConfiguredValue(claudeJson, secret);
     const stored = secretLookup(secret.variable);
-    const state =
-      raw === undefined
+    const route = brokeredRoute(claudeJson, secret);
+    const state = route
+      ? green("brokered ") + dim(route)
+      : raw === undefined
         ? dim("server not configured")
         : PLACEHOLDER.test(String(raw))
           ? green("indirect ${" + secret.variable + "}")
           : red("PLAINTEXT in ~/.claude.json");
+    // A brokered key that is still readable here has not finished moving: the
+    // broker holds a copy, but so does this user, so nothing is yet protected.
     const backing = stored.value
-      ? `${stored.source} ${dim(maskSecret(stored.value))}`
-      : red("not stored");
+      ? `${stored.source} ${dim(maskSecret(stored.value))}` +
+        (route
+          ? yellow("  -- also still readable by you; ccfg broker seal")
+          : "")
+      : route
+        ? green("held by the broker")
+        : red("not stored");
     console.log(`  ${secret.variable.padEnd(20)} ${state}`);
     console.log(`  ${" ".repeat(20)} ${dim("value:")} ${backing}`);
   }
@@ -721,7 +750,15 @@ function writeShellInit() {
     "",
     "claude() {",
   );
-  for (const secret of MANAGED_SECRETS) {
+  // A brokered secret is deliberately absent from this machine's keychain, so
+  // looking it up would spawn a `security` call per launch to produce an empty
+  // string -- and would quietly re-export the key on any machine that still had
+  // one, defeating the move.
+  const claudeJson = readJson(CLAUDE_JSON);
+  const supplied = MANAGED_SECRETS.filter(
+    (secret) => !brokeredRoute(claudeJson, secret),
+  );
+  for (const secret of supplied) {
     lines.push(
       `  ${secret.variable}="\${${secret.variable}:-$(_ccfg_secret ${secret.variable})}" \\`,
     );
@@ -1353,6 +1390,7 @@ if (require.main !== module) {
     valueRejection,
     maskSecret,
     normalizeVariable,
+    brokeredRoute,
     wireProfile,
     shellProfileTargets,
     PROFILE_OPEN,
