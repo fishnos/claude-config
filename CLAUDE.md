@@ -37,6 +37,21 @@ The same arc regardless of field. Skip a stage when the task is genuinely too sm
 
 **Verification is not optional and not delegable.** A test suite that passes, a build that compiles, a page that renders — say which you actually ran. If you could not verify something, say that plainly instead of implying you did.
 
+## Claims and evidence
+
+A claim about performance, runtime behaviour, or what code does is worth exactly what produced it. Two states, never a blur between them:
+
+- **Measured** — a command ran and its output is in this conversation. Name the command.
+- **Assumed** — read from code, inferred, or remembered. Say "assumed", and say what would settle it.
+
+This applies to my claims and to yours. If you assert a number or a behaviour, I should ask what produced it before building on it — an unchallenged assertion becomes load-bearing after a compaction, when it survives as fact and carries whoever framed it rather than the evidence.
+
+**Measure before ordering the work.** Any plan whose sequence rests on impact ("the biggest remaining cost is X") needs the measurement first, or an explicit note that none was taken. A wrong diagnosis under a broad approval runs a long way before it surfaces.
+
+**Checkpoint multi-phase work.** Finish a phase, show the output, stop. Do not roll four phases into one report — a bad phase-one assumption reaching phase four costs everything built on it.
+
+**End with the split.** Every report ends with what was verified (claim + command) and what was not. Answer "what did I not verify?" — not "did I verify?"
+
 ## Skills
 
 Skills are part of the process, not a fallback. Before starting a task, check whether one covers it — "I already know how" is the wrong reason to skip one. Judgment still picks: don't force a skill that doesn't fit, and never let one override an instruction here or from the user, including any skill demanding invocation before every response.
