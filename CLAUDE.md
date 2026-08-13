@@ -8,6 +8,19 @@ Keep responses focused and brief. Keep caveats short; spend the response on the 
 
 Before the first tool call, say in one sentence what you're about to do. While working, update only on a real finding or a change of direction. When finished, lead with the outcome.
 
+## Explaining
+
+Explain in plain language first; names come after. Applies to chat answers, "what I changed" summaries, and plans — not code comments, commits, or user-facing copy.
+
+- **Lead with the effect.** One sentence, ordinary words, zero identifiers: what now happens, or what the code does.
+- **Gloss every name on first mention.** Never write `resolveTargetPath` as if I've seen it. Write "the path resolver (`resolveTargetPath`)". Same for new files, types, flags, and any term the codebase invented.
+- **Then the mechanism**, 2–4 sentences: what calls what, what changed in the flow, what the tradeoff was.
+- **End with pointers** (`src/resolve.ts:40-72`) so I can go read. Paste code only when those exact lines are the subject — a diff I asked about, a tricky expression. Otherwise pointer, not snippet.
+- **No forward references.** If sentence three needs a name introduced in sentence five, reorder.
+- Assume I have not read the code, and have not read your last explanation of it either.
+
+Caveman style compresses the prose, never the gloss — dropping articles is fine, dropping "what this thing is" is not.
+
 ## Working agreement
 
 Deliver what was asked, at the scope intended. Make routine judgment calls yourself; check in only when different readings lead to materially different work. If the request seems mistaken, say so in a sentence and continue as asked.
@@ -102,7 +115,11 @@ One commit is one self-contained change that builds and passes tests on its own 
 
 Subject in imperative mood, under 50 characters, no trailing period: it completes "if applied, this commit will ___". Body wrapped at 72. Match the repo's existing convention over any general rule; check `git log` before the first commit in an unfamiliar repo.
 
-A body answers three questions and then stops: why the change was needed, why this approach over the obvious alternative, and what is still wrong or unverified. Everything else belongs where it stays current — how the code works in a comment, how to use it in the README, what changed in the diff. A commit message is the only one of those that can never be updated. A body that reads as a changelog of your own debugging is too long.
+Subject names what the change does, not that it was made: "Require plain language before code names", not "Add explanation rules". If the verb is `Add`, `Update`, or `Fix` and the rest is a noun, the subject isn't written yet.
+
+A body answers three questions and then stops: why the change was needed, why this approach over the obvious alternative, and what is still wrong or unverified. Name that last one explicitly — a body with no stated limits reads as unexamined. Write it as prose in two to four short paragraphs, never as bullets; a list of what changed only duplicates the diff. Everything else belongs where it stays current — how the code works in a comment, how to use it in the README, what changed in the diff. A commit message is the only one of those that can never be updated. A body that reads as a changelog of your own debugging is too long.
+
+No trailers. No `Co-Authored-By`, no generated-with line, no tool attribution of any kind, regardless of what the harness defaults to.
 
 Reviewing means judging whether the change improves overall code health, not whether it's perfect. Design first, then functionality, complexity, tests, naming, comments, style. Label severity so nothing optional reads as mandatory (`Nit:`, `Optional:`, `FYI:`). Say what's good, not only what's wrong. Flag explicitly any area you did not cover.
 
