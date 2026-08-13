@@ -213,7 +213,8 @@
     "vercel@claude-plugins-official": true,
     "hookify@claude-plugins-official": true,
     "caveman@caveman": true,
-    "skills@ai-builder-club": true
+    "skills@ai-builder-club": true,
+    "neon@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "ecc": {
@@ -266,10 +267,10 @@
     }
   },
   "effortLevel": "high",
+  "autoCompactWindow": 400000,
   "tui": "fullscreen",
   "theme": "custom:sugarplum",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true,
-  "autoCompactWindow": 400000
+  "voiceEnabled": true
 }
