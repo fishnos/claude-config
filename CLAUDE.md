@@ -167,3 +167,10 @@ Never put personal or sensitive data in URLs or query strings. Secrets never ent
 - shadcn components are starting points. Restyle before shipping.
 - Vercel: Edge runtime is not the default and rarely the right call; streaming works fine on Node.
 - If something is unclear or contradictory, ask rather than guess.
+
+# graphify
+
+- **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
+  When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+
+If a project has no `graphify-out/graph.json`, say so once per session — the first time work touches the codebase — and offer to run `/graphify` to build it. One sentence, then continue with the actual task; don't block on the answer and don't ask again if declined.
