@@ -88,6 +88,7 @@ Every skill's own description is already injected each session, so listing them 
 **Authority — when several skills could apply, these win:**
 
 - `google-style` for naming and comments, `google-testing` for test discipline, `google-code-review` for any diff, `google-cl-author` for how work splits, `git-workflow` for message and branch mechanics.
+- **Prose** — `daniel-voice` writes; `humanizer` and `stop-slop` only clean up afterwards, on a draft that already exists, when asked for by name. Nothing that scrubs AI tells fires at drafting time: it competes with the voice skill and strips the habits that skill exists to produce. The plugin cache is overwritten on update, so this line is the durable copy of that rule.
 
 Hooks in `~/.claude/settings.json` enforce the non-negotiable parts (git safety, staged secrets, style violations, one self-review pass). They are a backstop, not the standard — meet the bar before they fire. A hook that misfires gets fixed, never bypassed.
 
