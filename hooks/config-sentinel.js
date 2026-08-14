@@ -10,9 +10,9 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const io = require("./lib/hook-io");
+const mcpSecrets = require("./lib/mcp-secrets");
 
 const EVENT = "SessionStart";
-const PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/;
 
 /** Hook scripts named inside settings.json, however the bootstrap spells them. */
 function referencedHooks(settings) {
@@ -30,26 +30,15 @@ function referencedHooks(settings) {
 
 /** MCP secrets sitting in ~/.claude.json as literal values rather than ${VAR}. */
 function plaintextSecrets() {
-  let config;
   try {
-    config = JSON.parse(
-      fs.readFileSync(path.join(os.homedir(), ".claude.json"), "utf8"),
+    return mcpSecrets.plaintextSecrets(
+      JSON.parse(
+        fs.readFileSync(path.join(os.homedir(), ".claude.json"), "utf8"),
+      ),
     );
   } catch {
     return [];
   }
-  const exposed = [];
-  for (const [name, server] of Object.entries(config.mcpServers || {})) {
-    for (const container of [server.headers, server.env]) {
-      for (const [key, value] of Object.entries(container || {})) {
-        if (typeof value !== "string" || value.length < 16) continue;
-        if (PLACEHOLDER.test(value)) continue;
-        if (!/(key|token|secret|password)/i.test(key)) continue;
-        exposed.push(`${name}.${key}`);
-      }
-    }
-  }
-  return exposed;
 }
 
 io.run(() => {

@@ -457,6 +457,30 @@ header("commit-message -- lint() policy");
     "ok",
   );
   check(
+    "effect-led subject flagged",
+    has("Stop warning about the broker's own token", "opens with the effect")
+      ? "ok"
+      : "missed",
+    "ok",
+  );
+  check(
+    "the same change named as work is accepted",
+    lint("Exempt broker tokens from the secret warning").length === 0
+      ? "ok"
+      : "problems",
+    "ok",
+    JSON.stringify(lint("Exempt broker tokens from the secret warning")),
+  );
+  // "Make X do Y" is the one result-shaped opener that reads as the work itself,
+  // and the clean fixture above already depends on it staying accepted.
+  check(
+    "a Make subject is not flagged",
+    has("Make the standards hooks cross-platform", "opens with the effect")
+      ? "flagged"
+      : "ok",
+    "ok",
+  );
+  check(
     "missing blank second line",
     has("Subject\nBody here", "Second line must be blank") ? "ok" : "missed",
     "ok",
@@ -1017,6 +1041,75 @@ header("SessionStart -- config-sentinel");
     "placeholder credential is fine",
     result.verdict,
     "allow",
+    result.reason,
+  );
+
+  // The broker token is the protection, not a leak: warning about it told the
+  // user to rotate a key that was already sealed, every single session.
+  const brokered = {
+    url: "http://127.0.0.1:8787/mcp",
+    headers: { "x-ccfg-token": "t".repeat(40) },
+  };
+
+  fake = makeConfig(wired, { mcpServers: { demo: brokered } });
+  result = run(SENTINEL, {}, fake.env);
+  check("brokered server stays silent", result.verdict, "allow", result.reason);
+
+  fake = makeConfig(wired, {
+    mcpServers: {
+      demo: {
+        ...brokered,
+        headers: { ...brokered.headers, DEMO_API_KEY: "x".repeat(40) },
+      },
+    },
+  });
+  result = run(SENTINEL, {}, fake.env);
+  check(
+    "brokered server still warns on a real key",
+    result.verdict === "warn" && /demo\.DEMO_API_KEY/.test(result.reason)
+      ? "warn"
+      : result.verdict,
+    "warn",
+    result.reason,
+  );
+
+  // Off loopback the same header is a credential crossing the network.
+  fake = makeConfig(wired, {
+    mcpServers: {
+      demo: { ...brokered, url: "https://mcp.example.com/mcp" },
+    },
+  });
+  result = run(SENTINEL, {}, fake.env);
+  check(
+    "remote url with a broker token warns",
+    result.verdict === "warn" && /demo\.x-ccfg-token/.test(result.reason)
+      ? "warn"
+      : result.verdict,
+    "warn",
+    result.reason,
+  );
+
+  // Neither the installer nor the daemon spells it this way, so a header that
+  // only looks like the broker's earns no exemption -- not even beside the real
+  // one, where the server is genuinely brokered and the exemption does apply to
+  // its neighbour.
+  fake = makeConfig(wired, {
+    mcpServers: {
+      demo: {
+        ...brokered,
+        headers: { ...brokered.headers, "X-CCFG-Token": "t".repeat(40) },
+      },
+    },
+  });
+  result = run(SENTINEL, {}, fake.env);
+  check(
+    "a differently-cased broker header warns",
+    result.verdict === "warn" &&
+      /demo\.X-CCFG-Token/.test(result.reason) &&
+      !/demo\.x-ccfg-token/.test(result.reason)
+      ? "warn"
+      : result.verdict,
+    "warn",
     result.reason,
   );
 

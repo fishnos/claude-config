@@ -21,6 +21,14 @@ const BODY_LINES_BEFORE_REVIEW = 30;
 const NON_IMPERATIVE =
   /^(added|adds|adding|fixed|fixes|fixing|updated|updates|updating|changed|changes|changing|removed|removes|removing|created|creates|creating|refactored|implemented)\b/i;
 
+// Verbs that name the result rather than the work that produced it. "Stop the
+// warning" describes what the reader will notice; it does not say what was
+// touched, so it reads as a symptom report and sorts badly beside every other
+// subject in the log. The effect belongs in a purpose clause after the change
+// -- "Modify X to stop Y" -- or in the body, which has room for it.
+const EFFECT_LED =
+  /^(stop|prevent|avoid|ensure|allow|let|keep|leave|silence|disallow)\b/i;
+
 // Forms where git composes the message itself, so there is nothing of the author's
 // to judge: --fixup/--squash generate their own prefixes, -C/-c reuse another commit.
 const GENERATED_MESSAGE =
@@ -93,6 +101,14 @@ function lint(text) {
   if (subject.endsWith(".")) subjectProblems.push("trailing period");
   if (NON_IMPERATIVE.test(subject)) {
     subjectProblems.push('not imperative mood -- "Add", not "Added"/"Adds"');
+  }
+  const effectLed = EFFECT_LED.exec(subject);
+  if (effectLed) {
+    const verb = effectLed[1].toLowerCase();
+    subjectProblems.push(
+      `opens with the effect ("${effectLed[1]}") rather than the change -- ` +
+        `name what was touched, then the effect ("Modify X to ${verb} Y")`,
+    );
   }
   if (subjectProblems.length > 0) {
     problems.push(`Commit subject: ${subjectProblems.join("; ")}.`);

@@ -117,6 +117,8 @@ Subject in imperative mood, under 50 characters, no trailing period: it complete
 
 Subject names what the change does, not that it was made: "Require plain language before code names", not "Add explanation rules". If the verb is `Add`, `Update`, or `Fix` and the rest is a noun, the subject isn't written yet.
 
+It also opens with the work, not with the result: "Modify the sentinel to stop warning", never "Stop warning". A subject that names only the effect never says what was touched, and reads as a symptom report next to every other line in the log. Opening on `stop`, `prevent`, `avoid`, `ensure`, `allow`, `let`, `keep`, `leave`, `silence`, or `disallow` is the tell, and the commit-message linter rejects it. `Make X do Y` is the exception it allows.
+
 A body answers three questions and then stops: why the change was needed, why this approach over the obvious alternative, and what is still wrong or unverified. Name that last one explicitly — a body with no stated limits reads as unexamined. Write it as prose in two to four short paragraphs, never as bullets; a list of what changed only duplicates the diff. Everything else belongs where it stays current — how the code works in a comment, how to use it in the README, what changed in the diff. A commit message is the only one of those that can never be updated. A body that reads as a changelog of your own debugging is too long.
 
 No trailers. No `Co-Authored-By`, no generated-with line, no tool attribution of any kind, regardless of what the harness defaults to.

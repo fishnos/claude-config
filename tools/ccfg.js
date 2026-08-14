@@ -17,6 +17,7 @@ const { spawnSync } = require("child_process");
 // Split out because standing up a daemon is a different job from managing this
 // config, and it is the only part that needs sudo.
 const brokerInstall = require("./ccfg-broker-install.js");
+const mcpSecrets = require("../hooks/lib/mcp-secrets.js");
 
 const CONFIG_DIR =
   process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
@@ -282,21 +283,14 @@ const PLACEHOLDER = /^\$\{([A-Z0-9_]+)\}$/;
 /**
  * The broker route a server points at, or null.
  *
- * Detected from ~/.claude.json rather than the broker's own config, which is
- * deliberately unreadable by this user: a tool that needed to read that file to
- * describe itself would be admitting the isolation does not hold. A loopback
- * url carrying the proxy token is enough to tell, and it is what the agent
- * itself sees.
+ * The test itself lives in hooks/lib/mcp-secrets.js, because the SessionStart
+ * sentinel has to reach the same verdict: when the two drifted apart, every
+ * session opened by telling the user to rotate an already-sealed key.
  */
 function brokeredRoute(claudeJson, secret) {
   const server =
     claudeJson && claudeJson.mcpServers && claudeJson.mcpServers[secret.server];
-  if (!server || typeof server.url !== "string") return null;
-  const loopback = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\//.test(
-    server.url,
-  );
-  const tokened = Boolean(server.headers && server.headers["x-ccfg-token"]);
-  return loopback && tokened ? server.url : null;
+  return mcpSecrets.isBrokered(server) ? server.url : null;
 }
 
 /* --------------------------------------------------------------- commands */
