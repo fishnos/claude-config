@@ -214,7 +214,8 @@
     "hookify@claude-plugins-official": true,
     "caveman@caveman": true,
     "skills@ai-builder-club": true,
-    "neon@claude-plugins-official": true
+    "neon@claude-plugins-official": true,
+    "humanizer@humanizer": true
   },
   "extraKnownMarketplaces": {
     "ecc": {
@@ -263,6 +264,12 @@
       "source": {
         "source": "github",
         "repo": "AI-Builder-Club/skills"
+      }
+    },
+    "humanizer": {
+      "source": {
+        "source": "github",
+        "repo": "blader/humanizer"
       }
     }
   },
