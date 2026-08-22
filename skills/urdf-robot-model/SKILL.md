@@ -11,6 +11,7 @@ triggers:
   - Converting robot designs to URDF format
 learned_from:
   - Module 2 Chapter 9 Robot Description (2025-11-29)
+paths: "**/*.urdf,**/*.xacro"
 ---
 
 # URDF Robot Model Skill

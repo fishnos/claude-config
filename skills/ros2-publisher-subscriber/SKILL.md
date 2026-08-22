@@ -3,6 +3,7 @@ name: "ros2-publisher-subscriber"
 description: "Generate ROS 2 publisher and subscriber code examples for educational content. This skill should be used when creating lessons that teach ROS 2 pub/sub patterns, writing exercises involving topic-based communication, or generating worked examples for rclpy nodes."
 version: "1.0.0"
 status: "active"
+paths: "**/*.urdf,**/*.xacro,**/*.sdf,**/*.world,**/package.xml,**/launch/**,**/*.msg,**/*.srv,**/*.action"
 ---
 
 # ROS 2 Publisher/Subscriber Skill

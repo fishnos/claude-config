@@ -11,6 +11,7 @@ triggers:
   - Debugging physics instability
 learned_from:
   - Module 2 Chapter 10 Building Simulation Worlds (2025-11-29)
+paths: "**/*.sdf,**/*.world"
 ---
 
 # Gazebo World Builder Skill

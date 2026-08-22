@@ -3,6 +3,7 @@ name: sentry-workflow
 description: Fix production issues and review code with Sentry context. Use when asked to fix Sentry errors, debug issues, triage exceptions, review PR comments from Sentry, or resolve bugs.
 license: Apache-2.0
 role: router
+paths: "**/sentry.*.config.*,**/instrumentation.ts,**/instrumentation-client.ts,**/.sentryclirc"
 ---
 
 > [All Skills](../../SKILL_TREE.md)

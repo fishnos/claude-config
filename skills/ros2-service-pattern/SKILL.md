@@ -3,6 +3,7 @@ name: "ros2-service-pattern"
 description: "Generate ROS 2 service server and client code examples for educational content. This skill should be used when creating lessons that teach request/response communication, writing exercises involving services, or generating worked examples for synchronous robot commands."
 version: "1.0.0"
 status: "active"
+paths: "**/*.urdf,**/*.xacro,**/*.sdf,**/*.world,**/package.xml,**/launch/**,**/*.msg,**/*.srv,**/*.action"
 ---
 
 # ROS 2 Service Pattern Skill

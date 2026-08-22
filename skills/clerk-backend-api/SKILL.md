@@ -4,6 +4,7 @@ description: "Clerk Backend REST API explorer and executor. Browse tags, inspect
 allowed-tools: Bash, Read, Grep, Skill, WebFetch
 license: MIT
 compatibility: Requires CLERK_SECRET_KEY (sk_*) for Backend API calls.
+paths: "**/*clerk*,**/*Clerk*,**/sign-in/**,**/sign-up/**,**/middleware.ts,**/middleware.js"
 ---
 
 ## Options context

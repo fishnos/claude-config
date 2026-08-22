@@ -11,6 +11,7 @@ triggers:
   - Debugging bridge issues
 learned_from:
   - Module 2 Chapter 12 ROS 2 + Gazebo Integration (2025-11-29)
+paths: "**/*.urdf,**/*.xacro,**/*.sdf,**/*.world,**/package.xml,**/launch/**,**/*.msg,**/*.srv,**/*.action"
 ---
 
 # ROS 2 Gazebo Bridge Skill

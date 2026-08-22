@@ -3,6 +3,7 @@ name: sentry-feature-setup
 description: Configure specific Sentry features beyond basic SDK setup. Use when asked to monitor AI/LLM calls, set up OpenTelemetry pipelines, create alerts and notifications, or enable span streaming.
 license: Apache-2.0
 role: router
+paths: "**/sentry.*.config.*,**/instrumentation.ts,**/instrumentation-client.ts,**/.sentryclirc"
 ---
 
 > [All Skills](../../SKILL_TREE.md)

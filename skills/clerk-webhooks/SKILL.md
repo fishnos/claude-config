@@ -10,6 +10,7 @@ metadata:
   author: clerk
   version: 1.2.0
 compatibility: Requires CLERK_WEBHOOK_SIGNING_SECRET (svix signing secret from Clerk dashboard)
+paths: "**/*clerk*,**/*Clerk*,**/sign-in/**,**/sign-up/**,**/middleware.ts,**/middleware.js"
 ---
 
 # Webhooks
