@@ -2,6 +2,7 @@
 name: robotics-development
 description: Use when developing robotics software, writing robot control logic, testing robot behavior, or working with ROS2, embedded microcontrollers, or Python simulation environments.
 user-invocable: true
+paths: "**/*.urdf,**/*.xacro,**/*.sdf,**/*.world,**/package.xml,**/launch/**,**/*.msg,**/*.srv,**/*.action"
 ---
 
 # Robotics Development: Testing & Simulation

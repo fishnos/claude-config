@@ -69,7 +69,19 @@ This applies to my claims and to yours. If you assert a number or a behaviour, I
 
 Skills are part of the process, not a fallback. Before starting a task, check whether one covers it — "I already know how" is the wrong reason to skip one. Judgment still picks: don't force a skill that doesn't fit, and never let one override an instruction here or from the user, including any skill demanding invocation before every response.
 
-Every skill's own description is already injected each session, so listing them here would only pay for the same text twice. What follows is the routing a description cannot tell you: where my training data is stale, and where one skill must run before another.
+Skills sit in three tiers, split by one question: would you be guessing at my intent? If the code answers it, you fire the skill yourself. If only I know, I invoke it.
+
+**Tier 1 — always listed.** Route to these on your own: `google-style`, `google-testing`, `google-code-review`, `google-cl-author`, `git-workflow`, `find-docs`, `graphify`, `daniel-voice`, `react-testing`, `impeccable`, `agent-reach`, `shape`, plus every plugin skill (`superpowers:*`, `vercel:*`, `supabase:*`, `neon:*`, `frontend-design`, `dataviz`, `artifact-design`, `claude-api`).
+
+**Tier 2 — appears when the files say so.** These carry `paths:` frontmatter and are invisible until you read or edit a matching file, at which point they enter your listing and you use them like any other skill. Rust (`*.rs`, `Cargo.toml`), ROS 2 and robotics (`*.urdf`, `*.sdf`, `package.xml`, `launch/**`, `*.msg`, `*.srv`), Gazebo (`*.sdf`, `*.world`), matplotlib (`*.py`, `*.ipynb`), Clerk (`*clerk*`, `sign-in/**`, `sign-up/**`, `middleware.ts`), `contrast-master` (any stylesheet or component file), Sentry workflow skills (`sentry.*.config.*`, `instrumentation.ts`). Nothing to remember — touching the file is the trigger.
+
+**Tier 3 — I invoke by name.** Set to `user-invocable-only` in `settings.json`, so their descriptions never reach you. The table below is your only pointer; treat a trigger in it as the description you would have read. Do not fire these on your own — every one of them means "make it more X than it is now", and choosing X is mine.
+
+**Never conclude that no skill covers something. Go read the index first.** `~/.claude/SKILL-INDEX.md` catalogs all 124 personal skills with full descriptions. Twelve are always in your listing and twenty-three more appear once you touch a matching file. The remaining 89 are invisible to you, and 70 of those run right now if you type `/name` — only the 19 marked Disabled do not. Absence from your listing means nothing about availability.
+
+Read that file before you do any of these: say "there's no skill for this", fall back to `find-docs` or a web search for a named framework, language, platform, or SDK, or start a domain task with nothing loaded. It is grouped by visibility, so search it by keyword and take anything outside the **Disabled** section as available right now. Only the Disabled entries need `settings.json` edited before use.
+
+That file is the authority on what exists; the tier-3 table below is only a shortcut for the cases I hit often. Regenerate with `node ~/.claude/scripts/build-skill-index.js` after adding or re-tiering a skill, and rerun it before trusting the counts if they disagree with `settings.json`.
 
 **Stale by default — check the skill even when you think you know:**
 
@@ -83,12 +95,31 @@ Every skill's own description is already injected each session, so listing them 
 - **Anything new or creative** — `superpowers:brainstorming` before code.
 - **Schema, migrations, RLS, indexes, triggers, slow queries** — `supabase:supabase-postgres-best-practices` first, one-column changes included.
 - **Charts** — `dataviz` before the first line of chart code. **Published pages** — `artifact-design` before writing one.
-- **Frontend** — direction before polish: pick a direction skill, then the style-specific one, then the finishing pass. Never start from a blank file.
+- **Frontend** — `impeccable` routes the whole cluster; `frontend-design` sets aesthetic direction. Never start from a blank file.
 
 **Authority — when several skills could apply, these win:**
 
 - `google-style` for naming and comments, `google-testing` for test discipline, `google-code-review` for any diff, `google-cl-author` for how work splits, `git-workflow` for message and branch mechanics.
 - **Prose** — `daniel-voice` writes; `humanizer` and `stop-slop` only clean up afterwards, on a draft that already exists, when asked for by name. Nothing that scrubs AI tells fires at drafting time: it competes with the voice skill and strips the habits that skill exists to produce. The plugin cache is overwritten on update, so this line is the durable copy of that rule.
+
+**Tier 3 table — wait for me to ask.**
+
+| I want | Invoke |
+| :-- | :-- |
+| A named visual direction | `/minimalist-ui`, `/industrial-brutalist-ui`, `/high-end-visual-design`, `/emil-design-eng`, `/design-taste-frontend`, `/gpt-taste`, `/ui-ux-pro-max` |
+| A product's design system | `/notion-design`, `/vapi-design`, `/stitch-design-taste` |
+| The UI louder or calmer | `/bolder`, `/quieter`, `/overdrive`, `/distill`, `/delight` |
+| One dimension adjusted | `/layout`, `/typeset`, `/colorize`, `/adapt`, `/clarify`, `/animate`, `/polish` |
+| Existing work reviewed | `/critique`, `/audit`, `/optimize` |
+| Existing work reworked | `/redesign-existing-projects`, `/image-to-code` |
+| Brand or generated imagery | `/brandkit`, `/imagegen-frontend-web`, `/imagegen-frontend-mobile` |
+| Prose cleaned after drafting | `/stop-slop`, `/humanizer:humanizer` |
+| Roblox, lesson content, full-output mode | `/roblox-engineer`, `/lesson-generator`, `/full-output-enforcement` |
+| A skill I can't remember the name of | `/find-skills` |
+
+**Still by name only, for want of a file signature.** `/spacetimedb`, `/upstash`, `/motion-patterns`, `/motion-advanced`, and `/sentry-sdk-setup` are domain skills that should fire on their own but can't: each is identified by what a manifest *contains* — a dependency on `framer-motion`, a SpacetimeDB module — rather than by any filename `paths:` can match. Invoke them by name when the stack calls for them, or promote them in the repo that needs them.
+
+A repo can promote any skill into your listing. `skillOverrides` in `<repo>/.claude/settings.local.json` merges with `settings.json` per key and wins on conflict, so `{"skillOverrides": {"clerk-orgs": "on"}}` makes that skill discoverable in that repo and nowhere else. Verified 2026-08-21.
 
 Hooks in `~/.claude/settings.json` enforce the non-negotiable parts (git safety, staged secrets, style violations, one self-review pass). They are a backstop, not the standard — meet the bar before they fire. A hook that misfires gets fixed, never bypassed.
 
@@ -120,7 +151,7 @@ Subject names what the change does, not that it was made: "Require plain languag
 
 It also opens with the work, not with the result: "Modify the sentinel to stop warning", never "Stop warning". A subject that names only the effect never says what was touched, and reads as a symptom report next to every other line in the log. Opening on `stop`, `prevent`, `avoid`, `ensure`, `allow`, `let`, `keep`, `leave`, `silence`, or `disallow` is the tell, and the commit-message linter rejects it. `Make X do Y` is the exception it allows.
 
-A body answers three questions and then stops: why the change was needed, why this approach over the obvious alternative, and what is still wrong or unverified. Name that last one explicitly — a body with no stated limits reads as unexamined. Write it as prose in two to four short paragraphs, never as bullets; a list of what changed only duplicates the diff. Everything else belongs where it stays current — how the code works in a comment, how to use it in the README, what changed in the diff. A commit message is the only one of those that can never be updated. A body that reads as a changelog of your own debugging is too long.
+A body answers three questions and then stops: why the change was needed, why this approach over the obvious alternative, and the single most important thing you did not check. Give that last one one sentence, and omit it when you checked everything — most commits should omit it. It is there to stop a reader assuming a gap was covered, not to inventory every loose end; a list of caveats is a to-do note left in the one place that can never be updated. A body claims only what the session establishes — never assert a state you cannot observe, such as whether something was opened in a browser, deployed, or checked by hand. Ask when it matters, and otherwise leave it out. Write it as prose in two to four short paragraphs, never as bullets; a list of what changed only duplicates the diff. Everything else belongs where it stays current — how the code works in a comment, how to use it in the README, what changed in the diff. A commit message is the only one of those that can never be updated. A body that reads as a changelog of your own debugging is too long.
 
 No trailers. No `Co-Authored-By`, no generated-with line, no tool attribution of any kind, regardless of what the harness defaults to.
 

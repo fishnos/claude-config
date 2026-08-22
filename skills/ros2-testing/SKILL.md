@@ -1,6 +1,7 @@
 ---
 name: ros2-testing
 description: Testing robotics code in ROS 2 — unit tests with gtest and pytest, node-level tests, multi-node integration tests with launch_testing, simulation tests in Gazebo, hardware-in-the-loop, and CI. Use when writing or reviewing any ROS 2 test, deciding what to test at which layer, setting up colcon test in a package, debugging a flaky robotics test, testing timing or sim-time behavior, or building CI for a robot workspace.
+paths: "**/*.urdf,**/*.xacro,**/*.sdf,**/*.world,**/package.xml,**/launch/**,**/*.msg,**/*.srv,**/*.action"
 ---
 
 # ROS 2 testing

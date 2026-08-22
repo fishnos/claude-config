@@ -8,6 +8,7 @@ license: MIT
 metadata:
   author: clerk
   version: 2.3.0
+paths: "**/*clerk*,**/*Clerk*,**/sign-in/**,**/sign-up/**,**/middleware.ts,**/middleware.js"
 ---
 
 # Custom UI

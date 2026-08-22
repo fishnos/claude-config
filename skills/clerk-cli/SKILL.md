@@ -11,6 +11,7 @@ description: >-
   Clerk API request. Prefer the CLI over raw HTTP: it handles auth, key
   resolution, app/instance targeting, and formatting automatically.
 license: MIT
+paths: "**/*clerk*,**/*Clerk*,**/sign-in/**,**/sign-up/**,**/middleware.ts,**/middleware.js"
 ---
 
 # Clerk CLI

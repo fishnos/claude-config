@@ -3,6 +3,7 @@ name: "ros2-custom-interfaces"
 description: "Generate ROS 2 custom message (.msg) and service (.srv) interface definitions for educational content. This skill should be used when creating lessons that teach interface design, writing exercises involving custom data types, or generating worked examples for robotics communication protocols."
 version: "1.0.0"
 status: "active"
+paths: "**/*.urdf,**/*.xacro,**/*.sdf,**/*.world,**/package.xml,**/launch/**,**/*.msg,**/*.srv,**/*.action"
 ---
 
 # ROS 2 Custom Interfaces Skill

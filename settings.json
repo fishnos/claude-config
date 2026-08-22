@@ -108,7 +108,47 @@
     "spacetimedb-tables": "off",
     "spacetimedb-tutorials": "off",
     "spacetimedb-upgrade": "off",
-    "spacetimedb-views": "off"
+    "spacetimedb-views": "off",
+    "adapt": "user-invocable-only",
+    "animate": "user-invocable-only",
+    "audit": "user-invocable-only",
+    "bolder": "user-invocable-only",
+    "brandkit": "user-invocable-only",
+    "clarify": "user-invocable-only",
+    "colorize": "user-invocable-only",
+    "critique": "user-invocable-only",
+    "delight": "user-invocable-only",
+    "design-taste-frontend": "user-invocable-only",
+    "distill": "user-invocable-only",
+    "emil-design-eng": "user-invocable-only",
+    "find-skills": "user-invocable-only",
+    "full-output-enforcement": "user-invocable-only",
+    "gpt-taste": "user-invocable-only",
+    "high-end-visual-design": "user-invocable-only",
+    "image-to-code": "user-invocable-only",
+    "imagegen-frontend-mobile": "user-invocable-only",
+    "imagegen-frontend-web": "user-invocable-only",
+    "industrial-brutalist-ui": "user-invocable-only",
+    "layout": "user-invocable-only",
+    "lesson-generator": "user-invocable-only",
+    "minimalist-ui": "user-invocable-only",
+    "motion-advanced": "user-invocable-only",
+    "motion-patterns": "user-invocable-only",
+    "notion-design": "user-invocable-only",
+    "optimize": "user-invocable-only",
+    "overdrive": "user-invocable-only",
+    "polish": "user-invocable-only",
+    "quieter": "user-invocable-only",
+    "redesign-existing-projects": "user-invocable-only",
+    "roblox-engineer": "user-invocable-only",
+    "sentry-sdk-setup": "user-invocable-only",
+    "spacetimedb": "user-invocable-only",
+    "stitch-design-taste": "user-invocable-only",
+    "stop-slop": "user-invocable-only",
+    "typeset": "user-invocable-only",
+    "ui-ux-pro-max": "user-invocable-only",
+    "upstash": "user-invocable-only",
+    "vapi-design": "user-invocable-only"
   },
   "hooks": {
     "Notification": [
@@ -175,6 +215,10 @@
           {
             "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','config-sentinel.js'))\""
+          },
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','skill-index.js'))\""
           }
         ]
       }

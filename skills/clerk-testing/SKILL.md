@@ -8,6 +8,7 @@ metadata:
   author: clerk
   version: 1.2.0
 compatibility: Requires CLERK_TESTING_TOKEN from Clerk dashboard
+paths: "**/*clerk*,**/*Clerk*,**/sign-in/**,**/sign-up/**,**/middleware.ts,**/middleware.js"
 ---
 
 # Testing

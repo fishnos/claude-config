@@ -3,6 +3,7 @@ name: "ros2-launch-system"
 description: "Generate ROS 2 Python launch files and multi-node system configurations for educational content. This skill should be used when creating lessons that teach launch file syntax, writing exercises involving multi-node startup, parameter configuration, or generating worked examples for robot system deployment."
 version: "1.0.0"
 status: "active"
+paths: "**/*.urdf,**/*.xacro,**/*.sdf,**/*.world,**/package.xml,**/launch/**,**/*.msg,**/*.srv,**/*.action"
 ---
 
 # ROS 2 Launch System Skill
