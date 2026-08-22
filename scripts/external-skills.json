@@ -1,0 +1,151 @@
+{
+  "comment": "Skills vendored into this repo from external sources. A symlink cannot survive a clone, so the content is committed. Re-copy after updating the upstream copy with: node scripts/sync-external-skills.js",
+  "source": "~/.agents/skills (managed by the skills installer; ~/.agents/.skill-lock.json is its manifest)",
+  "skills": {
+    "clerk-backend-api": {
+      "sourceUrl": "https://github.com/clerk/skills.git",
+      "skillPath": "skills/core/clerk-backend-api/SKILL.md",
+      "skillFolderHash": "b8b0c877fd6f0e91864c60e2d510ca9b04e34af9"
+    },
+    "clerk-cli": {
+      "sourceUrl": "https://github.com/clerk/skills.git",
+      "skillPath": "skills/core/clerk-cli/SKILL.md",
+      "skillFolderHash": "7cd5915e826a0b70ebc8e598d55b70edfc9c15b4"
+    },
+    "clerk-custom-ui": {
+      "sourceUrl": "https://github.com/clerk/skills.git",
+      "skillPath": "skills/core/clerk-custom-ui/SKILL.md",
+      "skillFolderHash": "a216a0dd1052050864897ed1e7ff3cc54e2732e1"
+    },
+    "clerk-nextjs-patterns": {
+      "sourceUrl": "https://github.com/clerk/skills.git",
+      "skillPath": "skills/frameworks/clerk-nextjs-patterns/SKILL.md",
+      "skillFolderHash": "c9ea4d8c283060482ce7d2d44d0df257b3a13ea9"
+    },
+    "clerk-orgs": {
+      "sourceUrl": "https://github.com/clerk/skills.git",
+      "skillPath": "skills/features/clerk-orgs/SKILL.md",
+      "skillFolderHash": "3ed514c6f4f2ae1781be607fb9b848a159b85027"
+    },
+    "clerk-setup": {
+      "sourceUrl": "https://github.com/clerk/skills.git",
+      "skillPath": "skills/core/clerk-setup/SKILL.md",
+      "skillFolderHash": "04ce29fb4b7f711d584c8622a33fc515cd2703cb"
+    },
+    "clerk-testing": {
+      "sourceUrl": "https://github.com/clerk/skills.git",
+      "skillPath": "skills/features/clerk-testing/SKILL.md",
+      "skillFolderHash": "4cfcca153cd4b51512d8b11d92b99b47b073ce55"
+    },
+    "clerk-webhooks": {
+      "sourceUrl": "https://github.com/clerk/skills.git",
+      "skillPath": "skills/features/clerk-webhooks/SKILL.md",
+      "skillFolderHash": "95dc029801a1e2f24118000cb1e74f46b4b285b1"
+    },
+    "spacetimedb": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb/SKILL.md",
+      "skillFolderHash": "01082a160f9b17e45928c34d8bfba55888281dbc"
+    },
+    "spacetimedb-auth": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-auth/SKILL.md",
+      "skillFolderHash": "82058bd48607b32b40a8f6b2e16adf22f5884084"
+    },
+    "spacetimedb-cli": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-cli/SKILL.md",
+      "skillFolderHash": "2973ef18279bec17acaef6231935f4c17e41760c"
+    },
+    "spacetimedb-client-c-sharp": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-client-c-sharp/SKILL.md",
+      "skillFolderHash": "7ea6f675e95889d31dc9680e9ad2d246d03fb89f"
+    },
+    "spacetimedb-client-rust": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-client-rust/SKILL.md",
+      "skillFolderHash": "9a2a69ebd9585e7cdb72d5d97fd306ca248a90a3"
+    },
+    "spacetimedb-client-typescript": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-client-typescript/SKILL.md",
+      "skillFolderHash": "f6319cbf196a7355fcdd962ba3c196243ea75a34"
+    },
+    "spacetimedb-client-unreal": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-client-unreal/SKILL.md",
+      "skillFolderHash": "5ba54c55bf5694726cc0c364ae3f30a0e819559a"
+    },
+    "spacetimedb-clients": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-clients/SKILL.md",
+      "skillFolderHash": "c6f6ffc58a4930fef82282d1f4be0c8da5c0e56d"
+    },
+    "spacetimedb-databases": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-databases/SKILL.md",
+      "skillFolderHash": "1c5b2890265ba6c139629478e1e4bee040a8d288"
+    },
+    "spacetimedb-deploy": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-deploy/SKILL.md",
+      "skillFolderHash": "cffcc8a811de84e650be8f0bccfc9028fdb4fcfc"
+    },
+    "spacetimedb-http": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-http/SKILL.md",
+      "skillFolderHash": "8e9b71386bcd0e4ef80e8e15549d85a48c82a11a"
+    },
+    "spacetimedb-procedures": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-procedures/SKILL.md",
+      "skillFolderHash": "e31bb4fd128414356871194a9d450c38eb44cc39"
+    },
+    "spacetimedb-quickstarts": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-quickstarts/SKILL.md",
+      "skillFolderHash": "fb838eaee6f2378dff20d5f8e646e480234aa63e"
+    },
+    "spacetimedb-reducers": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-reducers/SKILL.md",
+      "skillFolderHash": "f84d4cd0144c8b090ca03c8fdee0052c799478c2"
+    },
+    "spacetimedb-serialization": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-serialization/SKILL.md",
+      "skillFolderHash": "41396eeae9efde070af945a9d575e66c300e5a72"
+    },
+    "spacetimedb-sql": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-sql/SKILL.md",
+      "skillFolderHash": "5f13045d30b62edebc2af3a767f005f6a502126d"
+    },
+    "spacetimedb-tables": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-tables/SKILL.md",
+      "skillFolderHash": "8d499a0ee0ab8fffba5aedacbbfaa90a2fc98aa7"
+    },
+    "spacetimedb-tutorials": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-tutorials/SKILL.md",
+      "skillFolderHash": "34d1ecd7d349bc1d84435461c022570a8367e0fc"
+    },
+    "spacetimedb-upgrade": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-upgrade/SKILL.md",
+      "skillFolderHash": "c04198d3c909ec2fbfad430b652199acf2d578d8"
+    },
+    "spacetimedb-views": {
+      "sourceUrl": "https://github.com/DanMossa/spacetimedb-skills.git",
+      "skillPath": "skills/spacetimedb-views/SKILL.md",
+      "skillFolderHash": "bff6604307d6f563246ca3898d7e15d7f5140807"
+    },
+    "upstash": {
+      "sourceUrl": "https://github.com/upstash/skills.git",
+      "skillPath": "skills/upstash/SKILL.md",
+      "skillFolderHash": "4b4c866aedf2f1d26f8110bc9cffe909cc37747b"
+    }
+  }
+}
