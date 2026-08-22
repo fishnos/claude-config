@@ -1,0 +1,90 @@
+{
+  "ecc": {
+    "source": {
+      "source": "github",
+      "repo": "affaan-m/ECC"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/ecc",
+    "lastUpdated": "2026-06-12T00:00:00.000Z"
+  },
+  "claude-plugins-official": {
+    "source": {
+      "source": "github",
+      "repo": "anthropics/claude-plugins-official"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/claude-plugins-official",
+    "lastUpdated": "2026-08-21T20:55:13.688Z"
+  },
+  "superpowers-marketplace": {
+    "source": {
+      "source": "github",
+      "repo": "obra/superpowers-marketplace"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/superpowers-marketplace",
+    "lastUpdated": "2026-02-26T04:51:22.841Z"
+  },
+  "claude-code-plugins": {
+    "source": {
+      "source": "github",
+      "repo": "anthropics/claude-code"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/claude-code-plugins",
+    "lastUpdated": "2026-08-21T20:55:14.816Z"
+  },
+  "caveman": {
+    "source": {
+      "source": "github",
+      "repo": "JuliusBrussee/caveman"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/caveman",
+    "lastUpdated": "2026-04-07T04:55:44.244Z"
+  },
+  "thedotmack": {
+    "source": {
+      "source": "github",
+      "repo": "thedotmack/claude-mem"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/thedotmack",
+    "lastUpdated": "2026-04-16T04:53:09.542Z"
+  },
+  "ui-ux-pro-max-skill": {
+    "source": {
+      "source": "github",
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/ui-ux-pro-max-skill",
+    "lastUpdated": "2026-05-04T20:01:52.498Z"
+  },
+  "claude-code-nano-banana": {
+    "source": {
+      "source": "git",
+      "url": "https://github.com/jawhnycooke/claude-code-nano-banana.git"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/claude-code-nano-banana",
+    "lastUpdated": "2026-05-04T20:04:07.250Z"
+  },
+  "playwright-skill": {
+    "source": {
+      "source": "github",
+      "repo": "lackeyjb/playwright-skill"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/playwright-skill",
+    "lastUpdated": "2026-05-06T22:41:58.984Z"
+  },
+  "ai-builder-club": {
+    "source": {
+      "source": "github",
+      "repo": "AI-Builder-Club/skills"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/ai-builder-club",
+    "lastUpdated": "2026-07-30T21:40:20.733Z"
+  },
+  "humanizer": {
+    "source": {
+      "source": "github",
+      "repo": "blader/humanizer"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/humanizer",
+    "lastUpdated": "2026-08-14T17:54:56.171Z"
+  }
+}
