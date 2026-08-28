@@ -446,7 +446,7 @@ Activates on: `**/*.urdf,**/*.xacro`
 
 Create robot models using URDF with proper links, joints, visual geometry, collision shapes, and physical properties
 
-## Always listed (12)
+## Always listed (14)
 
 Already in the session listing with descriptions.
 
@@ -456,7 +456,7 @@ MUST USE when user wants to research/search/look up/find anything on the interne
 
 ### `/daniel-voice`
 
-Write in Daniel's voice for any writing task — drafting from scratch, polishing his rough drafts, or rewriting his text for clarity and rhythm. Use this skill whenever Daniel asks for help with any kind of writing, including essays (academic, personal, application), reflections, proposals, supplements, cover letters, scholarship applications, and any prose that needs to sound like him. Trigger this even if Daniel doesn't explicitly say "in my voice" — any writing-help request is in scope. Do NOT trigger for code comments, technical documentation, or commit messages.
+Writes in Daniel Kosukhin's voice for any prose task, including academic essays, reading reflections, personal narrative, college supplements, scholarship applications, cover letters, and any draft he wants polished or rewritten. Use this skill whenever Daniel asks for help writing, drafting, editing, polishing, restructuring, or giving feedback on prose, even when he does not say "in my voice" and even when the request sounds like ordinary editing. Do NOT use for code comments, technical documentation, or commit messages.
 
 ### `/find-docs`
 
@@ -493,6 +493,14 @@ Use when the user wants to design, redesign, shape, critique, audit, polish, cla
 ### `/react-testing`
 
 Testing React with Testing Library the way it's meant to be used — query priority, user-event, integration over unit, testing custom hooks, and mocking the network with MSW instead of fetch. Use when writing or reviewing React/Next.js tests, testing a component, custom hook, form, or async data flow, choosing between unit/integration/E2E for a frontend change, or fixing tests that break on every refactor.
+
+### `/repo-schedule`
+
+Declare a repository's scheduled cloud agents (Claude Code routines) as committed files under .claude/routines/, then reconcile them against the account so the repo is the source of truth. Use when asked what should run on a schedule for a repo, to add or change a recurring or GitHub-triggered agent for a project, to check whether a repo's declared routines are actually live, or when /repo-setup reports the routines check. For a personal one-off reminder unattached to a repository, use /schedule instead.
+
+### `/repo-setup`
+
+Audit and fix a repository's agent infrastructure — CLAUDE.md presence and whether git actually tracks it, the graphify knowledge graph and its freshness, an origin remote for cloud routines, declared routines and their .mcp.json, and skills the stack needs that nothing can route to automatically. Use when the SessionStart notice says "Repo setup:", when someone asks whether a repo is set up for agents, when onboarding an unfamiliar repo, or when asked to snooze or dismiss one of those notices. Not for writing CLAUDE.md content itself — that is /init — and not for scheduling, which is /repo-schedule.
 
 ### `/shape`
 
