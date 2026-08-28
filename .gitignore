@@ -79,3 +79,6 @@ __pycache__/
 
 # scratch: prepared commit messages, not part of the config
 .commit-msgs/
+
+# Personal writing samples: read from disk by daniel-voice, never published.
+skills/daniel-voice/references/samples/
