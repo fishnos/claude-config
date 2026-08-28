@@ -1,121 +1,118 @@
 ---
 name: daniel-voice
-description: Write in Daniel's voice for any writing task — drafting from scratch, polishing his rough drafts, or rewriting his text for clarity and rhythm. Use this skill whenever Daniel asks for help with any kind of writing, including essays (academic, personal, application), reflections, proposals, supplements, cover letters, scholarship applications, and any prose that needs to sound like him. Trigger this even if Daniel doesn't explicitly say "in my voice" — any writing-help request is in scope. Do NOT trigger for code comments, technical documentation, or commit messages.
+description: Writes in Daniel Kosukhin's voice for any prose task, including academic essays, reading reflections, personal narrative, college supplements, scholarship applications, cover letters, and any draft he wants polished or rewritten. Use this skill whenever Daniel asks for help writing, drafting, editing, polishing, restructuring, or giving feedback on prose, even when he does not say "in my voice" and even when the request sounds like ordinary editing. Do NOT use for code comments, technical documentation, or commit messages.
+license: MIT
+metadata:
+  version: "3.0.0"
+  supersedes: "1.x (April 2026), which was built from two samples and is wrong in several places"
 ---
 
 # Daniel's Voice
 
-A skill for writing in Daniel Kosukhin's voice across academic, personal, and application writing.
+This skill contains no drafting procedure of its own. Read the core principles
+below, then load the reference files the task calls for, then write.
 
-## When to use this skill
+## Precedence
 
-Trigger any time Daniel asks for help with prose writing. Examples:
+When two sources conflict, the higher one wins:
 
-- "Help me write my Common App essay."
-- "Draft an intro paragraph for this prompt."
-- "Make this paragraph stronger."
-- "Rewrite this in my voice."
-- "Write a scholarship supplement about X."
-- "Polish this reflection."
-- "Help me start this essay."
+1. **`references/paired/`** — Daniel's own rewrites of drafts. Evidence, not inference.
+2. **`references/corrections.md`** — rules he stated directly, with his reasoning.
+3. **`references/samples/`** — his finished writing.
+4. Everything else in this skill — a model derived from the above, and wrong before.
 
-If Daniel pastes a draft and asks for feedback or a rewrite, use this skill to keep the rewrite in his voice.
+Against the `humanizer` skill: **daniel-voice wins on style, humanizer wins on
+tells.** Humanizer §10 flags tricolons and §31 flags short declaratives; Daniel
+uses both on purpose. Humanizer's own Voice Calibration section concedes this,
+since a writing sample outranks its style rules. Apply humanizer for AI
+vocabulary, inflated significance, and hollow closers.
 
-## Core voice principles
+## When to load what
 
-Daniel's writing has a recognizable shape across genres. Hold to these regardless of whether the task is academic argument or personal narrative.
+| Situation | Read |
+|---|---|
+| Any prose task, before writing a word | `references/mechanics.md` |
+| Any prose task, before writing a word | `references/structure.md` |
+| Academic essay, rhetorical analysis, argument | `references/genres.md` → Academic |
+| Reading reflection, personal reflection | `references/genres.md` → Reflection |
+| Narrative, personal essay, scene writing | `references/genres.md` → Narrative |
+| Supplement, personal statement, application | `references/genres.md` → Application |
+| Before returning any draft | the checklist at the bottom of this file |
+| He gives a new rule or rewrites your draft | `references/UPDATING.md` |
 
-### 1. Confident, declarative sentences
+Read the samples in `references/samples/` when you need to hear the register
+rather than read rules about it. His sentences teach faster than my summaries
+of them, and most past failures came from trusting the summary.
 
-Daniel writes with conviction. He states things, then qualifies — not the other way around. Avoid hedging language like "it could be argued that," "perhaps," "it seems." If a qualification belongs, put it in a subordinate clause attached to a confident main clause.
+## The four things that matter most
 
-### 2. Concede-then-push argument structure
+Everything else is detail. These are load-bearing, and getting them wrong
+produces prose he rejects regardless of how many surface patterns are correct.
 
-A signature move: open a sentence or paragraph with "Although," "While," or "Even when," concede the counterpoint briefly, then drive to the actual argument. Examples from his work:
+### 1. Flow is the first requirement, not a finishing touch
 
-- "Although artificial intelligence harms the thinking process in certain aspects, utilizing AI as a copilot..."
-- "While AI undermines development when it writes with minimal student input, integrating artificial intelligence..."
+Flow is the single thing he cares about most and the thing most drafts fail.
+It is not a property of individual sentences. It comes from each sentence
+opening on something the previous sentence established, and closing on what is
+new. A sentence that opens cold, on a name or an abstraction the paragraph has
+not yet introduced, reads as disjointed no matter how well built it is.
 
-This is a load-bearing rhetorical move. Use it especially in transitions and topic sentences.
+Full mechanism in `references/structure.md`. Do not skip it.
 
-### 3. Connective tissue
+### 2. The payload goes in the main clause
 
-Daniel relies on a small set of connectives to thread paragraphs:
+His class framework (LL1) states it directly: the most important idea belongs
+in the main clause. Burying the turn of a paragraph inside a participial
+phrase or a relative clause is the most common failure. Subordinate what is
+genuinely secondary and nothing else.
 
-- **Additionally** (very common — start of body sentences extending a point)
-- **Furthermore** (escalating to a stronger version of the point)
-- **Ultimately** (closing moves, conclusions)
-- **While / Although / Even when** (concessions)
-- **Not only this, but** (compounding)
+### 3. Vary the joint, not just the length
 
-Use these naturally; don't force them into every paragraph, but they should feel native to the rhythm.
+Long sentences are the baseline. Repeating one joining structure is what he
+calls chopped, and `independent clause, and independent clause` repeated across
+a paragraph is the specific pattern he dislikes most. Six long sentences built
+the same way read worse than a mix of lengths built differently.
 
-### 4. Diction that mixes registers
+Equally: do not overcorrect into stuffing. Cramming two ideas that each deserve
+a main clause into one sentence demotes one of them. Combine only when one idea
+truly serves the other.
 
-Daniel mixes precise/elevated vocabulary with concrete imagery. Words that show up naturally in his work:
+### 4. Mechanics are checked, not trusted
 
-- _iterate, iterating, iterates on_ (verb of choice for refinement)
-- _prolific, requisite, stymie, scavenge, propel, champion_
-- _metacognition, autonomous, foundational, generative, multifaceted_
-- _nuance, depth, consensus, viewpoint, framing_
+Rules known are not rules applied. Introductory-phrase commas and interrupted
+verb phrases have been missed repeatedly while attention was on rhythm. Run the
+checklist below as a separate pass.
 
-Don't force these in — but reach for them over plainer alternatives when the rhythm allows. Avoid overly casual register ("super," "really," "kind of") and overly stuffy academic-ese ("It is imperative to note that...").
+## Register
 
-### 5. Tricolons and contrast pairs
+Plain over elevated. His documented weakness, confirmed by his teacher's
+margin comments and by peer feedback, is abstraction and reaching past what the
+words support. The previous version of this skill told Claude to prefer
+elevated vocabulary "when the rhythm allows," which encouraged the exact failure
+he is working to correct. Do not restore it.
 
-Daniel often lands sentences with a triple or a balanced pair:
+His writing has moved from ornate toward plain across 2026. Write at the plain
+end. When a fancier word and a plain word both fit, take the plain one.
 
-- "to inspire, and to help as many people as I can"
-- "both as thinkers and as writers"
-- "improving the tracking and sight for visually impaired people"
+## Final checklist
 
-Reach for these at the end of paragraphs and the close of essays.
+Run this as a separate pass on the finished draft, not while drafting.
 
-### 6. Personal-essay openers: in-scene, then abstract
+- [ ] Comma after every introductory phrase or clause
+- [ ] Comma before `and`/`but`/`yet` joining two independent clauses
+- [ ] No comma before an essential `because`
+- [ ] Subject and verb not separated by an interrupting aside
+- [ ] Every pronoun and demonstrative points at a specific named noun, not a whole preceding clause
+- [ ] No sentence, clause, or phrase opens with `and`, `that`, or `but`
+- [ ] `and so`, never bare `so`
+- [ ] Zero em dashes (one permitted only if genuinely unavoidable)
+- [ ] Every sentence opens on something already established
+- [ ] Every sentence ends on its new information
+- [ ] No two consecutive sentences share a joining structure
+- [ ] No abstract noun given a verb a person would not use (`the conclusion holds`)
+- [ ] Read it aloud. If any sentence catches, rebuild it.
 
-For application/personal writing, Daniel opens with a concrete moment — overheard dialogue, sensory detail, or a specific scene — then pivots to what it means. Example: opening with quoted shop-talk from his robotics team, then naming the underlying motivation.
+## Updating
 
-Don't open personal essays with a thesis statement. Open with an image, a moment, or a voice.
-
-### 7. Forward-looking close
-
-Personal essays land on aspiration without sliding into cliché. Daniel's closes name a specific person, lab, problem, or future state, then expand outward to a broader purpose. Keep it earnest but grounded in specifics.
-
-### 8. Punctuation
-
-- **No em dashes (—) or use them very sparingly.** This is a hard rule. Daniel does not use em dashes as a stylistic move.
-- Use colons (:) for elaboration and to introduce examples or quotations.
-- Use semicolons (;) for joined independent clauses, especially when escalating a point.
-- Commas for rhythm; don't be afraid of slightly longer, comma-managed sentences.
-
-### 9. Argument sourcing (academic writing)
-
-In academic essays, Daniel quotes named sources with a brief credential ("John Spencer, a renowned blogger and book writer, argues that...") and integrates the quote into his own sentence. He doesn't drop quotes as standalone sentences. After a quote, he extends with his own analysis — usually with "Additionally," "Furthermore," or a restatement that reframes the quote toward his thesis.
-
-## What to avoid
-
-- Em dashes (—). Reach for a colon, semicolon, or comma instead.
-- AI-tells: "delve into," "in today's world," "navigate the complexities of," "tapestry," "in the realm of," "it's important to note."
-- Stacked adjectives ("a vibrant, dynamic, engaging environment").
-- Over-hedging ("perhaps," "it might be argued").
-- Overly casual filler ("super," "really," "a lot of," "tons of").
-- Generic transitions ("Moreover," "In conclusion") when "Additionally," "Furthermore," "Ultimately" fit better.
-- Opening personal essays with thesis-first structure.
-- Closing with vague platitudes that don't reference specific aspirations.
-
-## Output behavior by context
-
-- **"Write me X from scratch"** → Produce a full draft. For personal essays, ask for the prompt and any specifics (target program, word count, what the reader should learn). For academic essays, ask for the thesis or assignment if not given.
-- **"Polish this" / "make this stronger"** → Make targeted edits, preserve Daniel's existing structure and ideas, fix the voice issues. Don't rewrite paragraphs whole-cloth unless asked.
-- **"Rewrite this in my voice"** → Heavier rewrite permitted, but keep his ideas and arguments intact. Restructure sentences for rhythm and concede-then-push moves.
-- **"Help me start"** → Draft an opening (1–2 paragraphs) following the genre rules above (in-scene for personal, claim-with-stakes for academic).
-- **Feedback only** → Point out voice issues using the principles above; don't produce a full rewrite unless asked.
-
-When uncertain about scope (full rewrite vs. targeted edits), ask Daniel what he wants before producing a long draft.
-
-## Format of output
-
-- Default: plain text. Daniel prefers plain text over formatted file generation.
-- Don't use bullet points inside the essay output itself.
-- Don't add commentary inside the draft (no "[your point here]" placeholders unless he asks).
-- If Daniel asks for feedback alongside a rewrite, separate them clearly: rewrite first, then a short list of what changed and why.
+This skill is designed to grow. See `references/UPDATING.md` for where a new
+rule goes. Bump the version in the frontmatter on every change.
