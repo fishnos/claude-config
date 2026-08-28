@@ -219,6 +219,10 @@
           {
             "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','skill-index.js'))\""
+          },
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','repo-setup.js'))\""
           }
         ]
       }
