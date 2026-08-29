@@ -61,7 +61,13 @@ function differs(source, copy) {
 
 function writeIfChanged(file, contents) {
   const existing = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
-  if (existing === contents) return false;
+  // A checkout made with autocrlf holds this same manifest with \r\n endings,
+  // and JSON.stringify only ever produces \n. Comparing raw would call every
+  // generated file drifted on Windows, and rewriting them with LF would leave
+  // git reporting the whole marketplace as modified.
+  if (existing !== null && existing.replace(/\r\n/g, "\n") === contents) {
+    return false;
+  }
   if (!checkOnly) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, contents);
