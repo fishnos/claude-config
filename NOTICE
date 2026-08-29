@@ -1,0 +1,55 @@
+# Third-party material
+
+LICENSE is unmodified MIT and covers this repository's own work: the hooks, the
+`ccfg` CLI and broker, the test suites, the documentation, and the skills written
+here. It does not cover the material below, which was written elsewhere and
+vendored in so the skills work offline. Each entry keeps its upstream terms.
+
+## Verbatim reference text (CC BY 3.0)
+
+Reproduced in full under Attribution 3.0 Unported. Neither is modified; both are
+quoted so a skill can cite the primary source instead of a summary of it.
+
+| Path                                    | Source                                                | License   |
+| --------------------------------------- | ----------------------------------------------------- | --------- |
+| `skills/google-style/references/`       | https://github.com/google/styleguide                  | CC BY 3.0 |
+| `skills/google-code-review/references/` | https://github.com/google/eng-practices               | CC BY 3.0 |
+| `skills/google-cl-author/references/`   | https://github.com/google/eng-practices               | CC BY 3.0 |
+
+`skills/git-workflow/references/` carries three specifications, each under its
+own terms: Conventional Commits 1.0.0 (CC BY 3.0), Semantic Versioning 2.0.0
+(CC BY 3.0), and Keep a Changelog (MIT).
+
+Google does not endorse this repository, and the `google-*` skill names describe
+whose practices they encode, not any affiliation.
+
+## Vendored skills
+
+Copied from upstream repositories by `scripts/sync-external-skills.js`, which
+records the source URL and content hash of each in `scripts/external-skills.json`.
+Update them from upstream rather than editing them here.
+
+| Skills                     | Source                                          | License                        |
+| -------------------------- | ----------------------------------------------- | ------------------------------ |
+| `spacetimedb-*` (20)       | https://github.com/DanMossa/spacetimedb-skills  | no license file upstream (see below) |
+| `clerk-*` (8)              | https://github.com/clerk/skills                 | no license file upstream (see below) |
+| `upstash`                  | https://github.com/upstash/skills               | MIT                            |
+| `agent-reach`              | https://github.com/Panniantong/agent-reach      | MIT                            |
+
+**Two upstreams publish no license file.** `clerk/skills` and
+`DanMossa/spacetimedb-skills` are public and plainly meant to be installed, but
+neither states terms, so by default no redistribution right is granted. They are
+vendored here because a symlink cannot survive a clone and the skills are useless
+without their content. If you are one of those authors and would rather this
+repository not carry a copy, open an issue and it will be removed the same day.
+Anyone redistributing this repository further should check those upstreams first.
+
+`skills/humanizer/` is derived from Wikipedia's "Signs of AI writing" guide,
+available under CC BY-SA 4.0.
+
+## Not covered here
+
+`plugins/installed_plugins.json` and `plugins/known_marketplaces.json` are
+lockfiles naming external plugins by version and commit. No plugin code is
+vendored into this repository; those trees live in the git-ignored
+`plugins/cache/`.
