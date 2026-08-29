@@ -44,6 +44,15 @@ const TOKEN = "t".repeat(43);
 let passed = 0;
 let failed = 0;
 
+// The broker runs as a launchd service account, so its host checks describe
+// macOS. A case that cannot apply elsewhere is skipped by name and counted
+// rather than dropped, so nothing goes quiet on another platform.
+let skipped = 0;
+function skip(label, reason) {
+  skipped += 1;
+  console.log(`[SKIP] ${label}\n       ${reason}`);
+}
+
 function check(label, actual, expected) {
   if (actual === expected) {
     passed += 1;
@@ -348,11 +357,18 @@ async function main() {
     true,
   );
 
-  check(
-    "a system binary links only system libraries",
-    selfContained("/bin/ls"),
-    true,
-  );
+  if (process.platform === "darwin") {
+    check(
+      "a system binary links only system libraries",
+      selfContained("/bin/ls"),
+      true,
+    );
+  } else {
+    skip(
+      "a system binary links only system libraries",
+      "Mach-O linkage; the broker installs under launchd",
+    );
+  }
 
   fs.rmSync(ownedDir, { recursive: true, force: true });
   fs.rmSync(looseDir, { recursive: true, force: true });
@@ -438,7 +454,7 @@ async function main() {
     true,
   );
 
-  console.log(`\nPASS ${passed}  FAIL ${failed}`);
+  console.log(`\nPASS ${passed}  SKIP ${skipped}  FAIL ${failed}`);
   process.exit(failed === 0 ? 0 : 1);
 }
 
