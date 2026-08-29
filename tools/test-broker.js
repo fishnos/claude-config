@@ -319,59 +319,75 @@ async function main() {
   // Homebrew prefix is owned by the logged-in user, so an interpreter there
   // could be swapped for one that prints the config -- and it would run as the
   // broker. This check is what refuses that install.
-  const OTHER_UID = 99999;
-
-  check(
-    "a system binary is trusted",
-    tamperableBy("/usr/bin/true", OTHER_UID),
-    null,
-  );
-
-  check(
-    "a binary owned by the excluded user is refused",
-    String(tamperableBy("/usr/bin/true", 0)).includes("owned by uid 0"),
-    true,
-  );
-
-  const ownedDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-owned-"));
-  const ownedFile = path.join(ownedDir, "node");
-  fs.writeFileSync(ownedFile, "");
-  check(
-    "a binary this user owns is refused",
-    String(tamperableBy(ownedFile, process.getuid())).includes("owned by uid"),
-    true,
-  );
-
-  // Ownership is not the only way in: write access to any parent directory is
-  // write access to what it holds.
-  const looseDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-loose-"));
-  fs.chmodSync(looseDir, 0o777);
-  const looseFile = path.join(looseDir, "node");
-  fs.writeFileSync(looseFile, "");
-  fs.chmodSync(looseFile, 0o755);
-  check(
-    "a binary in a world-writable directory is refused",
-    String(tamperableBy(looseFile, OTHER_UID)).includes(
-      "group- or world-writable",
-    ),
-    true,
-  );
-
-  if (process.platform === "darwin") {
-    check(
+  // Every case here is about POSIX ownership: uids, mode bits, and absolute
+  // paths like /usr/bin/true, which Windows resolves onto the current drive and
+  // then cannot stat. process.getuid does not exist there either. The trust
+  // check exists for a launchd install, so there is nothing on Windows to test.
+  if (process.platform === "win32") {
+    for (const label of [
+      "a system binary is trusted",
+      "a binary owned by the excluded user is refused",
+      "a binary this user owns is refused",
+      "a binary in a world-writable directory is refused",
       "a system binary links only system libraries",
-      selfContained("/bin/ls"),
+    ]) {
+      skip(label, "POSIX ownership; the broker installs under launchd");
+    }
+  } else {
+    const OTHER_UID = 99999;
+
+    check(
+      "a system binary is trusted",
+      tamperableBy("/usr/bin/true", OTHER_UID),
+      null,
+    );
+
+    check(
+      "a binary owned by the excluded user is refused",
+      String(tamperableBy("/usr/bin/true", 0)).includes("owned by uid 0"),
       true,
     );
-  } else {
-    skip(
-      "a system binary links only system libraries",
-      "Mach-O linkage; the broker installs under launchd",
-    );
-  }
 
-  fs.rmSync(ownedDir, { recursive: true, force: true });
-  fs.rmSync(looseDir, { recursive: true, force: true });
+    const ownedDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-owned-"));
+    const ownedFile = path.join(ownedDir, "node");
+    fs.writeFileSync(ownedFile, "");
+    check(
+      "a binary this user owns is refused",
+      String(tamperableBy(ownedFile, process.getuid())).includes("owned by uid"),
+      true,
+    );
+
+    // Ownership is not the only way in: write access to any parent directory is
+    // write access to what it holds.
+    const looseDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-loose-"));
+    fs.chmodSync(looseDir, 0o777);
+    const looseFile = path.join(looseDir, "node");
+    fs.writeFileSync(looseFile, "");
+    fs.chmodSync(looseFile, 0o755);
+    check(
+      "a binary in a world-writable directory is refused",
+      String(tamperableBy(looseFile, OTHER_UID)).includes(
+        "group- or world-writable",
+      ),
+      true,
+    );
+
+    if (process.platform === "darwin") {
+      check(
+        "a system binary links only system libraries",
+        selfContained("/bin/ls"),
+        true,
+      );
+    } else {
+      skip(
+        "a system binary links only system libraries",
+        "Mach-O linkage; the broker installs under launchd",
+      );
+    }
+
+    fs.rmSync(ownedDir, { recursive: true, force: true });
+    fs.rmSync(looseDir, { recursive: true, force: true });
+  }
 
   console.log("\nInstaller: routes and plist\n--------------------");
 
