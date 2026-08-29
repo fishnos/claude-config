@@ -158,23 +158,43 @@ const suiteCount = summary ? Number(summary[1]) : 0;
 console.log(`         ${suiteCount} cases`);
 
 section("Docs match reality");
-const readme = read("README.md");
-const claimed = /— (\d+) cases/.exec(readme);
+// README is the landing page; the detail lives in docs/. A claim is checked
+// against the whole set, so moving a section between pages never silently drops
+// the check that kept it true.
+const docsDir = path.join(ROOT, "docs");
+const docPages = fs.existsSync(docsDir)
+  ? fs
+      .readdirSync(docsDir)
+      .filter((name) => name.endsWith(".md"))
+      .map((name) => path.join("docs", name))
+  : [];
+const pages = ["README.md", ...docPages];
+const prose = pages.map(read).join("\n");
+check("docs/ carries the pages README links to", docPages.length >= 5, `found ${docPages.length}`);
+const claimed = /— (\d+) cases/.exec(prose);
 check(
-  "README case count matches the suite",
+  "documented case count matches the suite",
   claimed !== null && Number(claimed[1]) === suiteCount,
-  `README says ${claimed ? claimed[1] : "?"}, suite ran ${suiteCount}`,
+  `docs say ${claimed ? claimed[1] : "?"}, suite ran ${suiteCount}`,
 );
 check(
-  "README has no stale .py references",
-  !/hooks\/[\w-]+\.py|test_hooks\.py/.test(readme),
+  "no stale .py references",
+  !/hooks\/[\w-]+\.py|test_hooks\.py/.test(prose),
 );
-check("README no longer claims POSIX-only", !/POSIX only/.test(readme));
+check("nothing still claims POSIX-only", !/POSIX only/.test(prose));
 for (const anchor of ["Engineering standards", "Pushing"]) {
   check(
-    `README section "${anchor}" exists`,
-    new RegExp(`^## ${anchor}`, "m").test(readme),
+    `section "${anchor}" survives the split`,
+    new RegExp(`^## ${anchor}`, "m").test(prose),
   );
+}
+const linked = new Set(
+  (read("README.md").match(/\]\(docs\/[\w-]+\.md\)/g) || []).map((link) =>
+    link.slice(2, -1),
+  ),
+);
+for (const target of [...linked].sort()) {
+  check(`README link ${target} resolves`, fs.existsSync(path.join(ROOT, target)));
 }
 const claudeMd = read("CLAUDE.md");
 check(

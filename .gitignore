@@ -26,6 +26,10 @@
 !commands/
 !commands/**
 
+# Long-form docs. README is the landing page; each concern has a page here.
+!docs/
+!docs/**
+
 # Terminal themes referenced by settings.json.
 !themes/
 !themes/**
