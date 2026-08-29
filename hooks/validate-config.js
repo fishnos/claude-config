@@ -145,7 +145,10 @@ const suite = spawnSync(
     timeout: 300000,
   },
 );
-const summary = /PASS (\d+)\s+FAIL (\d+)/.exec(suite.stdout || "");
+// A skipped case is one the platform cannot run, not one that disappeared, so
+// it still counts toward the total the docs state. Otherwise the documented
+// figure would only ever be right on the machine it was written on.
+const summary = /PASS (\d+)\s+SKIP (\d+)\s+FAIL (\d+)/.exec(suite.stdout || "");
 check(
   "suite exits zero",
   suite.status === 0,
@@ -153,11 +156,11 @@ check(
 );
 check(
   "suite has zero failures",
-  summary !== null && summary[2] === "0",
+  summary !== null && summary[3] === "0",
   summary ? summary[0] : "no summary",
 );
-const suiteCount = summary ? Number(summary[1]) : 0;
-console.log(`         ${suiteCount} cases`);
+const suiteCount = summary ? Number(summary[1]) + Number(summary[2]) : 0;
+console.log(`         ${suiteCount} cases (${summary ? summary[2] : "?"} skipped here)`);
 
 section("Docs match reality");
 // README is the landing page; the detail lives in docs/. A claim is checked

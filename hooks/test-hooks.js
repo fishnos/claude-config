@@ -76,6 +76,15 @@ function header(title) {
   console.log("\n" + "=".repeat(72) + "\n" + title + "\n" + "=".repeat(72));
 }
 
+// POSIX file modes and the sh shim have no Windows equivalent, and the broker
+// runs under launchd. A case that cannot apply is skipped by name and counted,
+// so the total stays constant across platforms and a silent gap is impossible.
+let skipped = 0;
+function skip(label, reason) {
+  skipped += 1;
+  console.log(`[SKIP] ${label}\n       ${reason}`);
+}
+
 function check(label, verdict, expected, reason) {
   const ok = verdict === expected;
   if (ok) passed += 1;
@@ -1312,14 +1321,18 @@ header("ccfg -- secret migration and doctor");
     "allow",
     "",
   );
-  check(
-    "secrets file is not world-readable",
-    fs.existsSync(secretsFile) && (fs.statSync(secretsFile).mode & 0o077) === 0
-      ? "allow"
-      : "TOO OPEN",
-    "allow",
-    "",
-  );
+  if (process.platform === "win32") {
+    skip("secrets file is not world-readable", "POSIX mode bits; Windows uses ACLs");
+  } else {
+    check(
+      "secrets file is not world-readable",
+      fs.existsSync(secretsFile) && (fs.statSync(secretsFile).mode & 0o077) === 0
+        ? "allow"
+        : "TOO OPEN",
+      "allow",
+      "",
+    );
+  }
   check(
     "the type of key that was migrated is preserved",
     migrated.mcpServers.context7.type === "http" ? "allow" : "CLOBBERED",
@@ -1525,12 +1538,16 @@ header("ccfg -- clean, backup and install");
     "present",
     "",
   );
-  check(
-    "the shim is executable",
-    fs.existsSync(shim) && fs.statSync(shim).mode & 0o111 ? true : false,
-    true,
-    "",
-  );
+  if (process.platform === "win32") {
+    skip("the shim is executable", "no execute bit on Windows");
+  } else {
+    check(
+      "the shim is executable",
+      fs.existsSync(shim) && fs.statSync(shim).mode & 0o111 ? true : false,
+      true,
+      "",
+    );
+  }
   check(
     "install writes the shell shim",
     fs.existsSync(path.join(configDir, "shell-init.sh"))
@@ -1540,19 +1557,23 @@ header("ccfg -- clean, backup and install");
     "",
   );
   // The shim must launch the real CLI, not just exist.
-  const viaShim = spawnSync(shim, ["help"], {
-    encoding: "utf8",
-    timeout: 30000,
-    env: { ...process.env, HOME: home, NO_COLOR: "1" },
-  });
-  check(
-    "the installed shim actually runs ccfg",
-    /manage this Claude Code configuration/.test(viaShim.stdout || "")
-      ? "runs"
-      : "broken",
-    "runs",
-    (viaShim.stderr || "").slice(0, 200),
-  );
+  if (process.platform === "win32") {
+    skip("the installed shim actually runs ccfg", "the shim is a POSIX sh script");
+  } else {
+    const viaShim = spawnSync(shim, ["help"], {
+      encoding: "utf8",
+      timeout: 30000,
+      env: { ...process.env, HOME: home, NO_COLOR: "1" },
+    });
+    check(
+      "the installed shim actually runs ccfg",
+      /manage this Claude Code configuration/.test(viaShim.stdout || "")
+        ? "runs"
+        : "broken",
+      "runs",
+      (viaShim.stderr || "").slice(0, 200),
+    );
+  }
 
   fs.rmSync(home, { recursive: true, force: true });
 }
@@ -1815,5 +1836,5 @@ for (const [label, payload] of [
 
 fs.rmSync(repo, { recursive: true, force: true });
 console.log(`\ntemp repo removed; live marker cache untouched`);
-console.log(`\nPASS ${passed}  FAIL ${failed}`);
+console.log(`\nPASS ${passed}  SKIP ${skipped}  FAIL ${failed}`);
 process.exit(failed === 0 ? 0 : 1);
