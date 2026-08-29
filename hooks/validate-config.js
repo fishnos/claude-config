@@ -9,7 +9,9 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
-const ROOT = path.join(os.homedir(), ".claude");
+// Same resolution order as the hook bootstrap, so a CI checkout that is not at
+// ~/.claude validates the tree it actually checked out.
+const ROOT = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
 let failures = 0;
 
 function check(label, ok, detail) {
@@ -234,9 +236,15 @@ for (const skill of skills) {
   const realDirectory =
     fs.existsSync(tracked) &&
     !fs.lstatSync(path.join(ROOT, "skills", skill)).isSymbolicLink();
+  // The shared path is a convenience for other agents on this machine, not a
+  // property of the repository. A CI runner has no ~/.agents, and failing there
+  // would say the config is broken when only the symlinks are missing.
+  const sharedRoot = fs.existsSync(path.join(os.homedir(), ".agents", "skills"));
   check(
-    `${skill}: real dir in repo + reachable via ~/.agents`,
-    realDirectory && fs.existsSync(shared),
+    sharedRoot
+      ? `${skill}: real dir in repo + reachable via ~/.agents`
+      : `${skill}: real dir in repo (~/.agents absent, shared check skipped)`,
+    realDirectory && (!sharedRoot || fs.existsSync(shared)),
   );
 }
 
@@ -252,6 +260,52 @@ if (fs.existsSync(messageDir)) {
       `${name} passes its own linter`,
       problems.length === 0,
       problems.join(" | "),
+    );
+  }
+}
+
+section("Marketplace manifest");
+const manifestPath = path.join(ROOT, ".claude-plugin", "marketplace.json");
+if (fs.existsSync(manifestPath)) {
+  let manifest = null;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  } catch (error) {
+    check("marketplace.json parses", false, error.message);
+  }
+  if (manifest) {
+    check("marketplace.json parses", true);
+    check(
+      "marketplace names an owner",
+      typeof manifest.name === "string" && Boolean(manifest.owner?.name),
+    );
+    for (const plugin of manifest.plugins || []) {
+      // A plugin root must be self-contained. Pointing one at the repository
+      // would publish every skill here, vendored ones included, because a
+      // plugin's own skills/ directory is always scanned.
+      const root = path.join(ROOT, plugin.source || "");
+      check(
+        `${plugin.name}: has its own plugin.json`,
+        fs.existsSync(path.join(root, ".claude-plugin", "plugin.json")),
+      );
+      check(
+        `${plugin.name}: root is isolated from the repository`,
+        typeof plugin.source === "string" &&
+          plugin.source.startsWith("./marketplace/"),
+        `source is ${plugin.source}`,
+      );
+    }
+    // The copies under marketplace/ are generated. If they have drifted from
+    // skills/, the published plugin is not what this repository says it is.
+    const built = spawnSync(
+      process.execPath,
+      [path.join(ROOT, "scripts", "build-marketplace.js"), "--check"],
+      { encoding: "utf8" },
+    );
+    check(
+      "marketplace/ is in step with skills/",
+      built.status === 0,
+      (built.stdout || "").trim().split("\n").slice(0, 5).join(" | "),
     );
   }
 }

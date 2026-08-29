@@ -1,0 +1,32 @@
+{
+  "comment": "Source of truth for the plugin marketplace. `node scripts/build-marketplace.js` generates .claude-plugin/marketplace.json and the marketplace/ trees from this file; nothing under marketplace/ should be edited by hand. A plugin root gets its own copy of each skill because Claude Code always scans a plugin's own skills/ directory -- a manifest path cannot narrow that -- so pointing a plugin at the repository root would publish all 126 skills, vendored ones included.",
+  "owner": {
+    "name": "Daniel Kosukhin",
+    "url": "https://github.com/fishnos"
+  },
+  "marketplace": "fishnos",
+  "description": "Engineering-standard skills compiled from primary sources, packaged so they can be installed without adopting the rest of this configuration.",
+  "plugins": {
+    "google-engineering": {
+      "version": "1.0.0",
+      "description": "Google's engineering practices as operational skills: style guides for ten languages, the CL author and reviewer guides, the testing discipline from Software Engineering at Google, and commit, branch and release mechanics. Carries the unabridged primary sources offline. Reference text is reproduced under CC BY 3.0; see NOTICE.",
+      "skills": [
+        "google-style",
+        "google-testing",
+        "google-code-review",
+        "google-cl-author",
+        "git-workflow"
+      ]
+    },
+    "frontend-standards": {
+      "version": "1.0.0",
+      "description": "Frontend work held to a visible bar: interface design and critique, React Testing Library discipline with MSW at the network boundary, and a structured discovery pass that settles UX before any code is written.",
+      "skills": ["impeccable", "react-testing", "shape"]
+    },
+    "repo-agent-setup": {
+      "version": "1.0.0",
+      "description": "Make a repository legible to an agent: build a queryable knowledge graph of the codebase, audit what agent infrastructure the repository is missing, declare its scheduled cloud agents as committed files, and fetch current library documentation instead of answering from training data.",
+      "skills": ["graphify", "repo-setup", "repo-schedule", "find-docs"]
+    }
+  }
+}

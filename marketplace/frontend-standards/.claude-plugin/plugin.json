@@ -1,0 +1,9 @@
+{
+  "name": "frontend-standards",
+  "description": "Frontend work held to a visible bar: interface design and critique, React Testing Library discipline with MSW at the network boundary, and a structured discovery pass that settles UX before any code is written.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Daniel Kosukhin",
+    "url": "https://github.com/fishnos"
+  }
+}

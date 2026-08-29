@@ -1,0 +1,9 @@
+{
+  "name": "google-engineering",
+  "description": "Google's engineering practices as operational skills: style guides for ten languages, the CL author and reviewer guides, the testing discipline from Software Engineering at Google, and commit, branch and release mechanics. Carries the unabridged primary sources offline. Reference text is reproduced under CC BY 3.0; see NOTICE.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Daniel Kosukhin",
+    "url": "https://github.com/fishnos"
+  }
+}
