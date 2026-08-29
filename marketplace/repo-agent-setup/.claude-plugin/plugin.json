@@ -1,0 +1,9 @@
+{
+  "name": "repo-agent-setup",
+  "description": "Make a repository legible to an agent: build a queryable knowledge graph of the codebase, audit what agent infrastructure the repository is missing, declare its scheduled cloud agents as committed files, and fetch current library documentation instead of answering from training data.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Daniel Kosukhin",
+    "url": "https://github.com/fishnos"
+  }
+}

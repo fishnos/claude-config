@@ -1,0 +1,47 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      # The hooks resolve their config directory from CLAUDE_CONFIG_DIR before
+      # falling back to ~/.claude, so the checkout is validated where it landed
+      # rather than being copied into the home directory first.
+      - name: Hook regression suite
+        run: node hooks/test-hooks.js
+        env:
+          CLAUDE_CONFIG_DIR: ${{ github.workspace }}
+
+      - name: ccfg suite
+        run: node tools/test-ccfg.js
+        env:
+          CLAUDE_CONFIG_DIR: ${{ github.workspace }}
+
+      - name: Broker suite
+        run: node tools/test-broker.js
+        env:
+          CLAUDE_CONFIG_DIR: ${{ github.workspace }}
+
+      - name: Marketplace is in step with skills/
+        run: node scripts/build-marketplace.js --check
+
+      - name: Whole-config validation
+        run: node hooks/validate-config.js
+        env:
+          CLAUDE_CONFIG_DIR: ${{ github.workspace }}

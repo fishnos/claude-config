@@ -1,0 +1,40 @@
+{
+  "name": "fishnos",
+  "owner": {
+    "name": "Daniel Kosukhin",
+    "url": "https://github.com/fishnos"
+  },
+  "description": "Engineering-standard skills compiled from primary sources, packaged so they can be installed without adopting the rest of this configuration.",
+  "plugins": [
+    {
+      "name": "frontend-standards",
+      "source": "./marketplace/frontend-standards",
+      "description": "Frontend work held to a visible bar: interface design and critique, React Testing Library discipline with MSW at the network boundary, and a structured discovery pass that settles UX before any code is written.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Daniel Kosukhin",
+        "url": "https://github.com/fishnos"
+      }
+    },
+    {
+      "name": "google-engineering",
+      "source": "./marketplace/google-engineering",
+      "description": "Google's engineering practices as operational skills: style guides for ten languages, the CL author and reviewer guides, the testing discipline from Software Engineering at Google, and commit, branch and release mechanics. Carries the unabridged primary sources offline. Reference text is reproduced under CC BY 3.0; see NOTICE.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Daniel Kosukhin",
+        "url": "https://github.com/fishnos"
+      }
+    },
+    {
+      "name": "repo-agent-setup",
+      "source": "./marketplace/repo-agent-setup",
+      "description": "Make a repository legible to an agent: build a queryable knowledge graph of the codebase, audit what agent infrastructure the repository is missing, declare its scheduled cloud agents as committed files, and fetch current library documentation instead of answering from training data.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Daniel Kosukhin",
+        "url": "https://github.com/fishnos"
+      }
+    }
+  ]
+}
