@@ -13,7 +13,7 @@
       "repo": "anthropics/claude-plugins-official"
     },
     "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/claude-plugins-official",
-    "lastUpdated": "2026-08-21T20:55:13.688Z"
+    "lastUpdated": "2026-08-28T23:34:55.303Z"
   },
   "superpowers-marketplace": {
     "source": {
@@ -29,7 +29,7 @@
       "repo": "anthropics/claude-code"
     },
     "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/claude-code-plugins",
-    "lastUpdated": "2026-08-21T20:55:14.816Z"
+    "lastUpdated": "2026-08-28T07:21:22.425Z"
   },
   "caveman": {
     "source": {
