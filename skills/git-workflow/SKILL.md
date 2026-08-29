@@ -40,7 +40,9 @@ The near-universal convention, from the Linux kernel through GitHub tooling:
 
 1. **Why was this needed?** The problem, not the solution.
 2. **Why this approach?** Including the obvious alternative you rejected, and why.
-3. **What's still wrong or unverified?** Known shortcomings, untested paths, caveats.
+3. **What is the one thing you did not check?** One sentence, and only when a reader would otherwise assume it was covered. Omit it when you checked everything — most commits should. Not an inventory of caveats: a list of loose ends is a to-do note left where it can never be updated.
+
+Claim only what the session establishes. Never assert a state you cannot observe — whether a page was opened in a browser, a deploy went out, someone checked it by hand. Ask when it matters to the message, and otherwise say nothing about it.
 
 Everything else belongs somewhere that stays current when the code changes — how the code works goes in a comment, how to use it goes in the README, what changed line by line is already in the diff. A commit message is the only one of those that can never be updated, so it should carry only what will still be true and still be needed in a year.
 

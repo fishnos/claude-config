@@ -29,6 +29,28 @@ const NON_IMPERATIVE =
 const EFFECT_LED =
   /^(stop|prevent|avoid|ensure|allow|let|keep|leave|silence|disallow)\b/i;
 
+// Nouns that stand in for the thing instead of naming it. "Fix the login bug"
+// and "Repair three faults" both describe that work happened without saying
+// what was touched, which is the one question a reader searching the log has.
+const PLACEHOLDER_NOUN =
+  /\b(bugs?|issues?|faults?|problems?|errors?|things?|stuff|tweaks?|cleanups?|fixes)\b/i;
+
+// Something a reader could grep for: an identifier, a dotted path, a version or
+// error code, or a proper noun past the opening verb.
+const CONCRETE_ANCHOR =
+  /[a-z][A-Z]|[a-z]+_[a-z]|\/|\.[a-z]{2,4}\b|\d|\b[A-Z][A-Za-z]+/;
+
+// A relative clause standing in for the object: "track what a clone missed"
+// names the relation to the thing rather than the thing. The same withholding
+// as a placeholder noun, with no noun in it for the list above to catch.
+const VAGUE_REFERENT =
+  /\b(what|whatever|whichever|everything|anything|something)\b/i;
+
+// A count in front of a placeholder is the strongest tell of all: the author
+// knew there were three of something and still did not say what.
+const COUNTED_PLACEHOLDER =
+  /\b(a few|several|multiple|various|some|couple|two|three|four|five|\d+)\s+\S*\s*(bugs?|issues?|faults?|problems?|errors?|things?|fixes|changes?)\b/i;
+
 // Forms where git composes the message itself, so there is nothing of the author's
 // to judge: --fixup/--squash generate their own prefixes, -C/-c reuse another commit.
 const GENERATED_MESSAGE =
@@ -76,6 +98,22 @@ function extract(rawSegment, cwd) {
  * Judge a commit message against the conventions in the git-workflow skill.
  * Returns human-readable problems; an empty array means nothing to say.
  */
+// A compound subject hides a vague half behind a concrete one: in "Split the
+// README and track what a clone missed" the only anchor sits in the clause that
+// was already fine. Each clause is therefore judged on its own.
+function vagueClause(subject) {
+  for (const clause of subject.split(/\s+and\s+|\s*[,;+]\s*/i)) {
+    const trimmed = clause.trim();
+    if (!trimmed) continue;
+    // The opening verb is the work, never the thing, so it is not an anchor.
+    const body = trimmed.slice(trimmed.indexOf(" ") + 1);
+    if (CONCRETE_ANCHOR.test(body)) continue;
+    const match = PLACEHOLDER_NOUN.exec(trimmed) || VAGUE_REFERENT.exec(trimmed);
+    if (match) return match[0];
+  }
+  return null;
+}
+
 function lint(text) {
   const problems = [];
   // Comment lines are stripped by git before the message is stored.
@@ -110,6 +148,21 @@ function lint(text) {
         `name what was touched, then the effect ("Modify X to ${verb} Y")`,
     );
   }
+  const counted = COUNTED_PLACEHOLDER.exec(subject);
+  if (counted) {
+    subjectProblems.push(
+      `counts what it will not name ("${counted[0]}") -- say which ones`,
+    );
+  } else {
+    const vague = vagueClause(subject);
+    if (vague) {
+      subjectProblems.push(
+        `"${vague}" stands in for the thing -- name the symbol, file, ` +
+          `component or code the change touched`,
+      );
+    }
+  }
+
   if (subjectProblems.length > 0) {
     problems.push(`Commit subject: ${subjectProblems.join("; ")}.`);
   }
@@ -138,9 +191,10 @@ function lint(text) {
   if (substantive > BODY_LINES_BEFORE_REVIEW) {
     problems.push(
       `Body is ${substantive} lines. A body earns its length by answering why the ` +
-        "change was needed, why this approach over the alternative, and what is " +
-        "still wrong or unverified. Anything describing how the code works belongs " +
-        "in a comment or the README, which stay current when the code changes.",
+        "change was needed, why this approach over the alternative, and at most one " +
+        "sentence on the single thing you did not check. Anything describing how the " +
+        "code works belongs in a comment or the README, which stay current when the " +
+        "code changes, and a list of caveats belongs in an issue.",
     );
   }
 

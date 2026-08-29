@@ -67,7 +67,7 @@ Four things make these portable rather than accidentally POSIX:
 
 Requires **Node ≥ 14.14** (`fs.rmSync`), well below the version the rest of this config already needs.
 
-`hooks/test-hooks.js` is the regression suite for all of them — 264 cases, including deliberate false-positive tests, bypass tests (`FOO=1 git push` and `git -C /repo push` must both still be denied), Windows-shaped inputs (backslash paths, CRLF, `&` chaining), and a check that the suite itself never mutates live state. It is platform-neutral too: no shell invocation, and the hooks are spawned via `process.execPath`. Run it after any change:
+`hooks/test-hooks.js` is the regression suite for all of them — 271 cases, including deliberate false-positive tests, bypass tests (`FOO=1 git push` and `git -C /repo push` must both still be denied), Windows-shaped inputs (backslash paths, CRLF, `&` chaining), and a check that the suite itself never mutates live state. It is platform-neutral too: no shell invocation, and the hooks are spawned via `process.execPath`. Run it after any change:
 
 ```sh
 node ~/.claude/hooks/test-hooks.js

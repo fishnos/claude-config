@@ -509,9 +509,60 @@ header("commit-message -- lint() policy");
   );
   check(
     "comment lines ignored",
-    lint("# comment\nAdd a thing").length === 0 ? "ok" : "problems",
+    lint("# comment\nAdd a retry to the upload client").length === 0 ? "ok" : "problems",
     "ok",
-    JSON.stringify(lint("# comment\nAdd a thing")),
+    JSON.stringify(lint("# comment\nAdd a retry to the upload client")),
+  );
+  check(
+    "placeholder noun flagged",
+    has("Fix the login bug", "stands in for the thing") ? "ok" : "missed",
+    "ok",
+  );
+  check(
+    "counted placeholder flagged",
+    has("Repair three faults found while chasing one bug", "counts what it")
+      ? "ok"
+      : "missed",
+    "ok",
+  );
+  // The escape that keeps the rule from punishing a subject that does name the
+  // thing. Without it the noun list would reject every honest mention of a bug.
+  check(
+    "placeholder beside an anchor is accepted",
+    lint("Repair the bug in resolveTargetPath").length === 0 ? "ok" : "problems",
+    "ok",
+    JSON.stringify(lint("Repair the bug in resolveTargetPath")),
+  );
+  // A relative clause is the same withholding with no noun to catch it, and a
+  // compound subject hides it: the anchor sits in the half that is already fine.
+  check(
+    "vague clause flagged",
+    has("Split the README and track what a clone missed", "stands in for the thing")
+      ? "ok"
+      : "missed",
+    "ok",
+  );
+  check(
+    "vague clause flagged on its own",
+    has("Track what a clone missed", "stands in for the thing") ? "ok" : "missed",
+    "ok",
+  );
+  check(
+    "a clause naming its subject is accepted",
+    lint("Explain what resolveTargetPath returns").length === 0 ? "ok" : "problems",
+    "ok",
+    JSON.stringify(lint("Explain what resolveTargetPath returns")),
+  );
+  // Every clause is judged, so a concrete first half no longer covers for a
+  // vague second half -- but a compound subject that is concrete throughout
+  // must still pass, or the split would reject ordinary work.
+  check(
+    "a concrete compound subject is accepted",
+    lint("Rename UserRecord and drop the unused email column").length === 0
+      ? "ok"
+      : "problems",
+    "ok",
+    JSON.stringify(lint("Rename UserRecord and drop the unused email column")),
   );
   check("empty message flagged", has("", "empty") ? "ok" : "missed", "ok");
 }
@@ -580,7 +631,7 @@ header("PreToolUse(Bash) -- message passed by file is linted");
 
   fs.writeFileSync(
     path.join(repo, "ok.txt"),
-    "Add a thing\n\nBecause of reasons.\n",
+    "Add a retry to the upload client\n\nBecause of reasons.\n",
   );
   r = run(GUARD, bash("CLAUDE_ALLOW_COMMIT=1 git commit -F ok.txt", repo));
   check("-F with good subject stays silent", r.verdict, "allow", r.reason);
