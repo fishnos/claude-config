@@ -56,7 +56,7 @@ Deliberate exemptions, because over-blocking gets a guard switched off: `.env.ex
 
 This is a floor, not a boundary. Anything with code execution as this user can eventually reach these files; what it buys is that it cannot happen by accident, in passing, or without a visible refusal.
 
-`hooks/lib/` holds the parts all three share: `hook-io.js` for the stdin/stdout protocol, git invocation, and the fail-open wrapper; `paths.js` for path classification; `mcp-secrets.js` for deciding whether an MCP credential is exposed or brokered, which `ccfg` reads from too so the sentinel and the doctor cannot reach different verdicts.
+`hooks/lib/` holds what the hooks share rather than duplicate: `hook-io.js` for the stdin/stdout protocol, git invocation, and the fail-open wrapper, which seven of them use; `paths.js` for path classification; `commit-message.js` for the subject and body rules, which the validator also lints prepared messages with; `repo-audit.js` for the checks the SessionStart notice and the `/repo-setup` skill have to agree on; `skill-index.js` for rebuilding the catalog; and `mcp-secrets.js` for deciding whether an MCP credential is exposed or brokered, which `ccfg` reads from too so the sentinel and the doctor cannot reach different verdicts.
 
 Four things make these portable rather than accidentally POSIX:
 
