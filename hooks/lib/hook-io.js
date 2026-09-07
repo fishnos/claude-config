@@ -65,6 +65,26 @@ function warn(hookEventName, additionalContext) {
   process.exit(0);
 }
 
+/**
+ * Say something to the operator and something to the model, in one reply.
+ *
+ * `additionalContext` reaches the model as a system reminder and is never
+ * displayed; `systemMessage` is the opposite -- shown in the transcript, never
+ * given to the model. A hook that needs the operator to SEE something has to
+ * use the second one, which is why a session-start notice written only as
+ * context looked, from the outside, like a hook that had not run.
+ *
+ * systemMessage is a top-level field and needs Claude Code 2.1.227 or newer;
+ * older versions ignore it and still deliver the context.
+ */
+function announce(hookEventName, additionalContext, systemMessage) {
+  emit({
+    systemMessage,
+    hookSpecificOutput: { hookEventName, additionalContext },
+  });
+  process.exit(0);
+}
+
 /** Stop-hook form: send the model back for another turn. */
 function block(reason) {
   emit({ decision: "block", reason });
@@ -120,6 +140,7 @@ module.exports = {
   readPayload,
   deny,
   warn,
+  announce,
   block,
   configDir,
   evidenceDir,
