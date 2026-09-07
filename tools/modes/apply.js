@@ -16,6 +16,7 @@ const settings = require("./settings.js");
 const modes = require("./modes.js");
 const render = require("./render.js");
 const glitch = require("./glitch.js");
+const modeCommands = require("./commands.js");
 
 const LOCK_NAME = "mode.lock";
 const ACTIVE_RULES = path.join("rules", "_active.md");
@@ -120,8 +121,22 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
   // the first mode's output, and revert would then restore a mode rather than
   // the operator's own settings -- leaving skills hidden with no way back.
   const existing = readLock(configDir);
+
+  // Checked here, before a byte is written, for the same reason the hook check
+  // above is: a mode whose commands turn out to be unusable must fail while the
+  // configuration is still whole, rather than halfway into the switch.
+  const priorCommands = (existing && existing.installedCommands) || [];
+  const plannedCommands = modeCommands.plan(
+    configDir,
+    mode.name,
+    (mode.glitch || glitch.parseGlitch(undefined, mode.name)).commands,
+    priorCommands,
+  );
+
   const settingsBackup =
-    existing && existing.settingsBackup && fs.existsSync(existing.settingsBackup)
+    existing &&
+    existing.settingsBackup &&
+    fs.existsSync(existing.settingsBackup)
       ? existing.settingsBackup
       : backupSettings(configDir);
   const resolved = modes.resolve({ personal: mode, adhoc });
@@ -165,6 +180,12 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
     writeSettings(configDir, next);
   }
 
+  const installedCommands = modeCommands.commit(
+    configDir,
+    plannedCommands,
+    priorCommands,
+  );
+
   const lock = {
     mode: mode.name,
     codename: mode.codename || mode.name.toUpperCase(),
@@ -181,6 +202,9 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
     // Carried forward across switches so each mode gates from the operator's
     // own baseline rather than from the previous mode's output.
     baseSkillOverrides,
+    // The slash commands this mode put into commands/. Recorded so that taking
+    // the mode off removes exactly those and leaves the operator's own alone.
+    installedCommands,
     // Compared against what a session recorded at startup, to detect a mode
     // that is only half in force. See hooks/mode-session.js.
     hardHash: glitch.hardHash(layer, mode.projects),
@@ -197,6 +221,8 @@ function revert(configDir) {
 
   if (lock.settingsBackup && fs.existsSync(lock.settingsBackup))
     fs.copyFileSync(lock.settingsBackup, settingsPath(configDir));
+
+  modeCommands.remove(configDir, lock.installedCommands);
 
   fs.rmSync(lockPath(configDir), { force: true });
 

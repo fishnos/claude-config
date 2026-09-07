@@ -26,6 +26,9 @@
     },
     "projects": {
       "effortLevel": "high"
-    }
+    },
+    "commands": [
+      "narrow"
+    ]
   }
 }

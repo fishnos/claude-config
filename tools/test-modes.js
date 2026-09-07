@@ -1255,6 +1255,178 @@ check(
   true,
 );
 
+// ------------------------------------------------- mode-scoped commands
+
+const commands = require("./modes/commands.js");
+
+function commandSandbox() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-cmds-"));
+  fs.mkdirSync(path.join(root, "commands"), { recursive: true });
+  fs.mkdirSync(path.join(root, "modes", "commands", "trace"), {
+    recursive: true,
+  });
+  return root;
+}
+
+function writeModeCommand(root, mode, name, body) {
+  fs.mkdirSync(path.join(root, "modes", "commands", mode), { recursive: true });
+  fs.writeFileSync(path.join(root, "modes", "commands", mode, `${name}.md`), body);
+}
+
+const PLAIN_COMMAND = "---\ndescription: Narrow the repro\n---\n\nShrink it.\n";
+
+{
+  const root = commandSandbox();
+  writeModeCommand(root, "trace", "narrow", PLAIN_COMMAND);
+  const installed = commands.install(root, "trace", ["narrow"], []);
+  check("a mode command is written into commands/", installed.length, 1);
+  check(
+    "the installed file carries the mode command body",
+    fs.readFileSync(path.join(root, "commands", "narrow.md"), "utf8").includes("Shrink it."),
+    true,
+  );
+}
+
+{
+  const root = commandSandbox();
+  writeModeCommand(root, "trace", "narrow", PLAIN_COMMAND);
+  commands.install(root, "trace", ["narrow"], []);
+  commands.remove(root, ["narrow"]);
+  check(
+    "taking the mode off removes its command again",
+    fs.existsSync(path.join(root, "commands", "narrow.md")),
+    false,
+  );
+}
+
+// A slash command's frontmatter can grant tool access, so an unchecked mode
+// command would be a way around the rule that a mode may only subtract.
+{
+  const root = commandSandbox();
+  writeModeCommand(
+    root,
+    "trace",
+    "escalate",
+    "---\ndescription: x\nallowed-tools: Bash(*)\n---\n\nrun it\n",
+  );
+  let message = "";
+  try {
+    commands.install(root, "trace", ["escalate"], []);
+  } catch (error) {
+    message = error.message;
+  }
+  check(
+    "a mode command that grants tools is refused",
+    message.includes("allowed-tools"),
+    true,
+  );
+  check(
+    "the refused command is not written",
+    fs.existsSync(path.join(root, "commands", "escalate.md")),
+    false,
+  );
+}
+
+{
+  const root = commandSandbox();
+  fs.writeFileSync(path.join(root, "commands", "commit.md"), "mine\n");
+  writeModeCommand(root, "trace", "commit", PLAIN_COMMAND);
+  let message = "";
+  try {
+    commands.install(root, "trace", ["commit"], []);
+  } catch (error) {
+    message = error.message;
+  }
+  check(
+    "a mode may not replace a command the operator already has",
+    message.includes("already"),
+    true,
+  );
+  check(
+    "the operator's own command is left untouched",
+    fs.readFileSync(path.join(root, "commands", "commit.md"), "utf8"),
+    "mine\n",
+  );
+}
+
+// A declared name is used to build a path, so it must never be able to leave
+// the mode's own command directory.
+{
+  const root = commandSandbox();
+  let message = "";
+  try {
+    commands.install(root, "trace", ["../../../etc/passwd"], []);
+  } catch (error) {
+    message = error.message;
+  }
+  check(
+    "a command name that escapes its directory is refused",
+    message.includes("name"),
+    true,
+  );
+}
+
+{
+  const root = commandSandbox();
+  writeModeCommand(root, "trace", "narrow", PLAIN_COMMAND);
+  let message = "";
+  try {
+    commands.install(root, "trace", ["missing"], []);
+  } catch (error) {
+    message = error.message;
+  }
+  check(
+    "a declared command with no file is refused",
+    message.includes("missing"),
+    true,
+  );
+}
+
+// Switching modes must clear the previous mode's commands before installing
+// its own, or a command outlives the mode that carried it.
+{
+  const root = commandSandbox();
+  writeModeCommand(root, "trace", "narrow", PLAIN_COMMAND);
+  writeModeCommand(root, "review", "verdict", PLAIN_COMMAND);
+  const first = commands.install(root, "trace", ["narrow"], []);
+  const second = commands.install(root, "review", ["verdict"], first);
+  check("switching installs the new mode's command", second.includes("verdict"), true);
+  check(
+    "switching removes the previous mode's command",
+    fs.existsSync(path.join(root, "commands", "narrow.md")),
+    false,
+  );
+}
+
+// The session banner is the only place a mode's commands are announced, and a
+// command nobody knows about is one nobody types.
+{
+  const root = commandSandbox();
+  fs.writeFileSync(
+    path.join(root, "mode.lock"),
+    JSON.stringify({
+      mode: "debug",
+      codename: "TRACE",
+      deniedTools: [],
+      installedCommands: ["narrow"],
+    }),
+  );
+  const out = require("child_process").spawnSync(
+    process.execPath,
+    [path.join(__dirname, "..", "hooks", "mode-session.js")],
+    {
+      input: JSON.stringify({ session_id: "cmd-banner" }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_CONFIG_DIR: root },
+    },
+  ).stdout;
+  check(
+    "the session banner names the commands the mode carries",
+    out.includes("/narrow"),
+    true,
+  );
+}
+
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 
 console.log(`\nPASS ${passed}  FAIL ${failed}`);
