@@ -1,14 +1,14 @@
 {
   "name": "build",
   "codename": "RUNNER",
-  "icon": "▶",
-  "color": 45,
+  "icon": "▚",
+  "color": 179,
   "description": "The daily posture. Write it well, run it, check in at the forks.",
   "settings": {
-    "verify": "run-it",
+    "verify": "tested",
     "claims": "labeled",
     "process": "light",
-    "autonomy": "check-in",
+    "asking": "sometimes",
     "code": "polished",
     "subagents": "few",
     "voice": "caveman"

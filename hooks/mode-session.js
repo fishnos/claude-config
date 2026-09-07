@@ -9,11 +9,11 @@
 // a mode that is fully in force and one that is only half applied.
 //
 // That half-applied state is the failure this exists to prevent. Switch modes
-// mid-session and the rules re-order immediately while the skill list does not
-// -- the banner says NETRUNNER, the status line says NETRUNNER, and forty
-// skills the mode meant to hide are still sitting in the listing. Nothing about
-// the session looks wrong. Recording the fingerprint here is what makes it
-// visible, under the name CORRUPTED.
+// mid-session and the rules re-order immediately while the skill list does
+// not: the banner says NETRUNNER, the status line says NETRUNNER, and forty
+// skills the mode meant to hide are still sitting in the listing. Nothing
+// about the session looks wrong. Recording the fingerprint here is what makes
+// it visible, under the name CORRUPTED.
 //
 // The session is "finalised" the moment this runs: whatever is on disk now is
 // what this session has, for its whole life.
@@ -99,8 +99,8 @@ io.run(() => {
   const hidden = typeof lock.skillsHidden === "number" ? lock.skillsHidden : 0;
 
   const detail = [
-    gated > 0 ? `${gated} tools gated` : null,
-    hidden > 0 ? `${hidden} skills hidden` : null,
+    gated > 0 ? `${gated} tool${gated === 1 ? "" : "s"} gated` : null,
+    hidden > 0 ? `${hidden} skill${hidden === 1 ? "" : "s"} hidden` : null,
     lock.subagents === "none" ? "no subagents" : null,
     (lock.installedCommands || []).length > 0
       ? `carries ${lock.installedCommands.map((name) => `/${name}`).join(" ")}`
@@ -120,7 +120,7 @@ io.run(() => {
     `Mode ${label} is in force for this session` +
       (detail.length > 0 ? ` (${detail.join(", ")})` : "") +
       `. Switching modes now changes the rules immediately, but the skill ` +
-      `list, model and effort are fixed until the next session -- ` +
+      `list, model and effort are fixed until the next session; ` +
       `\`ccfg mode\` reports that state as CORRUPTED.`,
     visible,
   );

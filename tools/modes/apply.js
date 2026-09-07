@@ -119,7 +119,7 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
   // The undo target must be the configuration as it stood BEFORE any mode was
   // applied. Backing up on every switch would make the second switch snapshot
   // the first mode's output, and revert would then restore a mode rather than
-  // the operator's own settings -- leaving skills hidden with no way back.
+  // the operator's own settings, leaving skills hidden with no way back.
   const existing = readLock(configDir);
 
   // Checked here, before a byte is written, for the same reason the hook check
@@ -154,7 +154,7 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
     // Settings a mode pins (the model, the effort level) are handed back to the
     // operator's own values when the next mode does not pin them. Overlaying
     // mode.projects onto `current` alone only overwrites, never clears, so
-    // RUNNER's model survived a switch to NOMAD -- a mode that pins nothing and
+    // RUNNER's model survived a switch to NOMAD, a mode that pins nothing and
     // is meant to read as an unmodified session.
     const operatorSettings =
       settingsBackup && fs.existsSync(settingsBackup)
@@ -208,6 +208,7 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
     // Carried in the lock so the status line renders from one small file
     // instead of parsing every mode on every prompt.
     icon: mode.icon || "\u25a0",
+    color: mode.color === undefined ? null : mode.color,
     settings: resolved.settings,
     adhoc,
     appliedAt: new Date().toISOString(),

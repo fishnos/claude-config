@@ -7,44 +7,50 @@
 // is what lets a new rule slot in without editing ten mode files. The seventh,
 // `voice`, is a set of registers with no ladder between them, and says so.
 //
-// The words are the interface. No numeric levels: "prove-it" says what it means
-// at a glance and "3" does not.
+// The words are the interface. No numeric levels: "proven" says what it means
+// at a glance and "3" does not. Every value names a state the work is in
+// rather than an order to follow. "tested" is true of what was done, where
+// the "run-it" it replaced read as an instruction and said nothing about
+// whether anyone had run anything.
 
 const SETTINGS = {
   verify: {
-    question: "How much proof before I say it works?",
-    values: ["none", "run-it", "prove-it"],
+    question: "how much proof before I say it works",
+    values: ["none", "tested", "proven"],
   },
   claims: {
-    question: "How do I label what I claim?",
+    question: "how I label what I claim",
     values: ["loose", "labeled", "sourced"],
   },
   process: {
-    question: "How many gates before code?",
+    question: "how many gates before code",
     values: ["skip", "light", "full"],
   },
-  // Ordered like every other setting: least of the thing, then most. The thing
-  // being scaled is how much the operator is consulted, so "just-go" is the low
-  // end and "ask-first" the high end. Ordered the other way round, the most
-  // careful mode would sit at the bottom of the scale and the restraint rules
-  // would be unreachable in exactly the mode that wants them.
-  autonomy: {
-    question: "How much do I check in before acting?",
-    values: ["just-go", "check-in", "ask-first"],
+  // Named for the thing it scales, which is how often the operator is asked.
+  //
+  // It was called `autonomy` while the scale ran from least asking to most, so a
+  // full gauge on a dial named for independence meant the least of it, and
+  // `autonomy: ask-first` sat at the top. Reversing the scale instead would have
+  // put the most careful mode at the bottom, where the restraint rules are
+  // unreachable, so the dial was renamed to match the direction it already
+  // ran in.
+  asking: {
+    question: "how often I stop and ask",
+    values: ["never", "sometimes", "always"],
   },
   code: {
-    question: "How good does the code have to be?",
+    question: "how good the code has to be",
     values: ["rough", "decent", "polished"],
   },
   subagents: {
-    question: "How many subagents?",
+    question: "how many subagents",
     values: ["none", "few", "many"],
   },
   // Categorical, not ordinal: three registers, no ladder. A rule belonging to
   // one register declares `only_at` rather than `primary_at`, because "normal or
   // more" is not a thing a register can mean.
   voice: {
-    question: "How do I talk?",
+    question: "how I talk",
     values: ["caveman", "normal", "prose"],
     categorical: true,
   },
@@ -54,10 +60,10 @@ const SETTINGS = {
 // dial: a config with no mode selected should behave like the config did before
 // modes existed, not like the most permissive mode.
 const DEFAULTS = {
-  verify: "run-it",
+  verify: "tested",
   claims: "labeled",
   process: "light",
-  autonomy: "check-in",
+  asking: "sometimes",
   code: "decent",
   subagents: "few",
   voice: "caveman",

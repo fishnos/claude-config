@@ -1,7 +1,7 @@
 ---
-id: autonomy-dont-guess
-setting: autonomy
-primary_at: just-go
+id: asking-dont-guess
+setting: asking
+primary_at: never
 ---
 
 **Don't guess.** When the cause is unclear, say what specifically is unclear and

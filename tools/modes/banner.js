@@ -2,16 +2,16 @@
 
 // The switch banner.
 //
-// It is a diff, not an announcement. A row whose value did not change renders
-// with no arrow, so the eye lands on the three or four that did -- which is the
-// only question anyone has at the moment of a switch. Making it pretty and
-// making it informative turned out to be the same job.
+// It shows what changed rather than announcing what was loaded. A row whose
+// value did not change renders with no arrow, so the reader lands on the
+// three or four that did, which is what anyone wants at the moment of a
+// switch.
 //
-// ASCII box drawing and no emoji: this prints into a terminal that may not be
-// rendering a font with the glyphs, and a banner that degrades into replacement
-// characters is worse than a plain one.
+// The frame, the colours and the gauges come from ink.js, which the rack and
+// the status view draw from too, so the three surfaces keep one look.
 
 const settings = require("./settings.js");
+const ink = require("./ink.js");
 
 const BOX_WIDTH = 50;
 const LINE_WIDTH = 56;
@@ -20,62 +20,50 @@ const NAME_COLUMN = 13;
 const VALUE_COLUMN = 8;
 const LABEL_COLUMN = 9;
 
-function painter(plain, color) {
-  const paint = (code, text) => (plain ? text : `[${code}m${text}[0m`);
-  return {
-    bold: (text) => paint("1", text),
-    dim: (text) => paint("2", text),
-    green: (text) => paint("32", text),
-    // The mode's own hue, used everywhere the banner refers to the mode it is
-    // switching to. A switch is then recognisable by colour before a word of it
-    // is read. Falls back to the old fixed cyan for a mode with no colour set,
-    // so a banner never loses its structure over a missing field.
-    accent: (text) =>
-      paint(color === null || color === undefined ? "36" : `38;5;${color}`, text),
-  };
-}
-
-function box(ink) {
-  const title = "- BREACH PROTOCOL ";
-  return [
-    ink.accent("+" + title + "-".repeat(BOX_WIDTH - title.length) + "+"),
-    ink.accent("|") +
-      ink.bold("  CARTRIDGE SWAP".padEnd(BOX_WIDTH)) +
-      ink.accent("|"),
-    ink.accent("+" + "-".repeat(BOX_WIDTH) + "+"),
-  ].join("\n");
-}
-
 /** A label, its content, and a right-aligned tag pinned to the line width. */
-function tagged(label, content, tag, ink) {
+function tagged(label, content, tag, paint) {
   const left = INDENT + label.padEnd(LABEL_COLUMN) + content;
-  const gap = Math.max(1, LINE_WIDTH - left.length - tag.length);
-  return left + " ".repeat(gap) + ink.dim(tag);
+  const gap = Math.max(1, LINE_WIDTH - ink.visibleWidth(left) - tag.length);
+  return left + " ".repeat(gap) + paint.dim(tag);
 }
 
-function settingRows(fromSettings, toSettings, ink) {
+/** How many of the seven dials read differently between the two modes. */
+function movedCount(fromSettings, toSettings) {
+  return Object.keys(settings.SETTINGS).filter(
+    (name) => fromSettings[name] !== toSettings[name],
+  ).length;
+}
+
+function settingRows(fromSettings, toSettings, paint) {
   return Object.keys(settings.SETTINGS).map((name) => {
     const before = fromSettings[name];
     const after = toSettings[name];
     const stem = INDENT + name.padEnd(NAME_COLUMN);
+    // A dial that held recedes whole, name included. At full weight all seven
+    // rows carried the same volume as the three or four that moved.
     if (before === after)
-      return stem + " ".repeat(VALUE_COLUMN) + "    " + after;
+      return paint.dim(stem + " ".repeat(VALUE_COLUMN) + "    " + after);
     return (
       stem +
-      ink.dim(String(before).padStart(VALUE_COLUMN)) +
+      paint.dim(String(before).padStart(VALUE_COLUMN)) +
       " -> " +
-      ink.accent(after)
+      paint.accent(after)
     );
   });
 }
 
-function hookRows(hooks, ink) {
+function hookRows(hooks, paint) {
   const core = (hooks.core || []).map((name) => name.replace(/\.js$/, ""));
   const disabled = (hooks.disabled || []).map((name) =>
     name.replace(/\.js$/, ""),
   );
   const rows = [
-    tagged("hooks", ink.green(core.join(", ")), `[${core.length} core]`, ink),
+    tagged(
+      "hooks",
+      paint.green(core.join(", ")),
+      `[${core.length} core]`,
+      paint,
+    ),
   ];
   if (disabled.length > 0)
     rows.push(
@@ -83,55 +71,83 @@ function hookRows(hooks, ink) {
         "",
         disabled.map((name) => `-${name}`).join(", "),
         `[${disabled.length} off]`,
-        ink,
+        paint,
       ),
     );
   return rows;
 }
 
-function modelRow(projects, ink) {
-  // A mode pins an effort level and nothing else -- the model is the operator's
-  // choice. Labelling the row "model" and leaving it empty, which is what this
-  // did once the pins were removed, said the opposite.
+function effortRow(projects, paint) {
+  // A mode pins an effort level and nothing else; the model stays the
+  // operator's choice. Labelling the row "model" and leaving it empty, which
+  // is what this did once the pins were removed, said the opposite.
   if (projects.effortLevel === undefined) return [];
   return [
-    INDENT + "effort".padEnd(LABEL_COLUMN) + ink.dim(projects.effortLevel),
+    INDENT + "effort".padEnd(LABEL_COLUMN) + paint.dim(projects.effortLevel),
   ];
 }
 
+/**
+ * The switch banner, and the comparison that changes nothing.
+ *
+ * `applied` is the whole difference between the two. `ccfg mode ship` loads a
+ * mode; `ccfg mode diff spike ship` only says what loading it would change.
+ * Both used to print the same thing, headed CARTRIDGE SWAP and closed with
+ * POWERING UP, which left the operator believing a comparison had switched
+ * the mode.
+ */
 function renderBanner({
   from,
   to,
+  toName,
   fromSettings,
   toSettings,
   ruleCounts,
   hooks = {},
   projects = {},
   icon = "",
+  fromIcon = "",
   color = null,
   plain = false,
+  applied = true,
 }) {
-  const ink = painter(plain, color);
-  const dashes = Math.max(3, 18 - String(from).length);
+  const paint = ink.painter(plain, color);
   const counts = `${ruleCounts.primary} primary, ${ruleCounts.standing} standing`;
+  const moved = movedCount(fromSettings, toSettings);
+  const total = Object.keys(settings.SETTINGS).length;
+
+  const leaving =
+    (fromIcon ? `${fromIcon} ` : "") + String(from).toUpperCase();
+  const arriving = (icon ? `${icon} ` : "") + String(to).toUpperCase();
+  const command = `ccfg mode ${String(toName || to).toLowerCase()}`;
 
   return [
-    box(ink),
+    ink.frame({
+      title: applied ? "CARTRIDGE SWAP" : "COMPARE",
+      rows: [
+        {
+          left:
+            paint.dim(leaving) +
+            (applied ? "  ->  " : "  vs  ") +
+            paint.accent(paint.bold(arriving)),
+          right: paint.dim(
+            `[${moved} of ${total} dials ${applied ? "moved" : "differ"}]`,
+          ),
+        },
+      ],
+      width: BOX_WIDTH,
+      ink: paint,
+    }),
     "",
-    INDENT +
-      ink.dim(from) +
-      " " +
-      "-".repeat(dashes) +
-      "> " +
-      ink.accent(ink.bold((icon ? icon + " " : "") + String(to).toUpperCase())),
+    ...settingRows(fromSettings, toSettings, paint),
     "",
-    ...settingRows(fromSettings, toSettings, ink),
+    tagged("rules", counts, "(none dropped)", paint),
+    ...hookRows(hooks, paint),
+    ...effortRow(projects, paint),
     "",
-    tagged("rules", counts, "(none dropped)", ink),
-    ...hookRows(hooks, ink),
-    ...modelRow(projects, ink),
-    "",
-    ink.accent(INDENT + "POWERING UP"),
+    applied
+      ? paint.accent(INDENT + "POWERING UP")
+      : paint.dim(`${INDENT}nothing applied. \`${command}\` loads ${to}`),
     "",
   ].join("\n");
 }

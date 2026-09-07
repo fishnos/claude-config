@@ -1,7 +1,7 @@
 ---
-id: autonomy-revert-when-worse
-setting: autonomy
-primary_at: just-go
+id: asking-revert-when-worse
+setting: asking
+primary_at: never
 ---
 
 **When a change makes things worse, revert to the last working state and say so.**

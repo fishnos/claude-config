@@ -1,7 +1,7 @@
 ---
 id: verify-not-delegable
 setting: verify
-primary_at: run-it
+primary_at: tested
 ---
 
 **Verification is not optional and not delegable.** A test suite that passes, a

@@ -1,7 +1,7 @@
 ---
 id: verify-test-can-fail
 setting: verify
-primary_at: prove-it
+primary_at: proven
 ---
 
 **Confirm a test can fail.** A new test that has never been seen red is unproven

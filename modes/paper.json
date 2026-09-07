@@ -2,13 +2,13 @@
   "name": "paper",
   "codename": "ARCHIVIST",
   "icon": "▤",
-  "color": 180,
+  "color": 182,
   "description": "Academic writing. Every citation resolves; prose over fragments.",
   "settings": {
-    "verify": "run-it",
+    "verify": "tested",
     "claims": "sourced",
     "process": "full",
-    "autonomy": "ask-first",
+    "asking": "always",
     "code": "rough",
     "subagents": "few",
     "voice": "prose"

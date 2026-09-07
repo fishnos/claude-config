@@ -1,14 +1,14 @@
 {
   "name": "review",
   "codename": "APPRAISER",
-  "icon": "◈",
-  "color": 220,
+  "icon": "▨",
+  "color": 175,
   "description": "Read and judge. Nothing gets edited.",
   "settings": {
-    "verify": "prove-it",
+    "verify": "proven",
     "claims": "sourced",
     "process": "skip",
-    "autonomy": "ask-first",
+    "asking": "always",
     "code": "polished",
     "subagents": "none",
     "voice": "normal"

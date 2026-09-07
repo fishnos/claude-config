@@ -66,7 +66,7 @@ Deliver what was asked, at the scope intended. Make routine judgment calls yours
 
 Read before you write. Never commit, never push, never `--no-verify`. No new dependencies without approval.
 
-How far to go before checking in, how far past the ask to reach, and what to do when a fix makes things worse are the `autonomy` dial.
+How far to go before checking in, how far past the ask to reach, and what to do when a fix makes things worse are the `asking` dial.
 
 ## How work runs
 

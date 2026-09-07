@@ -1,7 +1,7 @@
 ---
-id: autonomy-ask-standalone-questions
-setting: autonomy
-primary_at: check-in
+id: asking-ask-standalone-questions
+setting: asking
+primary_at: sometimes
 ---
 
 Ask questions that stand on their own: name the concrete choice and give real

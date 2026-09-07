@@ -1,14 +1,14 @@
 {
   "name": "debug",
   "codename": "TRACE",
-  "icon": "◎",
-  "color": 208,
+  "icon": "⣤",
+  "color": 173,
   "description": "Reproduce before you theorise. No fix without a diagnosis.",
   "settings": {
-    "verify": "prove-it",
+    "verify": "proven",
     "claims": "labeled",
     "process": "light",
-    "autonomy": "check-in",
+    "asking": "sometimes",
     "code": "decent",
     "subagents": "none",
     "voice": "caveman"

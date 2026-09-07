@@ -1,14 +1,14 @@
 {
   "name": "spike",
   "codename": "RECON",
-  "icon": "▲",
-  "color": 226,
+  "icon": "▘",
+  "color": 107,
   "description": "Find out whether it works. Nothing here is kept.",
   "settings": {
     "verify": "none",
     "claims": "labeled",
     "process": "skip",
-    "autonomy": "just-go",
+    "asking": "never",
     "code": "rough",
     "subagents": "none",
     "voice": "caveman"

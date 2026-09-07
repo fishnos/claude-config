@@ -3,7 +3,7 @@
 // Can every rule lead in at least one mode?
 //
 // A rule nobody can reach is dead weight that reads as a live guardrail. This
-// caught a real defect: with `autonomy` ordered the wrong way round, three
+// caught a real defect: with the asking dial ordered the wrong way round, three
 // restraint rules were unreachable in all ten modes.
 
 const fs = require("fs");
@@ -18,7 +18,7 @@ module.exports = {
   name: "corpus-reachable",
   kind: "oracle",
   question: "Does every corpus rule become primary in at least one mode?",
-  why: "An unreachable rule looks like a guardrail and never fires. Three were unreachable when autonomy was ordered backwards.",
+  why: "An unreachable rule looks like a guardrail and never fires. Three were unreachable when the asking dial was ordered backwards.",
 
   async run({ configDir }) {
     const corpus = rules.loadCorpus(path.join(configDir, "modes", "rules"));
