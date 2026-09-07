@@ -2,6 +2,7 @@
   "name": "research",
   "codename": "NETRUNNER",
   "icon": "⣿",
+  "color": 47,
   "description": "Read widely, fan out, cite what you found.",
   "settings": {
     "verify": "run-it",

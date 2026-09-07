@@ -2,6 +2,7 @@
   "name": "ship",
   "codename": "FIXER",
   "icon": "◆",
+  "color": 203,
   "description": "It lands. Every gate, every claim sourced.",
   "settings": {
     "verify": "prove-it",

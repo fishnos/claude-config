@@ -20,25 +20,29 @@ const NAME_COLUMN = 13;
 const VALUE_COLUMN = 8;
 const LABEL_COLUMN = 9;
 
-function painter(plain) {
+function painter(plain, color) {
   const paint = (code, text) => (plain ? text : `[${code}m${text}[0m`);
   return {
     bold: (text) => paint("1", text),
     dim: (text) => paint("2", text),
-    cyan: (text) => paint("36", text),
     green: (text) => paint("32", text),
-    magenta: (text) => paint("1;35", text),
+    // The mode's own hue, used everywhere the banner refers to the mode it is
+    // switching to. A switch is then recognisable by colour before a word of it
+    // is read. Falls back to the old fixed cyan for a mode with no colour set,
+    // so a banner never loses its structure over a missing field.
+    accent: (text) =>
+      paint(color === null || color === undefined ? "36" : `38;5;${color}`, text),
   };
 }
 
 function box(ink) {
   const title = "- BREACH PROTOCOL ";
   return [
-    ink.cyan("+" + title + "-".repeat(BOX_WIDTH - title.length) + "+"),
-    ink.cyan("|") +
+    ink.accent("+" + title + "-".repeat(BOX_WIDTH - title.length) + "+"),
+    ink.accent("|") +
       ink.bold("  CARTRIDGE SWAP".padEnd(BOX_WIDTH)) +
-      ink.cyan("|"),
-    ink.cyan("+" + "-".repeat(BOX_WIDTH) + "+"),
+      ink.accent("|"),
+    ink.accent("+" + "-".repeat(BOX_WIDTH) + "+"),
   ].join("\n");
 }
 
@@ -60,7 +64,7 @@ function settingRows(fromSettings, toSettings, ink) {
       stem +
       ink.dim(String(before).padStart(VALUE_COLUMN)) +
       " -> " +
-      ink.cyan(after)
+      ink.accent(after)
     );
   });
 }
@@ -86,16 +90,12 @@ function hookRows(hooks, ink) {
 }
 
 function modelRow(projects, ink) {
-  const model = projects.model
-    ? String(projects.model).replace(/^claude-/, "")
-    : null;
-  if (model === null && projects.effortLevel === undefined) return [];
-  const effort =
-    projects.effortLevel === undefined
-      ? ""
-      : `    effort  ${projects.effortLevel}`;
+  // A mode pins an effort level and nothing else -- the model is the operator's
+  // choice. Labelling the row "model" and leaving it empty, which is what this
+  // did once the pins were removed, said the opposite.
+  if (projects.effortLevel === undefined) return [];
   return [
-    INDENT + "model".padEnd(LABEL_COLUMN) + (model || "") + ink.dim(effort),
+    INDENT + "effort".padEnd(LABEL_COLUMN) + ink.dim(projects.effortLevel),
   ];
 }
 
@@ -107,9 +107,11 @@ function renderBanner({
   ruleCounts,
   hooks = {},
   projects = {},
+  icon = "",
+  color = null,
   plain = false,
 }) {
-  const ink = painter(plain);
+  const ink = painter(plain, color);
   const dashes = Math.max(3, 18 - String(from).length);
   const counts = `${ruleCounts.primary} primary, ${ruleCounts.standing} standing`;
 
@@ -121,7 +123,7 @@ function renderBanner({
       " " +
       "-".repeat(dashes) +
       "> " +
-      ink.bold(String(to).toUpperCase()),
+      ink.accent(ink.bold((icon ? icon + " " : "") + String(to).toUpperCase())),
     "",
     ...settingRows(fromSettings, toSettings, ink),
     "",
@@ -129,7 +131,7 @@ function renderBanner({
     ...hookRows(hooks, ink),
     ...modelRow(projects, ink),
     "",
-    ink.magenta(INDENT + "POWERING UP"),
+    ink.accent(INDENT + "POWERING UP"),
     "",
   ].join("\n");
 }

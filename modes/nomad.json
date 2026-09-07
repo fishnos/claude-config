@@ -2,6 +2,7 @@
   "name": "nomad",
   "codename": "NOMAD",
   "icon": "○",
+  "color": 245,
   "description": "Generalist. Nothing hidden, nothing gated — every skill and tool available.",
   "settings": {
     "verify": "run-it",

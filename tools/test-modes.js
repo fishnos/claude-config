@@ -1037,6 +1037,35 @@ check(
   true,
 );
 check("plain output carries no escape codes", /\u001b\[/.test(drawn), false);
+
+// The banner is painted in the mode's own hue, so a switch is recognised by
+// colour before a word of it is read.
+{
+  const lit = banner.renderBanner({ ...SWITCH, plain: false, color: 226, icon: "\u25b2" });
+  check(
+    "a switch is painted in the mode's colour",
+    lit.includes("\u001b[38;5;226m"),
+    true,
+  );
+  check("the arrow carries the mode's glyph", lit.includes("\u25b2 SPIKE"), true);
+  check(
+    "a mode with no colour still renders",
+    banner.renderBanner({ ...SWITCH, plain: false, color: null }).includes("BREACH"),
+    true,
+  );
+  check(
+    "plain suppresses the colour too",
+    /\u001b\[/.test(banner.renderBanner({ ...SWITCH, plain: true, color: 226 })),
+    false,
+  );
+}
+
+// A mode pins an effort level, never a model.
+check(
+  "the banner labels the effort row for what it is",
+  /effort\s+low/.test(drawn) && !/^\s*model/m.test(drawn),
+  true,
+);
 check("the banner is stable across calls", banner.renderBanner(SWITCH), drawn);
 check(
   "no emoji in the banner",

@@ -277,6 +277,8 @@ function commandDiff(argv, io) {
       ruleCounts: bandCounts(io.CONFIG_DIR, toSettings),
       hooks: { core: modes.CORE_HOOKS, disabled: to.disableHooks },
       projects: to.projects,
+      icon: to.icon,
+      color: to.color,
       plain: argv.includes("--plain") || !process.stdout.isTTY,
     }),
   );
@@ -328,6 +330,8 @@ function commandSwitch(target, argv, io) {
       ruleCounts: bandCounts(io.CONFIG_DIR, applied.lock.settings),
       hooks: { core: modes.CORE_HOOKS, disabled: target.disableHooks },
       projects: target.projects,
+      icon: target.icon,
+      color: target.color,
       plain: argv.includes("--plain") || !process.stdout.isTTY,
     }),
   );

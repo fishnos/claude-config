@@ -2,6 +2,7 @@
   "name": "pair",
   "codename": "SIDECAR",
   "icon": "◑",
+  "color": 79,
   "description": "Somebody is watching. Small steps, ask early, no ceremony.",
   "settings": {
     "verify": "run-it",
