@@ -1427,6 +1427,25 @@ const PLAIN_COMMAND = "---\ndescription: Narrow the repro\n---\n\nShrink it.\n";
   );
 }
 
+// Every command a shipped mode declares must have a file behind it. A mode
+// naming a command it does not carry cannot be applied at all, so this is the
+// difference between a working clone and one where `ccfg mode debug` throws.
+{
+  const shipped = path.join(__dirname, "..", "modes");
+  for (const file of fs.readdirSync(shipped).filter((n) => n.endsWith(".json"))) {
+    const mode = JSON.parse(fs.readFileSync(path.join(shipped, file), "utf8"));
+    for (const name of ((mode.glitch || {}).commands) || []) {
+      check(
+        `${path.basename(file, ".json")} carries the file for /${name}`,
+        fs.existsSync(
+          path.join(shipped, "commands", path.basename(file, ".json"), `${name}.md`),
+        ),
+        true,
+      );
+    }
+  }
+}
+
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 
 console.log(`\nPASS ${passed}  FAIL ${failed}`);

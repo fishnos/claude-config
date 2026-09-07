@@ -89,12 +89,12 @@ settings.local.json
 secrets.env
 shell-init.sh
 history.jsonl
-projects/
-sessions/
-session-env/
-shell-snapshots/
-file-history/
-paste-cache/
+/projects/
+/sessions/
+/session-env/
+/shell-snapshots/
+/file-history/
+/paste-cache/
 # The install cache is 1.2GB of vendored plugin trees -- node_modules, not config.
 # installed_plugins.json is its lockfile (versions + commit SHAs) and settings.json
 # only records which plugins are enabled, so without it a clone floats to whatever
@@ -106,13 +106,17 @@ plugins/data/
 plugins/plugin-catalog-cache.json
 !plugins/installed_plugins.json
 !plugins/known_marketplaces.json
-cache/
-debug/
-telemetry/
-tasks/
-backups/
-downloads/
-ide/
+# Anchored to the repository root with a leading slash. Written bare, each of
+# these matches a directory of that name at any depth, and `debug/` duly
+# swallowed modes/commands/debug/ -- so TRACE shipped declaring a command whose
+# file was never committed, and applying it on a fresh clone would throw.
+/cache/
+/debug/
+/telemetry/
+/tasks/
+/backups/
+/downloads/
+/ide/
 stats-cache.json
 mcp-needs-auth-cache.json
 credentials
