@@ -13,7 +13,7 @@
       "repo": "anthropics/claude-plugins-official"
     },
     "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/claude-plugins-official",
-    "lastUpdated": "2026-08-28T23:34:55.303Z"
+    "lastUpdated": "2026-09-07T05:33:04.157Z"
   },
   "superpowers-marketplace": {
     "source": {
@@ -29,7 +29,7 @@
       "repo": "anthropics/claude-code"
     },
     "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/claude-code-plugins",
-    "lastUpdated": "2026-08-28T07:21:22.425Z"
+    "lastUpdated": "2026-09-07T05:33:04.658Z"
   },
   "caveman": {
     "source": {
@@ -86,5 +86,13 @@
     },
     "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/humanizer",
     "lastUpdated": "2026-08-14T17:54:56.171Z"
+  },
+  "fishnos": {
+    "source": {
+      "source": "github",
+      "repo": "fishnos/claude-config"
+    },
+    "installLocation": "/Users/vtsyp/.claude/plugins/marketplaces/fishnos",
+    "lastUpdated": "2026-08-29T21:43:22.541Z"
   }
 }
