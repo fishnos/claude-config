@@ -1,6 +1,7 @@
 {
   "name": "ship",
   "codename": "FIXER",
+  "icon": "◆",
   "description": "It lands. Every gate, every claim sourced.",
   "settings": {
     "verify": "prove-it",

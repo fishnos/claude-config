@@ -46,18 +46,56 @@ function loadModes(configDir) {
   });
 }
 
+/**
+ * A mode name that cannot leave modes/.
+ *
+ * The name arrives from the command line and is used to build a path, so
+ * without this `ccfg mode ../../../etc/passwd` would be read off disk.
+ */
+function plainModeName(name) {
+  return typeof name === "string" && /^[a-z0-9][a-z0-9-]*$/i.test(name);
+}
+
+/**
+ * Find a mode by anything a person would reasonably type.
+ *
+ * `mode list` prints the codename in the first column, so the codename is what
+ * someone types back -- `ccfg mode NETRUNNER`, not `ccfg mode research`. Only
+ * the file name used to resolve, which meant the command answered its own
+ * output with "unknown mode". Both work now, in any case.
+ */
 function loadMode(configDir, name) {
+  if (!plainModeName(name)) return null;
+
   const file = path.join(modesDir(configDir), `${name}.json`);
-  if (!fs.existsSync(file)) return null;
-  try {
-    const parsed = modes.parseMode(
-      JSON.parse(fs.readFileSync(file, "utf8")),
-      file,
-    );
-    return parsed.error ? parsed : { file, ...parsed };
-  } catch (error) {
-    return { error: `${file}: ${error.message}` };
+  if (fs.existsSync(file)) {
+    try {
+      const parsed = modes.parseMode(
+        JSON.parse(fs.readFileSync(file, "utf8")),
+        file,
+      );
+      return parsed.error ? parsed : { file, ...parsed };
+    } catch (error) {
+      return { error: `${file}: ${error.message}` };
+    }
   }
+
+  const wanted = name.toLowerCase();
+  for (const entry of loadModes(configDir)) {
+    if (entry.error) continue;
+    const codename = String(entry.codename || "").toLowerCase();
+    if (String(entry.name).toLowerCase() === wanted || codename === wanted)
+      return entry;
+  }
+  return null;
+}
+
+/** Every name that would have worked, for an error worth reading. */
+function knownModeNames(configDir) {
+  return loadModes(configDir)
+    .filter((entry) => !entry.error)
+    .map((entry) => `${entry.codename || entry.name} (${entry.name})`)
+    .join(", ");
 }
 
 /**
@@ -218,6 +256,7 @@ function commandDiff(argv, io) {
   ]) {
     if (mode === null) {
       console.error(`unknown mode: ${name}`);
+      console.error(`try one of: ${knownModeNames(io.CONFIG_DIR)}`);
       process.exit(2);
     }
     if (mode.error) {
@@ -255,6 +294,7 @@ function commandMode(argv, io) {
   if (target !== null) return commandSwitch(target, rest, io);
 
   console.error(`unknown mode: ${subcommand}`);
+  console.error(`try one of: ${knownModeNames(io.CONFIG_DIR)}`);
   process.exit(2);
 }
 

@@ -51,6 +51,12 @@ function parseMode(value, sourcePath) {
       typeof value.codename === "string" && value.codename !== ""
         ? value.codename
         : value.name.toUpperCase(),
+    // A single glyph, shown in the status line ahead of the codename, so the
+    // shape says which mode is in force before the word is read. Display only,
+    // like the codename, and defaulted rather than required so a mode file
+    // without one still loads.
+    icon:
+      typeof value.icon === "string" && value.icon !== "" ? value.icon : "\u25a0",
     description: typeof value.description === "string" ? value.description : "",
     settings: declared,
     projects: { ...(value.projects || {}), ...parsedGlitch.projects },

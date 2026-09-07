@@ -1,6 +1,7 @@
 {
   "name": "research",
   "codename": "NETRUNNER",
+  "icon": "⣿",
   "description": "Read widely, fan out, cite what you found.",
   "settings": {
     "verify": "run-it",

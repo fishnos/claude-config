@@ -1,6 +1,7 @@
 {
   "name": "design",
   "codename": "BLUEPRINT",
+  "icon": "◇",
   "description": "Think out loud. Nothing is a claim yet.",
   "settings": {
     "verify": "none",

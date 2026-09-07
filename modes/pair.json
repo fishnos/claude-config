@@ -1,6 +1,7 @@
 {
   "name": "pair",
   "codename": "SIDECAR",
+  "icon": "◑",
   "description": "Somebody is watching. Small steps, ask early, no ceremony.",
   "settings": {
     "verify": "run-it",

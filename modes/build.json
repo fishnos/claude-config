@@ -1,6 +1,7 @@
 {
   "name": "build",
   "codename": "RUNNER",
+  "icon": "▶",
   "description": "The daily posture. Write it well, run it, check in at the forks.",
   "settings": {
     "verify": "run-it",
