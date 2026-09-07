@@ -1,14 +1,14 @@
 {
   "name": "ship",
   "codename": "FIXER",
-  "icon": "◆",
-  "color": 203,
+  "icon": "█",
+  "color": 131,
   "description": "It lands. Every gate, every claim sourced.",
   "settings": {
-    "verify": "prove-it",
+    "verify": "proven",
     "claims": "sourced",
     "process": "full",
-    "autonomy": "ask-first",
+    "asking": "always",
     "code": "polished",
     "subagents": "few",
     "voice": "normal"

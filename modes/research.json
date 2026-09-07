@@ -2,13 +2,13 @@
   "name": "research",
   "codename": "NETRUNNER",
   "icon": "⣿",
-  "color": 47,
+  "color": 97,
   "description": "Read widely, fan out, cite what you found.",
   "settings": {
-    "verify": "run-it",
+    "verify": "tested",
     "claims": "sourced",
     "process": "light",
-    "autonomy": "check-in",
+    "asking": "sometimes",
     "code": "rough",
     "subagents": "many",
     "voice": "caveman"

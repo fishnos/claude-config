@@ -45,26 +45,26 @@ check(
 );
 
 check(
-  "verify runs none, run-it, prove-it",
+  "verify runs none, tested, proven",
   settings.SETTINGS.verify.values.join(","),
-  "none,run-it,prove-it",
+  "none,tested,proven",
 );
 
 check(
   "a value at the threshold counts as at or above it",
-  settings.atOrAbove("verify", "run-it", "run-it"),
+  settings.atOrAbove("verify", "tested", "tested"),
   true,
 );
 
 check(
   "a value past the threshold counts as at or above it",
-  settings.atOrAbove("verify", "prove-it", "run-it"),
+  settings.atOrAbove("verify", "proven", "tested"),
   true,
 );
 
 check(
   "a value below the threshold does not",
-  settings.atOrAbove("verify", "none", "run-it"),
+  settings.atOrAbove("verify", "none", "tested"),
   false,
 );
 
@@ -181,7 +181,7 @@ check(
 check(
   "a category on an ordered setting is refused",
   rules.parseRule(
-    "---\nid: x\nsetting: verify\nonly_at: run-it\n---\nb\n",
+    "---\nid: x\nsetting: verify\nonly_at: tested\n---\nb\n",
     "corpus/x.md",
   ).error,
   "corpus/x.md: verify is ordered, use primary_at",
@@ -214,14 +214,14 @@ const CORPUS = [
   {
     id: "prove",
     setting: "verify",
-    primary_at: "prove-it",
+    primary_at: "proven",
     body: "Prove it.",
     file: "a.md",
   },
   {
     id: "run",
     setting: "verify",
-    primary_at: "run-it",
+    primary_at: "tested",
     body: "Run it.",
     file: "b.md",
   },
@@ -234,7 +234,7 @@ const CORPUS = [
   },
 ];
 
-const strict = render.band(CORPUS, { verify: "prove-it", claims: "loose" });
+const strict = render.band(CORPUS, { verify: "proven", claims: "loose" });
 check("a rule at its threshold is primary", strict.primary.length, 3);
 check(
   "nothing is standing when every threshold is met",
@@ -369,13 +369,13 @@ check("with no mode loaded the name says so", unset.name, "(none)");
 
 const layered = modes.resolve({
   personal: modes.parseMode(SPIKE, "spike.json"),
-  repo: { name: "spike", settings: { verify: "prove-it" } },
+  repo: { name: "spike", settings: { verify: "proven" } },
   adhoc: { voice: "prose" },
 });
 check(
   "a repo mode overrides the personal mode of the same name",
   layered.settings.verify,
-  "prove-it",
+  "proven",
 );
 check("an ad-hoc override beats both", layered.settings.voice, "prose");
 check(
@@ -408,7 +408,8 @@ check(
   realCorpus.rules.length,
 );
 // The harness loads every .md in rules/ wholesale, so the 25 source files must
-// not sit there -- only the single generated render, which is the sorted copy.
+// not sit there. Only the single generated render belongs there, which is the
+// sorted copy.
 // Asserted by name rather than by counting files, because a count breaks the
 // moment anything legitimate is added and says nothing about what went wrong.
 {
@@ -471,8 +472,8 @@ check(
 );
 
 // The reachability invariant. "Primary under the strictest mode" cannot be the
-// test once a setting is categorical -- the caveman rules are correctly not
-// primary under ship, which speaks normal prose. What must hold is that no rule
+// test once a setting is categorical, because the caveman rules are correctly
+// not primary under ship, which speaks normal prose. What must hold is that no rule
 // is dead weight: every one of them leads in at least one mode.
 const unreachable = realCorpus.rules.filter(
   (rule) =>
@@ -581,8 +582,8 @@ check(
 check("reading the lock back names the mode", apply.readLock(applySandbox).mode, "spike");
 
 // The lock records the name under `mode`; a reader looking for `name` finds
-// nothing and reports (none) while showing the applied posture -- a display that
-// contradicts itself and hides which mode is live.
+// nothing and reports (none) while showing the applied posture, a display
+// that contradicts itself and hides which mode is live.
 {
   const { activeMode } = require("./modes/command.js");
   check(
@@ -978,10 +979,10 @@ const SWITCH = {
   from: "build",
   to: "spike",
   fromSettings: {
-    verify: "run-it",
+    verify: "tested",
     claims: "labeled",
     process: "light",
-    autonomy: "check-in",
+    asking: "sometimes",
     code: "polished",
     subagents: "few",
     voice: "caveman",
@@ -990,7 +991,7 @@ const SWITCH = {
     verify: "none",
     claims: "labeled",
     process: "skip",
-    autonomy: "just-go",
+    asking: "never",
     code: "rough",
     subagents: "none",
     voice: "caveman",
@@ -1008,7 +1009,7 @@ const drawn = banner.renderBanner(SWITCH);
 
 check(
   "a changed setting renders with an arrow",
-  /verify\s+run-it -> none/.test(drawn),
+  /verify\s+tested -> none/.test(drawn),
   true,
 );
 check(
@@ -1050,7 +1051,9 @@ check("plain output carries no escape codes", /\u001b\[/.test(drawn), false);
   check("the arrow carries the mode's glyph", lit.includes("\u25b2 SPIKE"), true);
   check(
     "a mode with no colour still renders",
-    banner.renderBanner({ ...SWITCH, plain: false, color: null }).includes("BREACH"),
+    banner
+      .renderBanner({ ...SWITCH, plain: false, color: null })
+      .includes("CARTRIDGE SWAP"),
     true,
   );
   check(
@@ -1104,7 +1107,7 @@ fs.writeFileSync(
 function writeLockFor(mode, stamp) {
   fs.writeFileSync(
     path.join(hookSandbox, "mode.lock"),
-    JSON.stringify({ mode, settings: { verify: "prove-it" }, appliedAt: stamp }),
+    JSON.stringify({ mode, settings: { verify: "proven" }, appliedAt: stamp }),
   );
 }
 writeLockFor("ship", "2026-09-07T00:00:00Z");
@@ -1187,7 +1190,7 @@ function runStatusHook(configDir) {
     {
       input: "{}",
       encoding: "utf8",
-      env: { ...process.env, CLAUDE_CONFIG_DIR: configDir },
+      env: { ...process.env, CLAUDE_CONFIG_DIR: configDir, NO_COLOR: "1" },
     },
   );
 }
@@ -1206,15 +1209,15 @@ fs.writeFileSync(
     mode: "ship",
     codename: "FIXER",
     icon: "\u25c6",
-    settings: { verify: "prove-it", autonomy: "ask-first", voice: "normal" },
+    settings: { verify: "proven", asking: "always", voice: "normal" },
     adhoc: {},
   }),
 );
 const shipStatus = runStatusHook(statusSandbox).stdout.trim();
 check("the status line names the mode", shipStatus.includes("FIXER"), true);
 // The line carries the glyph and the name and stops. Everything else about a
-// mode is one keystroke away in `/mode`, and a status line long enough to skim
-// past stops being read at all -- which is the only job it has.
+// mode is one keystroke away in `/mode`, and a status line long enough to
+// skim past stops being read, which is the only job it has.
 check(
   "the status line leads with the mode's own glyph",
   shipStatus.startsWith("\u25c6"),
@@ -1222,7 +1225,7 @@ check(
 );
 check(
   "the status line spends no room on the dials",
-  shipStatus.includes("prove-it") || shipStatus.includes("ask-first"),
+  shipStatus.includes("proven") || shipStatus.includes("always"),
   false,
 );
 
@@ -1232,7 +1235,7 @@ fs.writeFileSync(
     mode: "ship",
     codename: "FIXER",
     icon: "\u25c6",
-    settings: { verify: "none", autonomy: "just-go", voice: "normal" },
+    settings: { verify: "none", asking: "never", voice: "normal" },
     adhoc: { verify: "none" },
   }),
 );
@@ -1342,7 +1345,7 @@ const diffed = runCcfg(["mode", "diff", "spike", "ship"]);
 check("mode diff exits clean", diffed.status, 0);
 check(
   "mode diff shows a changed setting as an arrow",
-  /verify\s+none\s*->\s*prove-it/.test(diffed.stdout),
+  /verify\s+none\s*->\s*proven/.test(diffed.stdout),
   true,
 );
 
@@ -1356,7 +1359,7 @@ check(
 
 // `mode list` prints codenames in the first column, so a codename is what
 // someone types. Driven through `diff`, which resolves both names and writes
-// nothing -- applying a mode here would change the real configuration.
+// nothing, since applying a mode here would change the real configuration.
 check(
   "a codename resolves",
   runCcfg(["mode", "diff", "NETRUNNER", "ship"]).status,
@@ -1456,7 +1459,7 @@ check(
 
 // A mode tunes how the work is done, never which model does it. Ten modes once
 // pinned "claude-opus-5", which silently dropped an operator running opus[1m]
-// off the 1M-context model every time any mode was applied -- a downgrade
+// off the 1M-context model every time any mode was applied, a downgrade
 // nothing in the banner or the status line mentioned.
 {
   const shipped = path.join(__dirname, "..", "modes");
@@ -1472,7 +1475,7 @@ check(
 
 // Two chats open at once are two sessions, each with its own startup snapshot.
 // Reading "the newest marker" instead of "this session's marker" made one chat
-// report the other's state -- so a chat that really was half-applied showed
+// report the other's state, so a chat that really was half-applied showed
 // clean because a newer chat had started since.
 {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-two-chats-"));
@@ -1542,7 +1545,12 @@ check(
       {
         input: JSON.stringify({ session_id: sessionId }),
         encoding: "utf8",
-        env: { ...process.env, CLAUDE_CONFIG_DIR: root, CLAUDE_SESSION_ID: "" },
+        env: {
+          ...process.env,
+          CLAUDE_CONFIG_DIR: root,
+          CLAUDE_SESSION_ID: "",
+          NO_COLOR: "1",
+        },
       },
     ).stdout.trim();
 
@@ -1560,10 +1568,10 @@ check(
 }
 
 // A session-start notice written only as additionalContext reaches the model
-// and nobody else -- Claude Code delivers it as a system reminder rather than
-// showing it. From the outside that is indistinguishable from a hook that never
-// ran, which is exactly how it looked. systemMessage is the half the operator
-// actually sees.
+// and nobody else, because Claude Code delivers it as a system reminder rather
+// than showing it. From the outside that is indistinguishable from a hook
+// that never ran, which is exactly how it looked. systemMessage is the half
+// the operator actually sees.
 {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-announce-"));
   fs.writeFileSync(
@@ -1613,7 +1621,7 @@ check(
     true,
   );
 
-  // No mode, nothing to announce -- a banner on every plain session is noise.
+  // No mode, nothing to announce. A banner on every plain session is noise.
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-announce-bare-"));
   const quiet = require("child_process").spawnSync(
     process.execPath,
@@ -1819,6 +1827,479 @@ const PLAIN_COMMAND = "---\ndescription: Narrow the repro\n---\n\nShrink it.\n";
     }
   }
 }
+
+// ------------------------------------------------- the shared cartridge look
+
+const ink = require("./modes/ink.js");
+
+// The escape byte every colour code starts with, built rather than typed so
+// this file stays free of control characters.
+const ESC = String.fromCharCode(27);
+
+// The inherited environment, aliased once so a spawn below reads as a list of
+// overrides rather than a wall of spread syntax.
+const ENVIRONMENT = process.env;
+
+{
+  const flat = ink.painter(true, null);
+  const scale = ["rough", "decent", "polished"];
+
+  check(
+    "a dial at the bottom of its scale fills one step",
+    ink.gauge(scale, "rough", flat),
+    "[#--]",
+  );
+  check(
+    "a dial at the top of its scale fills every step",
+    ink.gauge(scale, "polished", flat),
+    "[###]",
+  );
+  check(
+    "a value that is not on the scale draws no bar",
+    ink.gauge(scale, "immaculate", flat),
+    "[???]",
+  );
+
+  const framed = ink
+    .frame({
+      title: "CARTRIDGE RACK",
+      rows: [{ left: "11 SLOTS", right: "LOADED: NOMAD" }],
+      ink: flat,
+    })
+    .split("\n");
+  check(
+    "the frame carries its title in the top rule",
+    framed[0].includes("- CARTRIDGE RACK -"),
+    true,
+  );
+  check(
+    "the frame pins a tag to its right edge",
+    framed[1].endsWith("LOADED: NOMAD |"),
+    true,
+  );
+
+  // Padding counts cells, not bytes. Counting bytes would run a coloured row
+  // long and walk the frame's right border off the edge.
+  const lit = ink
+    .frame({
+      title: "CARTRIDGE RACK",
+      rows: [{ left: "11 SLOTS", right: "LOADED: NOMAD" }],
+      ink: ink.painter(false, 45),
+    })
+    .split("\n");
+  check(
+    "colour does not change how wide a row is",
+    ink.visibleWidth(lit[1]),
+    ink.visibleWidth(framed[1]),
+  );
+}
+
+// ------------------------------------------------------------------- the rack
+
+{
+  const racked = runCcfg(["mode", "list"]);
+  check("the rack frames the list", racked.stdout.includes("CARTRIDGE RACK"), true);
+  check(
+    "the rack marks exactly one cartridge as loaded",
+    racked.stdout.split("\n").filter((line) => line.startsWith("  > ")).length,
+    1,
+  );
+  check(
+    "the rack carries every mode's glyph",
+    ["▚", "⣤", "▨", "⣿"].every((glyph) =>
+      racked.stdout.includes(glyph),
+    ),
+    true,
+  );
+  check("the rack still says what a mode gates", /tools gated/.test(racked.stdout), true);
+}
+
+// ------------------------------------------------------------ the status view
+
+{
+  const view = runCcfg(["mode"]);
+  check(
+    "the status view frames the active cartridge",
+    view.stdout.includes("ACTIVE CARTRIDGE"),
+    true,
+  );
+  check(
+    "the status view reports whether the mode is whole",
+    /\[(CLEAN|CORRUPTED|UNKNOWN)\]/.test(view.stdout),
+    true,
+  );
+  check("an ordered dial gets a gauge", /verify\s+\[[#-]{3}\]/.test(view.stdout), true);
+  // voice is a set of registers with no ladder between them, so a bar would
+  // claim a ranking that does not exist.
+  check("the register gets no gauge", /voice\s+\[[#-]/.test(view.stdout), false);
+  check(
+    "the status view says why the register has no gauge",
+    view.stdout.includes("not a level"),
+    true,
+  );
+  check(
+    "the status view still counts both rule bands",
+    /\d+ primary, \d+ standing/.test(view.stdout),
+    true,
+  );
+}
+
+// ----------------------------------------------------------------- the paint
+
+// `ccfg mode` inside Claude Code writes to a pipe, not a terminal, so the
+// automatic answer there is always "no colour". --color is how the paint is
+// seen anywhere but a bare shell.
+{
+  check(
+    "--color paints the rack through a pipe",
+    runCcfg(["mode", "list", "--color"]).stdout.includes(ESC + "[38;5;"),
+    true,
+  );
+  check(
+    "--plain leaves no escape codes",
+    runCcfg(["mode", "list", "--plain"]).stdout.includes(ESC),
+    false,
+  );
+  check(
+    "--color paints the status view too",
+    runCcfg(["mode", "--color"]).stdout.includes(ESC + "[38;5;"),
+    true,
+  );
+}
+
+// ------------------------------------------------------------ the status line
+
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-statusline-"));
+  const writeLock = (extra) =>
+    fs.writeFileSync(
+      path.join(root, "mode.lock"),
+      JSON.stringify({
+        mode: "build",
+        codename: "RUNNER",
+        icon: "▶",
+        hardHash: "h",
+        ...extra,
+      }),
+    );
+  const drawLine = (overrides) =>
+    require("child_process").spawnSync(
+      process.execPath,
+      [path.join(__dirname, "..", "hooks", "mode-status.js")],
+      {
+        input: JSON.stringify({ session_id: "statusline-1" }),
+        encoding: "utf8",
+        env: { ...ENVIRONMENT, CLAUDE_CONFIG_DIR: root, ...overrides },
+      },
+    ).stdout;
+
+  writeLock({ color: 45 });
+  const painted = drawLine({ NO_COLOR: "" });
+  check(
+    "the status line paints the mode in its own colour",
+    painted.includes(ESC + "[38;5;45m"),
+    true,
+  );
+  check("the status line still names the mode", painted.includes("RUNNER"), true);
+  check(
+    "the status line honours NO_COLOR",
+    drawLine({ NO_COLOR: "1" }).includes(ESC),
+    false,
+  );
+
+  writeLock({});
+  check(
+    "a lock with no colour still draws the status line",
+    drawLine({ NO_COLOR: "1" }).includes("▶ RUNNER"),
+    true,
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// The status line reads the colour off the lock, so applying a mode has to put
+// it there: the mode file is never opened again at status-line time.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-lockcolour-"));
+  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
+  fs.mkdirSync(path.join(root, "modes"), { recursive: true });
+  fs.writeFileSync(path.join(root, "settings.json"), "{}\n");
+  apply.applyMode(
+    root,
+    modes.parseMode({ ...SPIKE, color: 226 }, "spike.json"),
+    CORPUS,
+    {},
+  );
+  const lock = JSON.parse(fs.readFileSync(path.join(root, "mode.lock"), "utf8"));
+  check("applying a mode records its colour in the lock", lock.color, 226);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// One gated tool is one tool. The count reads back in the rack, the status view
+// and the notice at session start, so a stray "1 tools" would show up three
+// times over.
+{
+  const racked = runCcfg(["mode", "list"]).stdout;
+  check("one gated tool is not pluralised", /\[1 tool gated/.test(racked), true);
+  check("more than one still is", /\d+ tools gated/.test(racked), true);
+}
+
+// The dials say how a posture behaves; the description is the only line that
+// says what it is for.
+{
+  const lockPath = path.join(REAL_CONFIG, "mode.lock");
+  const lock = fs.existsSync(lockPath)
+    ? JSON.parse(fs.readFileSync(lockPath, "utf8"))
+    : null;
+  const file =
+    lock === null
+      ? null
+      : JSON.parse(
+          fs.readFileSync(
+            path.join(REAL_CONFIG, "modes", `${lock.mode}.json`),
+            "utf8",
+          ),
+        );
+  check(
+    "the status view carries the active mode's description",
+    file === null || runCcfg(["mode"]).stdout.includes(file.description),
+    true,
+  );
+}
+
+// What a mode took away, phrased once for every surface that says it.
+{
+  const { gatesOf } = require("./modes/command.js");
+
+  check(
+    "a mode that gates nothing lists nothing",
+    gatesOf({ tools: [], skills: null, subagents: null, commands: [] }).length,
+    0,
+  );
+  check(
+    "the rack names a skill rule it cannot count",
+    gatesOf({ tools: [], skills: ["design-*"], commands: [] }).join(", "),
+    "skills gated",
+  );
+  check(
+    "the status view counts the skills the lock actually hid",
+    gatesOf({ tools: ["Edit", "Write"], skills: 3, commands: [] }).join(", "),
+    "2 tools gated, 3 skills hidden",
+  );
+  check(
+    "a solo mode says so",
+    gatesOf({ tools: [], skills: null, subagents: "none", commands: [] }).join(", "),
+    "solo",
+  );
+  check(
+    "a mode's own slash commands are listed by name",
+    gatesOf({ tools: [], skills: null, commands: ["narrow", "verdict"] }).join(", "),
+    "/narrow /verdict",
+  );
+}
+
+// Chrome recedes. Painting the border in the mode's hue put three more lines of
+// one colour on a screen that already carried the name, every changed value and
+// the closing line in it, and a strong hue came out as a flat wash.
+{
+  const lines = ink
+    .frame({
+      title: "ACTIVE CARTRIDGE",
+      rows: [{ left: ink.painter(false, 45).accent("RUNNER"), right: "[CLEAN]" }],
+      ink: ink.painter(false, 45),
+    })
+    .split("\n");
+  check(
+    "the frame border is not painted in the mode's hue",
+    lines[0].includes(ESC + "[38;5;45m"),
+    false,
+  );
+  check(
+    "what sits inside the frame still is",
+    lines[1].includes(ESC + "[38;5;45m"),
+    true,
+  );
+}
+
+// A glyph and a hue are how a mode is told apart at a glance on four different
+// surfaces. Two modes sharing either one makes both unreadable.
+{
+  const shipped = fs
+    .readdirSync(path.join(__dirname, "..", "modes"))
+    .filter((name) => name.endsWith(".json"))
+    .map((name) =>
+      JSON.parse(
+        fs.readFileSync(path.join(__dirname, "..", "modes", name), "utf8"),
+      ),
+    );
+  check(
+    "every shipped mode has its own glyph",
+    new Set(shipped.map((mode) => mode.icon)).size,
+    shipped.length,
+  );
+  check(
+    "every shipped mode has its own colour",
+    new Set(shipped.map((mode) => mode.color)).size,
+    shipped.length,
+  );
+}
+
+// The lock caches the glyph and hue so a surface can usually answer from one
+// small file, but it is written at the last switch. Editing a mode's look and
+// seeing nothing change until the next switch is the confusing case, so the
+// mode file wins.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-stale-look-"));
+  fs.mkdirSync(path.join(root, "modes"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "modes", "ship.json"),
+    JSON.stringify({
+      name: "ship",
+      codename: "FIXER",
+      icon: "█",
+      color: 131,
+      settings: {},
+    }),
+  );
+  fs.writeFileSync(
+    path.join(root, "mode.lock"),
+    JSON.stringify({
+      mode: "ship",
+      codename: "FIXER",
+      icon: "◆",
+      color: 203,
+      hardHash: "h",
+    }),
+  );
+  const drawn = require("child_process").spawnSync(
+    process.execPath,
+    [path.join(__dirname, "..", "hooks", "mode-status.js")],
+    {
+      input: JSON.stringify({ session_id: "stale-1" }),
+      encoding: "utf8",
+      env: { ...ENVIRONMENT, CLAUDE_CONFIG_DIR: root },
+    },
+  ).stdout;
+
+  check("an edited glyph reaches the status line without a switch", drawn.includes("█"), true);
+  check("the lock's stale glyph is not drawn", drawn.includes("◆"), false);
+  check(
+    "an edited colour reaches it too",
+    drawn.includes(ESC + "[38;5;131m"),
+    true,
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// -------------------------------------------- a comparison is not a switch
+
+// `ccfg mode diff` changes nothing, and used to print the same banner as a
+// switch: the same CARTRIDGE SWAP heading, the same POWERING UP at the bottom.
+// Reading that as "it swapped" is the obvious mistake, and the output invited
+// it.
+{
+  const LOOK = { icon: "▘", fromIcon: "▚" };
+  const swapped = banner.renderBanner({ ...SWITCH, ...LOOK, plain: true });
+  const compared = banner.renderBanner({
+    ...SWITCH,
+    ...LOOK,
+    plain: true,
+    applied: false,
+  });
+
+  check("a switch still says it swapped", swapped.includes("CARTRIDGE SWAP"), true);
+  check("a switch still says it came up", swapped.includes("POWERING UP"), true);
+
+  check(
+    "a comparison does not claim a swap",
+    compared.includes("CARTRIDGE SWAP") || compared.includes("POWERING UP"),
+    false,
+  );
+  check("a comparison says what it is", compared.includes("COMPARE"), true);
+  check(
+    "a comparison says outright that nothing happened",
+    compared.includes("nothing applied"),
+    true,
+  );
+  check(
+    "a comparison names the command that would apply it",
+    compared.includes("ccfg mode spike"),
+    true,
+  );
+
+  // The heading used to read BREACH PROTOCOL, which named nothing that was
+  // happening in either case.
+  check(
+    "neither heading is decoration",
+    swapped.includes("BREACH") || compared.includes("BREACH"),
+    false,
+  );
+
+  // Five of the seven dials move between build and spike; claims and voice hold.
+  check("the frame counts the dials that moved", /5 of 7 dials/.test(swapped), true);
+  check("and the ones that differ", /5 of 7 dials/.test(compared), true);
+
+  check(
+    "both modes sit in the frame with their glyphs",
+    compared.includes("▚ BUILD") && compared.includes("▘ SPIKE"),
+    true,
+  );
+}
+
+// An unchanged dial recedes so the reader lands on the ones that moved, which
+// is what anyone wants at the moment of a switch.
+{
+  const lit = banner.renderBanner({ ...SWITCH, plain: false, color: 107 });
+  const claims = lit.split("\n").find((line) => line.includes("claims"));
+  const verify = lit.split("\n").find((line) => line.includes("verify"));
+  check("a dial that held is dimmed", claims.includes(ESC + "[2m"), true);
+  check("a dial that moved is not", verify.includes(ESC + "[38;5;107m"), true);
+}
+
+// The comparison the operator actually runs, through the real binary.
+{
+  const compared = runCcfg(["mode", "diff", "spike", "ship"]).stdout;
+  check("the real comparison says nothing happened", compared.includes("nothing applied"), true);
+  check("the real comparison does not say POWERING UP", compared.includes("POWERING UP"), false);
+}
+
+// A real switch, driven through the binary in a throwaway config.
+//
+// The arrow has two sides and they come from different places: the mode being
+// left is read off the lock, the mode being loaded off its file. Reading the
+// lock after the switch had already rewritten it put the arriving glyph on both
+// sides, and no unit test could see that because both sides were correct in
+// isolation.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-switch-"));
+  fs.symlinkSync(path.join(__dirname, "..", "modes"), path.join(root, "modes"));
+  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
+  fs.mkdirSync(path.join(root, "commands"), { recursive: true });
+  fs.writeFileSync(path.join(root, "settings.json"), "{}\n");
+
+  const switchTo = (name) =>
+    require("child_process").spawnSync(
+      process.execPath,
+      [path.join(__dirname, "ccfg.js"), "mode", name],
+      {
+        encoding: "utf8",
+        env: { ...ENVIRONMENT, CLAUDE_CONFIG_DIR: root, NO_COLOR: "1" },
+      },
+    ).stdout;
+
+  switchTo("spike");
+  const landed = switchTo("ship");
+
+  check("the switch names the mode being left", landed.includes("▘ RECON"), true);
+  check("and the one being loaded", landed.includes("█ FIXER"), true);
+  check(
+    "the arriving glyph is not on both sides",
+    landed.split("█ FIXER").length - 1,
+    1,
+  );
+  check("a real switch says it powered up", landed.includes("POWERING UP"), true);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 

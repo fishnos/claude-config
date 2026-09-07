@@ -1,6 +1,6 @@
 ---
 description: Show or switch the active glitched mode without leaving the session
-argument-hint: "[nothing | list | <mode> | diff A B | revert]"
+argument-hint: "[nothing | list | <mode> | diff A B | revert] [--color]"
 allowed-tools: Bash(node:*), Bash(ccfg:*)
 ---
 
@@ -13,8 +13,8 @@ Read it and say what it means, in one or two sentences. Which of these it was is
 plain from the output:
 
 - **A switch** (a `CARTRIDGE SWAP` banner). Name the mode it moved to and the
-  dials whose values changed — those are the lines with an arrow; lines without
-  one did not move. Then follow the new posture for the rest of this session,
+  dials whose values changed. Those are the lines with an arrow; a line
+  without one did not move. Then follow the new posture for the rest of this session,
   starting with your next reply.
 - **A status report** (dials with no banner). Say which mode is in force, or that
   none is, and stop. Nothing has changed.
@@ -27,7 +27,8 @@ plain from the output:
 Two things to tell me only when they are actually true, because saying them every
 time trains me to skip them:
 
-- If the output carries `~CORRUPTED`, the mode is half in force. The rules and
+- If the output carries `CORRUPTED`, as a `[CORRUPTED]` tag in the status view
+  or as `~CORRUPTED` on the status line, the mode is half in force. The rules and
   the tool gates are live, but the hidden skills, the model, the effort level and
   the mode's own slash commands are fixed until a new session. Say so, and say
   that restarting is what clears it.
@@ -36,5 +37,5 @@ time trains me to skip them:
   this session loaded its skill list before the switch happened.
 
 Do not re-run the command, do not read `mode.lock`, and do not summarise the
-whole dial table back to me — I can see it. Tell me what changed and what it
+whole dial table back to me, since I can see it. Tell me what changed and what it
 means for what you do next.

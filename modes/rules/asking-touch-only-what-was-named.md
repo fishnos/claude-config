@@ -1,7 +1,7 @@
 ---
-id: autonomy-touch-only-what-was-named
-setting: autonomy
-primary_at: just-go
+id: asking-touch-only-what-was-named
+setting: asking
+primary_at: never
 ---
 
 **Touch only what was named.** Change the thing asked about and nothing adjacent.

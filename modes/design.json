@@ -1,14 +1,14 @@
 {
   "name": "design",
   "codename": "BLUEPRINT",
-  "icon": "◇",
-  "color": 141,
+  "icon": "▦",
+  "color": 67,
   "description": "Think out loud. Nothing is a claim yet.",
   "settings": {
     "verify": "none",
     "claims": "loose",
     "process": "light",
-    "autonomy": "check-in",
+    "asking": "sometimes",
     "code": "decent",
     "subagents": "none",
     "voice": "caveman"

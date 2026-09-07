@@ -1,14 +1,14 @@
 {
   "name": "unattended",
   "codename": "AUTOPILOT",
-  "icon": "●",
-  "color": 171,
+  "icon": "▬",
+  "color": 132,
   "description": "Nobody is watching. Go the whole way, prove every step, write it up.",
   "settings": {
-    "verify": "prove-it",
+    "verify": "proven",
     "claims": "sourced",
     "process": "full",
-    "autonomy": "just-go",
+    "asking": "never",
     "code": "polished",
     "subagents": "few",
     "voice": "prose"

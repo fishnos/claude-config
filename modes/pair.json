@@ -1,14 +1,14 @@
 {
   "name": "pair",
   "codename": "SIDECAR",
-  "icon": "◑",
+  "icon": "▌",
   "color": 79,
   "description": "Somebody is watching. Small steps, ask early, no ceremony.",
   "settings": {
-    "verify": "run-it",
+    "verify": "tested",
     "claims": "labeled",
     "process": "skip",
-    "autonomy": "ask-first",
+    "asking": "always",
     "code": "decent",
     "subagents": "none",
     "voice": "caveman"
