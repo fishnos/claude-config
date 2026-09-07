@@ -2,6 +2,7 @@
   "name": "debug",
   "codename": "TRACE",
   "icon": "◎",
+  "color": 208,
   "description": "Reproduce before you theorise. No fix without a diagnosis.",
   "settings": {
     "verify": "prove-it",

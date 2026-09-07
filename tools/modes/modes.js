@@ -57,6 +57,13 @@ function parseMode(value, sourcePath) {
     // without one still loads.
     icon:
       typeof value.icon === "string" && value.icon !== "" ? value.icon : "\u25a0",
+    // A 256-colour code, painted behind the glyph and the mode's name wherever
+    // it is shown. Display only, like the codename and the glyph, and clamped
+    // to what a terminal actually understands.
+    color:
+      Number.isInteger(value.color) && value.color >= 0 && value.color <= 255
+        ? value.color
+        : null,
     description: typeof value.description === "string" ? value.description : "",
     settings: declared,
     projects: { ...(value.projects || {}), ...parsedGlitch.projects },

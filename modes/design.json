@@ -2,6 +2,7 @@
   "name": "design",
   "codename": "BLUEPRINT",
   "icon": "◇",
+  "color": 141,
   "description": "Think out loud. Nothing is a claim yet.",
   "settings": {
     "verify": "none",

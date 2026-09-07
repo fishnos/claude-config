@@ -2,6 +2,7 @@
   "name": "review",
   "codename": "APPRAISER",
   "icon": "◈",
+  "color": 220,
   "description": "Read and judge. Nothing gets edited.",
   "settings": {
     "verify": "prove-it",
