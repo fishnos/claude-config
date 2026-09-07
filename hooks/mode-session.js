@@ -34,6 +34,27 @@ function sessionFile(sessionId) {
   return path.join(directory, String(sessionId || "unknown"));
 }
 
+/** The hard state of a session running under no mode at all. */
+function baselineHash() {
+  try {
+    const glitch = require(
+      path.join(__dirname, "..", "tools", "modes", "glitch.js"),
+    );
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(io.configDir(), "settings.json"), "utf8"),
+    );
+    return glitch.hardHash(glitch.parseGlitch(undefined, "none"), {
+      model: settings.model,
+      effortLevel: settings.effortLevel,
+    });
+  } catch {
+    // Without a baseline the session cannot tell a half-applied mode from a
+    // whole one. Recording nothing is the honest answer; `ccfg mode` reports
+    // that as "unknown" rather than guessing either way.
+    return null;
+  }
+}
+
 function readLock() {
   try {
     return JSON.parse(
@@ -50,7 +71,13 @@ io.run(() => {
 
   const loaded = {
     // The fingerprint of the frozen half, as it stood when this session began.
-    hardHash: lock === null ? null : lock.hardHash || null,
+    //
+    // A session with no mode applied is not a session with no hard state: it
+    // runs with a model, an effort level and every skill visible. Recording
+    // that as null made the first switch of any session compare a real
+    // fingerprint against nothing and always report CORRUPTED, which taught
+    // the operator to ignore the one warning that matters.
+    hardHash: lock === null ? baselineHash() : lock.hardHash || null,
     mode: lock === null ? null : lock.mode,
     startedAt: new Date().toISOString(),
   };

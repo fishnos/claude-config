@@ -793,6 +793,53 @@ check(
   );
 }
 
+// A session that starts with no mode still runs with a model, an effort level
+// and every skill visible. Recording that as "nothing" made the first switch of
+// any session compare a real hash against null and always report CORRUPTED --
+// the loudest warning in the system firing on the most ordinary action.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-baseline-"));
+  fs.writeFileSync(
+    path.join(root, "settings.json"),
+    JSON.stringify({ model: "claude-opus-5", effortLevel: "high" }),
+  );
+  require("child_process").spawnSync(
+    process.execPath,
+    [path.join(__dirname, "..", "hooks", "mode-session.js")],
+    {
+      input: JSON.stringify({ session_id: "baseline" }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_CONFIG_DIR: root },
+    },
+  );
+  const recorded = JSON.parse(
+    fs.readFileSync(path.join(root, "cache", "mode-session", "baseline"), "utf8"),
+  );
+  const bare = glitch.parseGlitch(undefined, "none");
+  check(
+    "a session with no mode records its baseline, not nothing",
+    recorded.hardHash,
+    glitch.hardHash(bare, { model: "claude-opus-5", effortLevel: "high" }),
+  );
+}
+
+// The warning has to stay loud for the case it was built for.
+{
+  const bare = glitch.parseGlitch(undefined, "none");
+  const hidesSkills = glitch.parseGlitch({ skills: { off: ["graphify"] } }, "m");
+  check(
+    "a mode that hides a skill still differs from the baseline",
+    glitch.hardHash(hidesSkills, {}) === glitch.hardHash(bare, {}),
+    false,
+  );
+  check(
+    "a mode that changes no hard field matches the baseline",
+    glitch.hardHash(bare, { model: "x", effortLevel: "y" }) ===
+      glitch.hardHash(bare, { model: "x", effortLevel: "y" }),
+    true,
+  );
+}
+
 // ---------------------------------------------------------- the tool gate
 
 function runGuardHook(payload, configDir) {
@@ -1254,6 +1301,81 @@ check(
   unknown.stderr.includes("nonexistent"),
   true,
 );
+
+// A mode that pins no model must hand the operator's own back, not inherit the
+// last mode's. Same shape as the skill-override leak: computing from the
+// current settings instead of the operator's baseline makes every mode after
+// the first inherit its predecessor's output.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-pins-"));
+  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
+  for (const directory of ["modes", "tools", "hooks"])
+    fs.cpSync(path.join(__dirname, "..", directory), path.join(root, directory), {
+      recursive: true,
+    });
+  fs.writeFileSync(
+    path.join(root, "settings.json"),
+    JSON.stringify({ model: "claude-sonnet-5", effortLevel: "low" }, null, 2),
+  );
+
+  const ccfg = (...args) =>
+    require("child_process").spawnSync(
+      process.execPath,
+      [path.join(root, "tools", "ccfg.js"), "mode", ...args],
+      { encoding: "utf8", env: { ...process.env, CLAUDE_CONFIG_DIR: root } },
+    );
+  const settingsNow = () =>
+    JSON.parse(fs.readFileSync(path.join(root, "settings.json"), "utf8"));
+
+  ccfg("build");
+  check(
+    "a mode that pins an effort level applies it",
+    settingsNow().effortLevel,
+    "high",
+  );
+  check(
+    "applying a mode leaves the operator's model alone",
+    settingsNow().model,
+    "claude-sonnet-5",
+  );
+
+  ccfg("nomad");
+  check(
+    "a mode pinning no effort restores the operator's",
+    settingsNow().effortLevel,
+    "low",
+  );
+
+  ccfg("build");
+  ccfg("revert");
+  check(
+    "revert restores the operator's effort level",
+    settingsNow().effortLevel,
+    "low",
+  );
+  check(
+    "revert leaves the operator's model as it found it",
+    settingsNow().model,
+    "claude-sonnet-5",
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// A mode tunes how the work is done, never which model does it. Ten modes once
+// pinned "claude-opus-5", which silently dropped an operator running opus[1m]
+// off the 1M-context model every time any mode was applied -- a downgrade
+// nothing in the banner or the status line mentioned.
+{
+  const shipped = path.join(__dirname, "..", "modes");
+  for (const file of fs.readdirSync(shipped).filter((n) => n.endsWith(".json"))) {
+    const mode = JSON.parse(fs.readFileSync(path.join(shipped, file), "utf8"));
+    check(
+      `${path.basename(file, ".json")} leaves the model to the operator`,
+      "model" in (mode.projects || {}),
+      false,
+    );
+  }
+}
 
 // ------------------------------------------------- mode-scoped commands
 
