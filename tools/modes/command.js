@@ -191,6 +191,9 @@ function commandList(io) {
       mode.glitch.tools.length > 0 ? `${mode.glitch.tools.length} tools gated` : null,
       mode.glitch.skills !== null ? "skills gated" : null,
       mode.glitch.subagents === "none" ? "solo" : null,
+      (mode.glitch.commands || []).length > 0
+        ? (mode.glitch.commands || []).map((name) => `/${name}`).join(" ")
+        : null,
     ].filter(Boolean);
     console.log(
       `  ${io.bold(mode.codename.padEnd(11))}${io.dim(mode.name.padEnd(12))}${mode.description}` +

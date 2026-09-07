@@ -75,6 +75,9 @@ io.run(() => {
     gated > 0 ? `${gated} tools gated` : null,
     hidden > 0 ? `${hidden} skills hidden` : null,
     lock.subagents === "none" ? "no subagents" : null,
+    (lock.installedCommands || []).length > 0
+      ? `carries ${lock.installedCommands.map((name) => `/${name}`).join(" ")}`
+      : null,
   ].filter(Boolean);
 
   io.warn(

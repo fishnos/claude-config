@@ -38,6 +38,9 @@
         "google-testing",
         "security-review"
       ]
-    }
+    },
+    "commands": [
+      "verdict"
+    ]
   }
 }
