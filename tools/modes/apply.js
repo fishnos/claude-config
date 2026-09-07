@@ -168,7 +168,15 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
       else delete next[key];
     }
     Object.assign(next, pinning);
-    if (current.hooks) next.hooks = stripHooks(current.hooks, disabledHooks);
+    // Rebuilt from the operator's own hooks, not from the live ones. Stripping
+    // `current` compounded: RECON turns the self-review reminder off, and every
+    // mode applied afterwards inherited a config with the hook already gone, so
+    // nothing ever put it back. A guardrail silently missing is the exact
+    // failure the subtract-only design exists to prevent. Unlike a hidden
+    // skill, which `revert` restores from baseSkillOverrides, this one
+    // survived a revert too.
+    const operatorHooks = operatorSettings.hooks || current.hooks;
+    if (operatorHooks) next.hooks = stripHooks(operatorHooks, disabledHooks);
 
     // Skill visibility is computed subtract-only from the operator's own
     // overrides. baseSkillOverrides in the lock is what revert puts back, so a
