@@ -10,6 +10,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const WIRING = [
   ["PreToolUse", "mode-guard.js", "tool and subagent gating"],
@@ -42,6 +43,27 @@ module.exports = {
     const statusLine = JSON.stringify(settings.statusLine || {});
     if (!statusLine.includes("statusline.js") && !statusLine.includes("mode-status"))
       missing.push("no status line shows the active mode");
+
+    // A file the mode system needs can sit on disk, pass every test, and still
+    // be invisible to git -- which is exactly what an unanchored `debug/` in
+    // .gitignore did to modes/commands/debug/. Nothing looks wrong until a
+    // clone tries to apply the mode and finds the file was never committed.
+    for (const directory of ["modes", "probes", "tools/modes", "tools/probe"]) {
+      const full = path.join(configDir, directory);
+      if (!fs.existsSync(full)) continue;
+      let untracked = "";
+      try {
+        untracked = execFileSync(
+          "git",
+          ["ls-files", "--others", "--ignored", "--exclude-standard", "--", directory],
+          { cwd: configDir, encoding: "utf8" },
+        ).trim();
+      } catch {
+        continue; // Not a git checkout; nothing to verify.
+      }
+      for (const file of untracked.split("\n").filter(Boolean))
+        missing.push(`${file} is on disk but git ignores it`);
+    }
 
     return {
       pass: missing.length === 0,
