@@ -1,0 +1,31 @@
+{
+  "name": "debug",
+  "codename": "TRACE",
+  "description": "Reproduce before you theorise. No fix without a diagnosis.",
+  "settings": {
+    "verify": "prove-it",
+    "claims": "labeled",
+    "process": "light",
+    "autonomy": "check-in",
+    "code": "decent",
+    "subagents": "none",
+    "voice": "caveman"
+  },
+  "projects": {
+    "model": "claude-opus-5",
+    "effortLevel": "high"
+  },
+  "disableHooks": [],
+  "glitch": {
+    "skills": {
+      "only": [
+        "superpowers:systematic-debugging",
+        "graphify",
+        "find-docs"
+      ]
+    },
+    "projects": {
+      "effortLevel": "high"
+    }
+  }
+}

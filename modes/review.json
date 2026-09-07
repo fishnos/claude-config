@@ -1,0 +1,43 @@
+{
+  "name": "review",
+  "codename": "APPRAISER",
+  "description": "Read and judge. Nothing gets edited.",
+  "settings": {
+    "verify": "prove-it",
+    "claims": "sourced",
+    "process": "skip",
+    "autonomy": "ask-first",
+    "code": "polished",
+    "subagents": "none",
+    "voice": "normal"
+  },
+  "projects": {
+    "model": "claude-opus-5",
+    "effortLevel": "high",
+    "permissions": {
+      "deny": [
+        "Edit",
+        "Write",
+        "NotebookEdit"
+      ]
+    }
+  },
+  "disableHooks": [],
+  "glitch": {
+    "tools": {
+      "deny": [
+        "Write",
+        "Edit",
+        "NotebookEdit"
+      ]
+    },
+    "skills": {
+      "only": [
+        "google-code-review",
+        "google-style",
+        "google-testing",
+        "security-review"
+      ]
+    }
+  }
+}

@@ -1211,6 +1211,8 @@ function commandTest() {
     path.join(CONFIG_DIR, "hooks", "test-hooks.js"),
     path.join(CONFIG_DIR, "tools", "test-ccfg.js"),
     path.join(CONFIG_DIR, "tools", "test-broker.js"),
+    path.join(CONFIG_DIR, "tools", "test-modes.js"),
+    path.join(CONFIG_DIR, "tools", "test-probe.js"),
   ];
   let worst = 0;
   for (const suite of suites) {
@@ -1327,6 +1329,12 @@ const IO = {
   bold,
   dim,
   yellow,
+  // Single rewritten line on a TTY, plain lines when piped, so a long fill
+  // reports progress without burying the result in scrollback.
+  progress: (message) => {
+    if (process.stdout.isTTY) process.stdout.write(`\r${message}\u001b[K`);
+    else console.log(message);
+  },
 };
 
 const COMMANDS = {
@@ -1335,6 +1343,8 @@ const COMMANDS = {
   evidence: commandEvidence,
   clean: commandClean,
   test: commandTest,
+  probe: (argv) => require("./probe/command.js").commandProbe(argv, IO),
+  mode: (argv) => require("./modes/command.js").commandMode(argv, IO),
   validate: commandValidate,
   backup: commandBackup,
   install: commandInstall,
@@ -1356,6 +1366,10 @@ function commandHelp() {
 ${bold("ccfg")} -- manage this Claude Code configuration
 
   ${bold("doctor")}              health check: secrets, hooks, permissions, startup cost, disk
+  ${bold("mode")}                active mode, its seven dials, and whether it is corrupted
+  ${bold("mode list")}           every mode with its codename and what it gates
+  ${bold("mode")} NAME           switch to it -- rules and tools change now, skills
+                      and model at the next session (diff A B | revert)
   ${bold("install")}             put ccfg on PATH and wire your shell (--no-shell to skip)
   ${bold("keys list")}           show every managed secret and where its value comes from
   ${bold("keys set")} VAR        store a secret in the keychain (macOS) or secrets.env
@@ -1368,6 +1382,8 @@ ${bold("ccfg")} -- manage this Claude Code configuration
   ${bold("shell-init")}          print the shell profile line (--write to add it for you)
   ${bold("clean")} [--yes]       gzip idle logs, prune caches older than 30 days
   ${bold("test")}                run the hook, ccfg and broker regression suites
+  ${bold("probe")}               behavioural checks: what this config actually does
+                      list | run <name> | run --all | run --kind oracle
   ${bold("validate")}            check settings.json for drift
   ${bold("backup")}              snapshot settings, CLAUDE.md, hooks and ~/.claude.json
 

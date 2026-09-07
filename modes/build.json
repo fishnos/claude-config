@@ -1,0 +1,19 @@
+{
+  "name": "build",
+  "codename": "RUNNER",
+  "description": "The daily posture. Write it well, run it, check in at the forks.",
+  "settings": {
+    "verify": "run-it",
+    "claims": "labeled",
+    "process": "light",
+    "autonomy": "check-in",
+    "code": "polished",
+    "subagents": "few",
+    "voice": "caveman"
+  },
+  "projects": {
+    "model": "claude-opus-5",
+    "effortLevel": "high"
+  },
+  "disableHooks": []
+}

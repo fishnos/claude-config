@@ -1,0 +1,30 @@
+{
+  "name": "spike",
+  "codename": "RECON",
+  "description": "Find out whether it works. Nothing here is kept.",
+  "settings": {
+    "verify": "none",
+    "claims": "labeled",
+    "process": "skip",
+    "autonomy": "just-go",
+    "code": "rough",
+    "subagents": "none",
+    "voice": "caveman"
+  },
+  "projects": {
+    "model": "claude-opus-5",
+    "effortLevel": "low"
+  },
+  "disableHooks": [
+    "review-reminder.js",
+    "style-check.js"
+  ],
+  "glitch": {
+    "tools": {
+      "deny": [
+        "Agent"
+      ]
+    },
+    "subagents": "none"
+  }
+}

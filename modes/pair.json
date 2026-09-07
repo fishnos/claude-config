@@ -1,0 +1,22 @@
+{
+  "name": "pair",
+  "codename": "SIDECAR",
+  "description": "Somebody is watching. Small steps, ask early, no ceremony.",
+  "settings": {
+    "verify": "run-it",
+    "claims": "labeled",
+    "process": "skip",
+    "autonomy": "ask-first",
+    "code": "decent",
+    "subagents": "none",
+    "voice": "caveman"
+  },
+  "projects": {
+    "model": "claude-opus-5",
+    "effortLevel": "medium"
+  },
+  "disableHooks": [],
+  "glitch": {
+    "subagents": "none"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "ship",
+  "codename": "FIXER",
+  "description": "It lands. Every gate, every claim sourced.",
+  "settings": {
+    "verify": "prove-it",
+    "claims": "sourced",
+    "process": "full",
+    "autonomy": "ask-first",
+    "code": "polished",
+    "subagents": "few",
+    "voice": "normal"
+  },
+  "projects": {
+    "model": "claude-opus-5",
+    "effortLevel": "high"
+  },
+  "disableHooks": [],
+  "glitch": {
+    "projects": {
+      "effortLevel": "high"
+    }
+  }
+}

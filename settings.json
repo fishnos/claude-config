@@ -195,6 +195,15 @@
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','git-guard.js'))\""
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','mode-guard.js'))\""
+          }
+        ]
       }
     ],
     "Stop": [
@@ -223,6 +232,10 @@
           {
             "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','repo-setup.js'))\""
+          },
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','mode-session.js'))\""
           }
         ]
       }
@@ -234,6 +247,10 @@
           {
             "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','repo-context.js'))\""
+          },
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','mode-inject.js'))\""
           }
         ]
       }
@@ -241,7 +258,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "npx -y ccstatusline@2.2.27",
+    "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','statusline.js'))\"",
     "padding": 0,
     "refreshInterval": 10
   },
