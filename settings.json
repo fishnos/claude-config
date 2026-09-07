@@ -263,7 +263,8 @@
     "caveman@caveman": true,
     "skills@ai-builder-club": true,
     "neon@claude-plugins-official": true,
-    "humanizer@humanizer": true
+    "humanizer@humanizer": true,
+    "google-engineering@fishnos": true
   },
   "extraKnownMarketplaces": {
     "ecc": {
@@ -318,6 +319,12 @@
       "source": {
         "source": "github",
         "repo": "blader/humanizer"
+      }
+    },
+    "fishnos": {
+      "source": {
+        "source": "github",
+        "repo": "fishnos/claude-config"
       }
     }
   },

@@ -34,20 +34,20 @@
     "frontend-design@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/frontend-design/0620a687ddd5",
-        "version": "0620a687ddd5",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/frontend-design/85cce0381e78",
+        "version": "85cce0381e78",
         "installedAt": "2026-03-05T02:00:37.251Z",
-        "lastUpdated": "2026-08-28T23:34:55.395Z",
+        "lastUpdated": "2026-09-04T23:05:30.610Z",
         "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
       }
     ],
     "code-review@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/code-review/0620a687ddd5",
-        "version": "0620a687ddd5",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/code-review/85cce0381e78",
+        "version": "85cce0381e78",
         "installedAt": "2026-04-05T03:18:14.324Z",
-        "lastUpdated": "2026-08-28T23:34:55.397Z",
+        "lastUpdated": "2026-09-04T23:05:30.614Z",
         "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
       }
     ],
@@ -63,10 +63,10 @@
     "skill-creator@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/skill-creator/0620a687ddd5",
-        "version": "0620a687ddd5",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/skill-creator/85cce0381e78",
+        "version": "85cce0381e78",
         "installedAt": "2026-04-05T03:18:30.867Z",
-        "lastUpdated": "2026-08-28T23:34:55.396Z",
+        "lastUpdated": "2026-09-04T23:05:30.618Z",
         "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
       }
     ],
@@ -82,10 +82,10 @@
     "feature-dev@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/feature-dev/0620a687ddd5",
-        "version": "0620a687ddd5",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/feature-dev/85cce0381e78",
+        "version": "85cce0381e78",
         "installedAt": "2026-04-05T23:32:32.606Z",
-        "lastUpdated": "2026-08-28T23:34:55.396Z",
+        "lastUpdated": "2026-09-04T23:05:30.611Z",
         "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
       }
     ],
@@ -101,20 +101,20 @@
     "vercel@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/vercel/0.45.1",
-        "version": "0.45.1",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/vercel/0.48.0",
+        "version": "0.48.0",
         "installedAt": "2026-04-05T23:33:32.920Z",
-        "lastUpdated": "2026-07-24T02:19:36.136Z",
+        "lastUpdated": "2026-09-02T15:30:13.900Z",
         "gitCommitSha": "eb3b6f19e9ca59b23c88d7cc8dfe609388be0fc7"
       }
     ],
     "hookify@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/hookify/0620a687ddd5",
-        "version": "0620a687ddd5",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/hookify/85cce0381e78",
+        "version": "85cce0381e78",
         "installedAt": "2026-04-05T23:33:44.175Z",
-        "lastUpdated": "2026-08-28T23:34:55.398Z",
+        "lastUpdated": "2026-09-04T23:05:30.612Z",
         "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
       }
     ],
@@ -151,21 +151,21 @@
     "mcp-server-dev@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/mcp-server-dev/0620a687ddd5",
-        "version": "0620a687ddd5",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/mcp-server-dev/85cce0381e78",
+        "version": "85cce0381e78",
         "installedAt": "2026-07-31T23:32:21.578Z",
-        "lastUpdated": "2026-08-28T23:34:55.398Z",
+        "lastUpdated": "2026-09-04T23:05:30.616Z",
         "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
       }
     ],
     "neon@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/neon/1.1.2",
-        "version": "1.1.2",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/neon/1.2.0",
+        "version": "1.2.0",
         "installedAt": "2026-08-13T06:04:37.556Z",
-        "lastUpdated": "2026-08-13T06:16:03.429Z",
-        "gitCommitSha": "af27b52659c3c5bbf05d6c626b166163eb351e19"
+        "lastUpdated": "2026-09-04T23:05:33.352Z",
+        "gitCommitSha": "4d02514f89ec203ec0f603882f90d468ff8c44f8"
       }
     ],
     "humanizer@humanizer": [
@@ -176,6 +176,16 @@
         "installedAt": "2026-08-14T17:55:03.561Z",
         "lastUpdated": "2026-08-14T17:55:03.561Z",
         "gitCommitSha": "523374dee72d67c7b2b5f858ea0094ffda49c3ac"
+      }
+    ],
+    "google-engineering@fishnos": [
+      {
+        "scope": "user",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/fishnos/google-engineering/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-08-29T21:43:24.624Z",
+        "lastUpdated": "2026-08-29T21:43:24.624Z",
+        "gitCommitSha": "66939658ac59a5290d3616ec55bd7b7a5cc0f9ae"
       }
     ]
   }
