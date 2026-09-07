@@ -1470,6 +1470,165 @@ check(
   }
 }
 
+// Two chats open at once are two sessions, each with its own startup snapshot.
+// Reading "the newest marker" instead of "this session's marker" made one chat
+// report the other's state -- so a chat that really was half-applied showed
+// clean because a newer chat had started since.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-two-chats-"));
+  const markers = path.join(root, "cache", "mode-session");
+  fs.mkdirSync(markers, { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "mode.lock"),
+    JSON.stringify({ mode: "review", codename: "APPRAISER", hardHash: "newhash" }),
+  );
+  // Chat A started before the switch and is genuinely half-applied.
+  fs.writeFileSync(
+    path.join(markers, "chat-a"),
+    JSON.stringify({ hardHash: "oldhash", mode: null }),
+  );
+  // Chat B started after it and is whole. Written second, so it is newest.
+  fs.writeFileSync(
+    path.join(markers, "chat-b"),
+    JSON.stringify({ hardHash: "newhash", mode: "review" }),
+  );
+
+  const { integrity } = require("./modes/command.js");
+  check(
+    "the chat that is half-applied says so",
+    integrity(root, "chat-a").state,
+    "corrupted",
+  );
+  check(
+    "the chat that is whole says so",
+    integrity(root, "chat-b").state,
+    "clean",
+  );
+  check(
+    "a session with no marker borrows no other chat's verdict",
+    integrity(root, "chat-never-started").state,
+    "unknown",
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// The status line is told which session it is drawing for on stdin. Reading the
+// environment instead found nothing, which is what sent it to the newest marker.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-status-session-"));
+  const markers = path.join(root, "cache", "mode-session");
+  fs.mkdirSync(markers, { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "mode.lock"),
+    JSON.stringify({
+      mode: "review",
+      codename: "APPRAISER",
+      icon: "\u25c8",
+      hardHash: "newhash",
+    }),
+  );
+  fs.writeFileSync(
+    path.join(markers, "chat-a"),
+    JSON.stringify({ hardHash: "oldhash" }),
+  );
+  fs.writeFileSync(
+    path.join(markers, "chat-b"),
+    JSON.stringify({ hardHash: "newhash" }),
+  );
+  const drawFor = (sessionId) =>
+    require("child_process").spawnSync(
+      process.execPath,
+      [path.join(__dirname, "..", "hooks", "mode-status.js")],
+      {
+        input: JSON.stringify({ session_id: sessionId }),
+        encoding: "utf8",
+        env: { ...process.env, CLAUDE_CONFIG_DIR: root, CLAUDE_SESSION_ID: "" },
+      },
+    ).stdout.trim();
+
+  check(
+    "the status line marks the half-applied chat",
+    drawFor("chat-a"),
+    "\u25c8 APPRAISER ~CORRUPTED",
+  );
+  check(
+    "the status line leaves the whole chat unmarked",
+    drawFor("chat-b"),
+    "\u25c8 APPRAISER",
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// A session-start notice written only as additionalContext reaches the model
+// and nobody else -- Claude Code delivers it as a system reminder rather than
+// showing it. From the outside that is indistinguishable from a hook that never
+// ran, which is exactly how it looked. systemMessage is the half the operator
+// actually sees.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-announce-"));
+  fs.writeFileSync(
+    path.join(root, "mode.lock"),
+    JSON.stringify({
+      mode: "review",
+      codename: "APPRAISER",
+      icon: "\u25c8",
+      deniedTools: ["Edit", "Write"],
+      skillsHidden: 3,
+      hardHash: "h",
+    }),
+  );
+  const out = require("child_process").spawnSync(
+    process.execPath,
+    [path.join(__dirname, "..", "hooks", "mode-session.js")],
+    {
+      input: JSON.stringify({ session_id: "announce-1" }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_CONFIG_DIR: root },
+    },
+  ).stdout;
+  const emitted = JSON.parse(out);
+  // Read through a string that is never undefined: a hook that emits no visible
+  // message should fail all four checks below, not throw on the second one and
+  // hide the other three.
+  const visible = typeof emitted.systemMessage === "string" ? emitted.systemMessage : "";
+
+  check(
+    "the session start is announced where the operator can see it",
+    visible.includes("APPRAISER"),
+    true,
+  );
+  check(
+    "the visible notice carries the mode's glyph",
+    visible.includes("\u25c8"),
+    true,
+  );
+  check(
+    "the visible notice says what the mode took away",
+    /2 tools/.test(visible) && /3 skills/.test(visible),
+    true,
+  );
+  check(
+    "the model still gets its own context",
+    emitted.hookSpecificOutput.additionalContext.includes("APPRAISER"),
+    true,
+  );
+
+  // No mode, nothing to announce -- a banner on every plain session is noise.
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-announce-bare-"));
+  const quiet = require("child_process").spawnSync(
+    process.execPath,
+    [path.join(__dirname, "..", "hooks", "mode-session.js")],
+    {
+      input: JSON.stringify({ session_id: "announce-2" }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_CONFIG_DIR: bare },
+    },
+  ).stdout.trim();
+  check("a session with no mode announces nothing", quiet, "");
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.rmSync(bare, { recursive: true, force: true });
+}
+
 // ------------------------------------------------- mode-scoped commands
 
 const commands = require("./modes/commands.js");

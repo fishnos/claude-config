@@ -27,8 +27,8 @@ function readLock() {
   }
 }
 
-/** Whether the mode on disk is only half in force in this session. */
-function corruptionMark() {
+/** Whether the mode on disk is only half in force in THIS session. */
+function corruptionMark(sessionId) {
   try {
     // Resolved from this file, not from the config directory: the hook always
     // lives beside the tools it needs, and a config dir pointed elsewhere would
@@ -36,7 +36,7 @@ function corruptionMark() {
     const { integrity } = require(
       path.join(__dirname, "..", "tools", "modes", "command.js"),
     );
-    const state = integrity(io.configDir(), process.env.CLAUDE_SESSION_ID).state;
+    const state = integrity(io.configDir(), sessionId).state;
     return state === "corrupted" ? " ~CORRUPTED" : "";
   } catch {
     // A status line that throws leaves the operator with no indicator at all,
@@ -46,6 +46,13 @@ function corruptionMark() {
 }
 
 io.run(() => {
+  // Claude Code names the session on stdin. Reading the environment instead
+  // found nothing -- CLAUDE_SESSION_ID is not set for a status line -- and an
+  // unnamed session fell through to whichever chat had started most recently,
+  // so one chat drew the other's verdict.
+  const payload = io.readPayload();
+  const sessionId = payload.session_id || process.env.CLAUDE_SESSION_ID || "";
+
   const lock = readLock();
   if (lock === null) {
     process.stdout.write("no mode");
@@ -53,5 +60,5 @@ io.run(() => {
   }
   const icon = lock.icon || "■";
   const label = lock.codename || lock.mode;
-  process.stdout.write(`${icon} ${label}${corruptionMark()}`);
+  process.stdout.write(`${icon} ${label}${corruptionMark(sessionId)}`);
 });

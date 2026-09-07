@@ -156,9 +156,16 @@ function integrity(configDir, sessionId) {
     return { state: "unknown", stale: [] };
   }
 
+  // Each chat is its own session with its own startup snapshot, so the answer
+  // is only ever this session's marker. Falling back to the newest marker made
+  // one chat report another's state: open a second chat after a switch and the
+  // first one, genuinely half-applied, went quiet because the newer marker
+  // matched the lock. "I do not know" is the honest answer for a session that
+  // never recorded one.
   const chosen =
-    (sessionId && sessions.find((s) => path.basename(s.file) === sessionId)) ||
-    sessions[0];
+    sessionId === undefined || sessionId === null || sessionId === ""
+      ? sessions[0]
+      : sessions.find((entry) => path.basename(entry.file) === sessionId);
   if (chosen === undefined) return { state: "unknown", stale: [] };
 
   let recorded;

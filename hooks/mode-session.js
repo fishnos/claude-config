@@ -107,12 +107,21 @@ io.run(() => {
       : null,
   ].filter(Boolean);
 
-  io.warn(
+  // The operator's half: one line, the glyph first, and only what this mode
+  // took away. Written as a system message rather than context because context
+  // is delivered to the model and shown to nobody, which made a session that
+  // had loaded its mode correctly look like one where nothing had happened.
+  const icon = lock.icon || "■";
+  const visible =
+    `${icon} ${label}` + (detail.length > 0 ? `  ${detail.join(" · ")}` : "");
+
+  io.announce(
     EVENT,
     `Mode ${label} is in force for this session` +
       (detail.length > 0 ? ` (${detail.join(", ")})` : "") +
       `. Switching modes now changes the rules immediately, but the skill ` +
       `list, model and effort are fixed until the next session -- ` +
       `\`ccfg mode\` reports that state as CORRUPTED.`,
+    visible,
   );
 });
