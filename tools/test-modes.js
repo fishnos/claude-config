@@ -2300,6 +2300,56 @@ const ENVIRONMENT = process.env;
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+// A hook a mode turned off comes back when a mode that does not turn it off is
+// applied.
+//
+// Hooks used to be stripped from the live settings rather than rebuilt from the
+// operator's own, so the removal compounded: RECON turns off the self-review
+// reminder, and every mode applied afterwards inherited a config with the hook
+// already gone. Nothing ever put it back. A guardrail silently missing is the
+// exact failure the subtract-only design exists to prevent, and it survived a
+// switch, a revert and a restart.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hook-restore-"));
+  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
+  fs.mkdirSync(path.join(root, "modes"), { recursive: true });
+  const reminder = {
+    matcher: "*",
+    hooks: [{ type: "command", command: "node hooks/review-reminder.js" }],
+  };
+  fs.writeFileSync(
+    path.join(root, "settings.json"),
+    JSON.stringify({ hooks: { Stop: [reminder] } }, null, 2) + "\n",
+  );
+
+  const silencer = modes.parseMode(
+    { name: "quiet", settings: {}, disableHooks: ["review-reminder.js"] },
+    "quiet.json",
+  );
+  const plain = modes.parseMode({ name: "plain", settings: {} }, "plain.json");
+
+  apply.applyMode(root, silencer, CORPUS, {});
+  const gagged = JSON.parse(
+    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
+  );
+  check(
+    "a mode that turns a hook off takes it out of settings",
+    JSON.stringify(gagged.hooks).includes("review-reminder"),
+    false,
+  );
+
+  apply.applyMode(root, plain, CORPUS, {});
+  const restored = JSON.parse(
+    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
+  );
+  check(
+    "the next mode puts the hook back",
+    JSON.stringify(restored.hooks).includes("review-reminder"),
+    true,
+  );
+
+  fs.rmSync(root, { recursive: true, force: true });
+}
 
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 
