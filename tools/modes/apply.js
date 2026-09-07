@@ -151,7 +151,23 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
     const current = JSON.parse(
       fs.readFileSync(settingsPath(configDir), "utf8"),
     );
-    const next = { ...current, ...(mode.projects || {}) };
+    // Settings a mode pins (the model, the effort level) are handed back to the
+    // operator's own values when the next mode does not pin them. Overlaying
+    // mode.projects onto `current` alone only overwrites, never clears, so
+    // RUNNER's model survived a switch to NOMAD -- a mode that pins nothing and
+    // is meant to read as an unmodified session.
+    const operatorSettings =
+      settingsBackup && fs.existsSync(settingsBackup)
+        ? JSON.parse(fs.readFileSync(settingsBackup, "utf8"))
+        : current;
+    const pinning = mode.projects || {};
+    const next = { ...current };
+    for (const key of (existing && existing.pinnedKeys) || []) {
+      if (key in pinning) continue;
+      if (key in operatorSettings) next[key] = operatorSettings[key];
+      else delete next[key];
+    }
+    Object.assign(next, pinning);
     if (current.hooks) next.hooks = stripHooks(current.hooks, disabledHooks);
 
     // Skill visibility is computed subtract-only from the operator's own
@@ -202,6 +218,8 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
     // Carried forward across switches so each mode gates from the operator's
     // own baseline rather than from the previous mode's output.
     baseSkillOverrides,
+    // Which settings this mode pinned, so the next mode knows what to hand back.
+    pinnedKeys: Object.keys(mode.projects || {}),
     // The slash commands this mode put into commands/. Recorded so that taking
     // the mode off removes exactly those and leaves the operator's own alone.
     installedCommands,
