@@ -1,0 +1,24 @@
+{
+  "name": "unattended",
+  "codename": "AUTOPILOT",
+  "description": "Nobody is watching. Go the whole way, prove every step, write it up.",
+  "settings": {
+    "verify": "prove-it",
+    "claims": "sourced",
+    "process": "full",
+    "autonomy": "just-go",
+    "code": "polished",
+    "subagents": "few",
+    "voice": "prose"
+  },
+  "projects": {
+    "model": "claude-opus-5",
+    "effortLevel": "high"
+  },
+  "disableHooks": [],
+  "glitch": {
+    "projects": {
+      "effortLevel": "max"
+    }
+  }
+}

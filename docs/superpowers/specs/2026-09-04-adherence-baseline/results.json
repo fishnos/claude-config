@@ -1,0 +1,2068 @@
+{
+  "summary": [
+    {
+      "arm": "bare",
+      "trials": 30,
+      "clean": 8,
+      "cleanRate": 0.26666666666666666,
+      "problemsPerTrial": 0.8,
+      "fenced": 0
+    },
+    {
+      "arm": "full",
+      "trials": 90,
+      "clean": 61,
+      "cleanRate": 0.6777777777777778,
+      "problemsPerTrial": 0.36666666666666664,
+      "fenced": 0
+    },
+    {
+      "arm": "scoped",
+      "trials": 90,
+      "clean": 78,
+      "cleanRate": 0.8666666666666667,
+      "problemsPerTrial": 0.14444444444444443,
+      "fenced": 0
+    }
+  ],
+  "breakdown": {
+    "subject-too-long": {
+      "bare": 19,
+      "scoped": 1,
+      "full": 4
+    },
+    "body-too-wide": {
+      "full": 29,
+      "scoped": 12,
+      "bare": 3
+    },
+    "vague-referent": {
+      "bare": 2
+    }
+  },
+  "rows": [
+    {
+      "task": "t1-effect",
+      "arm": "bare",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 60 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "bare",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 59 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "bare",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 59 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "bare",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 59 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "bare",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 60 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [
+        "7 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "full",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [
+        "5 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t1-effect",
+      "arm": "scoped",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 56 chars (target 50).",
+        "7 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 2,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "bare",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "bare",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "bare",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 55 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "bare",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 53 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "bare",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 55 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 55 chars (target 50).",
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 2,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 51 chars (target 50).",
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 2,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 55 chars (target 50).",
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 2,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [
+        "5 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "full",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 55 chars (target 50).",
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 2,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t2-vague",
+      "arm": "scoped",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "bare",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [
+        "Commit subject: \"bugs\" stands in for the thing -- name the symbol, file, component or code the change touched."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t3-counted",
+      "arm": "bare",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 56 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t3-counted",
+      "arm": "bare",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 56 chars (target 50).",
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 2,
+      "clean": false
+    },
+    {
+      "task": "t3-counted",
+      "arm": "bare",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "bare",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [
+        "Commit subject: \"bugs\" stands in for the thing -- name the symbol, file, component or code the change touched."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [
+        "4 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t3-counted",
+      "arm": "full",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t3-counted",
+      "arm": "scoped",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "bare",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 53 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "bare",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 53 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "bare",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 53 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "bare",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "bare",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [
+        "4 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [
+        "4 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "full",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t4-feature",
+      "arm": "scoped",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "bare",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 52 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "bare",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 52 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "bare",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 52 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "bare",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 52 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "bare",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 52 chars (target 50).",
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 2,
+      "clean": false
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [
+        "4 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "full",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [
+        "3 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t5-refactor",
+      "arm": "scoped",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "bare",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "bare",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "bare",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "bare",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "bare",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [
+        "Commit subject: 61 chars (target 50)."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [
+        "6 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "full",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r1",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r10",
+      "fenced": false,
+      "problems": [
+        "1 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r11",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r12",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r13",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r14",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r15",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r2",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r3",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r4",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r5",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r6",
+      "fenced": false,
+      "problems": [
+        "2 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r7",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r8",
+      "fenced": false,
+      "problems": [],
+      "count": 0,
+      "clean": true
+    },
+    {
+      "task": "t6-perf",
+      "arm": "scoped",
+      "rep": "r9",
+      "fenced": false,
+      "problems": [
+        "5 body line(s) exceed 72 chars. Git indents log output by four spaces, so wrapping keeps it readable in an 80-column terminal."
+      ],
+      "count": 1,
+      "clean": false
+    }
+  ]
+}

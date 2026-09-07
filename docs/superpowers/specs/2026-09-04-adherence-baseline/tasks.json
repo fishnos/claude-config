@@ -1,0 +1,8 @@
+[
+  {"id":"t1-effect","diff":"In src/auth/session.ts the refresh handler called getToken() before the Supabase client finished initialising, which threw a null dereference on cold start. You widened the wait to poll for client readiness with a 200ms backoff up to 2s before the first getToken() call."},
+  {"id":"t2-vague","diff":"In src/login/LoginForm.tsx the submit handler passed the raw email string to signIn() without trimming, so addresses pasted with a trailing space were rejected by the API. You added a trim before the call and a regression test in LoginForm.test.tsx."},
+  {"id":"t3-counted","diff":"You touched three files: queue/Column.tsx (cards were 4px out of alignment with the column header), queue/useCards.ts (an off-by-one in the page cursor skipped the last card), and queue/empty.tsx (the empty state rendered before loading finished)."},
+  {"id":"t4-feature","diff":"You added a new export getRunSummary() to lib/telemetry.ts that aggregates per-run token counts, plus its tests in lib/telemetry.test.ts. Nothing else calls it yet."},
+  {"id":"t5-refactor","diff":"You extracted the 180-line resolveTargetPath() out of src/resolve.ts into a new module src/resolve/target.ts, split it into three named functions, and updated the four call sites. No behaviour change."},
+  {"id":"t6-perf","diff":"The dashboard re-rendered every row on each websocket tick because the row list was rebuilt in render. You memoised the row list on the tick id in src/dashboard/Rows.tsx, cutting re-renders from ~400/s to ~12/s measured with the React profiler."}
+]

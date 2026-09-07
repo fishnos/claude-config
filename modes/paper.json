@@ -1,0 +1,26 @@
+{
+  "name": "paper",
+  "codename": "ARCHIVIST",
+  "description": "Academic writing. Every citation resolves; prose over fragments.",
+  "settings": {
+    "verify": "run-it",
+    "claims": "sourced",
+    "process": "full",
+    "autonomy": "ask-first",
+    "code": "rough",
+    "subagents": "few",
+    "voice": "prose"
+  },
+  "projects": {
+    "model": "claude-opus-5",
+    "effortLevel": "high"
+  },
+  "disableHooks": [],
+  "glitch": {
+    "tools": {
+      "deny": [
+        "Bash"
+      ]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+const { rows } = require("./results.json");
+const keep = rows.filter((r) => r.task !== "t2-vague");
+const pick = (a) => keep.filter((r) => r.arm === a);
+const [s, f] = [pick("scoped"), pick("full")];
+const [xs, ns] = [s.filter((r) => r.clean).length, s.length];
+const [xf, nf] = [f.filter((r) => r.clean).length, f.length];
+const ps = xs / ns, pf = xf / nf, pooled = (xs + xf) / (ns + nf);
+const se = Math.sqrt(pooled * (1 - pooled) * (1 / ns + 1 / nf));
+const z = (ps - pf) / se;
+const erf = (x) => { const g = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x);
+  return g * (1 - ((((1.061405429*t-1.453152027)*t+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x)); };
+const p = 2 * (1 - 0.5 * (1 + erf(Math.abs(z) / Math.SQRT2)));
+console.log(`excluding t2-vague:  scoped ${(ps*100).toFixed(1)}% (n=${ns})  full ${(pf*100).toFixed(1)}% (n=${nf})`);
+console.log(`diff ${((ps-pf)*100).toFixed(1)}pp  z=${z.toFixed(2)}  p=${p.toFixed(4)}`);

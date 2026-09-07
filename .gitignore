@@ -21,6 +21,20 @@
 !rules/
 !rules/**
 
+# The mode corpus: the 25 rules whose priority varies by mode, the mode files
+# that order them, and the pre-cut copy of CLAUDE.md that `ccfg probe run
+# corpus-fidelity` checks them against. Whitelisted because the `*` rule above
+# would otherwise ship the renderer with nothing to render -- a clone would get
+# `ccfg mode` and an empty mode list.
+!modes/
+!modes/**
+
+# Behavioural probes. Every claim in the mode corpus about what a rule actually
+# does to the model came out of one of these, and a claim whose evidence did not
+# survive the clone is an assertion.
+!probes/
+!probes/**
+
 # Slash commands. Previously swallowed by the `*` rule above, so `/commit` lived
 # only on the machine that wrote it and a fresh clone came up without it.
 !commands/

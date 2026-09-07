@@ -9,7 +9,7 @@ Do not use for: refactoring, writing scripts from scratch, debugging business lo
 3. Fetch docs: `npx ctx7@latest docs <libraryId> "<user's question>"`
 4. Answer using the fetched documentation
 
-You MUST call `library` first to get a valid ID unless the user provides one directly in `/org/project` format. Use the user's full question as the query -- specific and detailed queries return better results than vague single words. Do not run more than 3 commands per question. Do not include sensitive information (API keys, passwords, credentials) in queries.
+Call `library` first to get a valid ID, unless the user provides one directly in `/org/project` format. Use the user's full question as the query -- specific and detailed queries return better results than vague single words. Do not run more than 3 commands per question. Do not include sensitive information (API keys, passwords, credentials) in queries.
 
 For version-specific docs, use `/org/project/version` from the `library` output (e.g., `/vercel/next.js/v14.3.0`).
 
