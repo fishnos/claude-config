@@ -1,6 +1,7 @@
 {
   "name": "spike",
   "codename": "RECON",
+  "icon": "▲",
   "description": "Find out whether it works. Nothing here is kept.",
   "settings": {
     "verify": "none",

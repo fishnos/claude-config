@@ -1,6 +1,7 @@
 {
   "name": "paper",
   "codename": "ARCHIVIST",
+  "icon": "▤",
   "description": "Academic writing. Every citation resolves; prose over fragments.",
   "settings": {
     "verify": "run-it",

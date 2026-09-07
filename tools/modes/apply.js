@@ -205,6 +205,9 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
   const lock = {
     mode: mode.name,
     codename: mode.codename || mode.name.toUpperCase(),
+    // Carried in the lock so the status line renders from one small file
+    // instead of parsing every mode on every prompt.
+    icon: mode.icon || "\u25a0",
     settings: resolved.settings,
     adhoc,
     appliedAt: new Date().toISOString(),

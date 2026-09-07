@@ -1175,30 +1175,53 @@ fs.writeFileSync(
   path.join(statusSandbox, "mode.lock"),
   JSON.stringify({
     mode: "ship",
+    codename: "FIXER",
+    icon: "\u25c6",
     settings: { verify: "prove-it", autonomy: "ask-first", voice: "normal" },
     adhoc: {},
   }),
 );
 const shipStatus = runStatusHook(statusSandbox).stdout.trim();
-check("the status line names the mode", shipStatus.includes("ship"), true);
+check("the status line names the mode", shipStatus.includes("FIXER"), true);
+// The line carries the glyph and the name and stops. Everything else about a
+// mode is one keystroke away in `/mode`, and a status line long enough to skim
+// past stops being read at all -- which is the only job it has.
 check(
-  "the status line shows the posture in words, not codes",
-  shipStatus.includes("prove-it") && shipStatus.includes("ask-first"),
+  "the status line leads with the mode's own glyph",
+  shipStatus.startsWith("\u25c6"),
   true,
+);
+check(
+  "the status line spends no room on the dials",
+  shipStatus.includes("prove-it") || shipStatus.includes("ask-first"),
+  false,
 );
 
 fs.writeFileSync(
   path.join(statusSandbox, "mode.lock"),
   JSON.stringify({
     mode: "ship",
+    codename: "FIXER",
+    icon: "\u25c6",
     settings: { verify: "none", autonomy: "just-go", voice: "normal" },
     adhoc: { verify: "none" },
   }),
 );
 check(
-  "the status line flags that a setting was overridden by hand",
-  runStatusHook(statusSandbox).stdout.includes("+1 adhoc"),
-  true,
+  "the status line shows the codename, not the file name",
+  runStatusHook(statusSandbox).stdout.trim(),
+  "\u25c6 FIXER",
+);
+
+// A mode file written before icons existed still has to render.
+fs.writeFileSync(
+  path.join(statusSandbox, "mode.lock"),
+  JSON.stringify({ mode: "ship", codename: "FIXER", settings: {}, adhoc: {} }),
+);
+check(
+  "a lock with no glyph falls back rather than rendering undefined",
+  runStatusHook(statusSandbox).stdout.trim(),
+  "\u25a0 FIXER",
 );
 
 fs.rmSync(statusSandbox, { recursive: true, force: true });
@@ -1301,6 +1324,47 @@ check(
   unknown.stderr.includes("nonexistent"),
   true,
 );
+
+// `mode list` prints codenames in the first column, so a codename is what
+// someone types. Driven through `diff`, which resolves both names and writes
+// nothing -- applying a mode here would change the real configuration.
+check(
+  "a codename resolves",
+  runCcfg(["mode", "diff", "NETRUNNER", "ship"]).status,
+  0,
+);
+check(
+  "a codename resolves whatever the case",
+  runCcfg(["mode", "diff", "netrunner", "ship"]).status,
+  0,
+);
+check(
+  "the plain name still resolves",
+  runCcfg(["mode", "diff", "research", "ship"]).status,
+  0,
+);
+check(
+  "a codename and its plain name are the same mode",
+  runCcfg(["mode", "diff", "NETRUNNER", "ship"]).stdout,
+  runCcfg(["mode", "diff", "research", "ship"]).stdout,
+);
+
+// A name nobody can act on is worth less than the list of names they can.
+{
+  const missed = runCcfg(["mode", "diff", "EDGERUNNER", "ship"]);
+  check("an unknown name exits non-zero", missed.status, 2);
+  check(
+    "an unknown name is answered with the ones that work",
+    missed.stderr.includes("NETRUNNER") && missed.stderr.includes("research"),
+    true,
+  );
+}
+
+// The name becomes a path, so it must not be able to leave modes/.
+{
+  const escaped = runCcfg(["mode", "diff", "../../../etc/passwd", "ship"]);
+  check("a mode name cannot escape the modes directory", escaped.status, 2);
+}
 
 // A mode that pins no model must hand the operator's own back, not inherit the
 // last mode's. Same shape as the skill-override leak: computing from the

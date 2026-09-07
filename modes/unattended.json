@@ -1,6 +1,7 @@
 {
   "name": "unattended",
   "codename": "AUTOPILOT",
+  "icon": "●",
   "description": "Nobody is watching. Go the whole way, prove every step, write it up.",
   "settings": {
     "verify": "prove-it",

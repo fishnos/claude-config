@@ -1,6 +1,7 @@
 {
   "name": "review",
   "codename": "APPRAISER",
+  "icon": "◈",
   "description": "Read and judge. Nothing gets edited.",
   "settings": {
     "verify": "prove-it",
