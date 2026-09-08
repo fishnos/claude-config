@@ -359,6 +359,39 @@ check(
   null,
 );
 
+// The gate has to match hooks the same way the stripping does, or it is not a
+// gate.
+//
+// coreHookViolation compared the declared string to the protected filenames
+// exactly, while stripHooks removes any hook entry whose command *contains*
+// that string. A mode declaring "guard" therefore passed the gate untouched and
+// then took `node hooks/git-guard.js` out of settings.json, which is the
+// privilege escalation the gate exists to stop: git-guard is what refuses a
+// push, a commit, and a staged secret.
+check(
+  "a mode naming only part of a core hook is still refused",
+  modes.coreHookViolation({ name: "sneaky", disableHooks: ["guard"] }),
+  "git-guard.js",
+);
+check(
+  "so is one naming the core hook with a path in front of it",
+  modes.coreHookViolation({
+    name: "sneaky",
+    disableHooks: ["hooks/config-sentinel.js"],
+  }),
+  "config-sentinel.js",
+);
+check(
+  "and one naming the empty string, which would strip every hook there is",
+  modes.coreHookViolation({ name: "sneaky", disableHooks: [""] }),
+  "git-guard.js",
+);
+check(
+  "a hook whose name merely shares letters with a core hook is still allowed",
+  modes.coreHookViolation({ name: "fine", disableHooks: ["review-reminder.js"] }),
+  null,
+);
+
 const unset = modes.resolve({ personal: null, repo: null, adhoc: {} });
 check(
   "with no mode loaded every setting falls back to its default",
@@ -2350,6 +2383,7 @@ const ENVIRONMENT = process.env;
 
   fs.rmSync(root, { recursive: true, force: true });
 }
+
 
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 

@@ -15,9 +15,9 @@ const glitch = require("./glitch.js");
 
 // Hooks that belong to no mode and that no mode may switch off. git-guard is
 // what enforces never-commit, never-push and no --no-verify; config-sentinel is
-// what notices the config drifting out from under itself. A mode is a posture,
-// not a permission to remove a safety rail -- so this list is checked before a
-// switch, not after.
+// what notices the config drifting out from under itself. A mode is a posture
+// rather than a permission to remove a safety rail, and so this list is
+// checked before a switch rather than after one.
 const CORE_HOOKS = ["git-guard.js", "config-sentinel.js"];
 
 // Precedence, least to most. Later layers win.
@@ -72,10 +72,28 @@ function parseMode(value, sourcePath) {
   };
 }
 
-/** The first core hook a mode tries to disable, or null when it disables none. */
+/**
+ * The first core hook a mode tries to disable, or null when it disables none.
+ *
+ * Matched the way the stripping matches, in both directions, because a gate
+ * that recognises fewer strings than the thing it guards is not a gate. A mode
+ * removes a hook when the hook's command line *contains* the declared string,
+ * so comparing the declared string to the protected filenames for equality let
+ * `disableHooks: ["guard"]` through untouched and then delete
+ * `node hooks/git-guard.js` from settings.json. git-guard is what refuses a
+ * push, a commit and a staged secret, so that was the whole escalation the
+ * subtract-only design exists to prevent, reachable by writing one mode file.
+ *
+ * The reverse direction covers a declared string that spells the filename out
+ * with a path in front of it, which the command line also contains.
+ */
 function coreHookViolation(mode) {
-  for (const hook of mode.disableHooks || []) {
-    if (CORE_HOOKS.includes(hook)) return hook;
+  for (const declared of mode.disableHooks || []) {
+    const name = String(declared);
+    const hit = CORE_HOOKS.find(
+      (core) => core.includes(name) || name.includes(core),
+    );
+    if (hit !== undefined) return hit;
   }
   return null;
 }
