@@ -62,6 +62,18 @@ function backupSettings(configDir) {
   return destination;
 }
 
+/**
+ * Whether a hook entry names one of the files a mode turned off.
+ *
+ * Spelled out once because stripHooks and restoreHooks are the two halves of
+ * one rule. Two copies would drift, and the drift would be silent: a hook the
+ * strip half removed that the restore half no longer recognises never comes
+ * back, which is the failure this whole path exists to prevent.
+ */
+function namesDisabledHook(entry, disabled) {
+  return disabled.some((file) => String(entry.command || "").includes(file));
+}
+
 /** Every hook entry whose command names one of the given files, removed. */
 function stripHooks(hooks, disabled) {
   if (!hooks || disabled.length === 0) return hooks;
@@ -75,16 +87,78 @@ function stripHooks(hooks, disabled) {
       .map((group) => ({
         ...group,
         hooks: (group.hooks || []).filter(
-          (entry) =>
-            !disabled.some((file) =>
-              String(entry.command || "").includes(file),
-            ),
+          (entry) => !namesDisabledHook(entry, disabled),
         ),
       }))
       .filter((group) => group.hooks.length > 0);
     if (survivors.length > 0) kept[event] = survivors;
   }
   return kept;
+}
+
+/**
+ * Whether two hook trees are the same tree.
+ *
+ * Compared as text, so a difference in key order counts as a difference. That
+ * is safe in the one place this is used: a false "they differ" only routes the
+ * caller to the merge path, which reaches the same answer by a longer road.
+ */
+function sameHooks(left, right) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+/**
+ * Put back the hook entries a mode removed, and touch nothing else.
+ *
+ * An entry goes back at the index it held in the operator's own file, so a
+ * guardrail that ran first before a mode turned it off runs first again.
+ *
+ * The group and the event may both be gone rather than merely thinner, because
+ * stripHooks drops a group once its last hook is removed and drops an event
+ * once its last group is, so both are rebuilt here when needed.
+ *
+ * An event whose shape is not the array of groups the settings format describes
+ * is left exactly as found, because there is nothing safe to merge into. A hook
+ * the operator deletes by hand while the mode that turned it off is in force
+ * cannot be told apart from one the mode removed, so it comes back.
+ */
+function restoreHooks(live, backup, disabled) {
+  if (!backup || disabled.length === 0) return live;
+
+  const merged = {};
+  for (const [event, groups] of Object.entries(live || {}))
+    merged[event] = Array.isArray(groups)
+      ? groups.map((group) => ({ ...group, hooks: [...(group.hooks || [])] }))
+      : groups;
+
+  for (const [event, groups] of Object.entries(backup)) {
+    if (!Array.isArray(groups)) continue;
+    for (const group of groups) {
+      const entries = group.hooks || [];
+      for (let index = 0; index < entries.length; index += 1) {
+        const entry = entries[index];
+        if (!namesDisabledHook(entry, disabled)) continue;
+
+        if (merged[event] === undefined) merged[event] = [];
+        if (!Array.isArray(merged[event])) continue;
+        let targetGroup = merged[event].find(
+          (candidate) => candidate.matcher === group.matcher,
+        );
+        if (targetGroup === undefined) {
+          targetGroup = { ...group, hooks: [] };
+          merged[event].push(targetGroup);
+        }
+        if (targetGroup.hooks.some((have) => have.command === entry.command))
+          continue;
+        targetGroup.hooks.splice(
+          Math.min(index, targetGroup.hooks.length),
+          0,
+          entry,
+        );
+      }
+    }
+  }
+  return merged;
 }
 
 function writeSettings(configDir, value) {
@@ -168,27 +242,50 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
       else delete next[key];
     }
     Object.assign(next, pinning);
-    // Rebuilt from the operator's own hooks, not from the live ones. Stripping
-    // `current` compounded: RECON turns the self-review reminder off, and every
-    // mode applied afterwards inherited a config with the hook already gone, so
-    // nothing ever put it back. A guardrail silently missing is the exact
-    // failure the subtract-only design exists to prevent. Unlike a hidden
-    // skill, which `revert` restores from baseSkillOverrides, this one
-    // survived a revert too.
-    const operatorHooks = operatorSettings.hooks || current.hooks;
+    // The operator's own hooks, recovered from the file as it stands now.
+    //
+    // Stripping the live hooks compounded: RECON turns the self-review reminder
+    // off, and every mode applied afterwards inherited a settings file with the
+    // hook already gone, so nothing ever put it back. A guardrail silently
+    // missing is the exact failure the subtract-only design exists to prevent.
+    // Reading the hooks from the byte copy instead fixed that and introduced
+    // the mirror of it, because that copy is taken before the first mode and
+    // never refreshed: a hook added by hand afterwards was invisible to every
+    // later switch and got written away at the next one.
+    //
+    // So the baseline is the live file with whatever the mode in force removed
+    // put back. When nothing has been edited by hand the live file is exactly
+    // what the last switch wrote, and the byte copy is used unchanged.
+    const priorDisabled = (existing && existing.disabledHooks) || [];
+    const lastWritten = stripHooks(operatorSettings.hooks, priorDisabled);
+    const operatorHooks = sameHooks(current.hooks, lastWritten)
+      ? operatorSettings.hooks || current.hooks
+      : restoreHooks(current.hooks, operatorSettings.hooks, priorDisabled);
     if (operatorHooks) next.hooks = stripHooks(operatorHooks, disabledHooks);
 
-    // Skill visibility is computed subtract-only from the operator's own
-    // overrides. baseSkillOverrides in the lock is what revert puts back, so a
-    // mode can never leave a skill hidden after it is taken off.
-    // The operator's own overrides, from before any mode was applied. Computing
-    // from `current` instead would compound: mode A hides a skill, mode B
-    // inherits that as its baseline, and the skill stays hidden under every
-    // mode after it regardless of what they ask for.
-    const base =
-      existing && existing.baseSkillOverrides
-        ? existing.baseSkillOverrides
-        : current.skillOverrides || {};
+    // The operator's own skill overrides, recovered the way the hooks above
+    // were: what is on disk now, minus the skills the mode in force hid.
+    //
+    // Taking the live overrides whole would compound, because mode A's hiding
+    // becomes mode B's baseline and the skill then stays hidden under every
+    // mode after it. Taking the recorded baseline whole loses whatever the
+    // operator set by hand since. Subtracting only this mode's own hiding does
+    // neither, and keeps skill visibility subtract-only: a mode can never leave
+    // a skill hidden once it is taken off.
+    //
+    // A skill the operator hides by hand while a mode is in force reads as one
+    // the mode hid, so it is treated as the mode's and comes back at the next
+    // switch. Setting it in the operator's own settings before a switch is the
+    // way to make it stick.
+    const recordedBase = existing && existing.baseSkillOverrides;
+    const liveOverrides = current.skillOverrides || {};
+    const base = recordedBase
+      ? Object.fromEntries(
+          Object.entries(liveOverrides).filter(
+            ([name, value]) => value !== "off" || recordedBase[name] === "off",
+          ),
+        )
+      : liveOverrides;
     baseSkillOverrides = base;
     const merged = glitch.skillOverridesFor(
       layer,
