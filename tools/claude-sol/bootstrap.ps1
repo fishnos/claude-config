@@ -38,7 +38,7 @@ elseif ($NoInstallClaude) {
     exit 1
 }
 else {
-    Write-Host 'not found — installing claude code...'
+    Write-Host 'not found; installing claude code...'
 
     $installerScript = Invoke-RestMethod -Uri 'https://claude.ai/install.ps1' -UseBasicParsing
 
@@ -51,7 +51,7 @@ else {
     $claudeCommand = Find-SolClaudeCommand
 
     if (-not $claudeCommand) {
-        Write-Host 'install finished but claude is still not on PATH — open a new terminal and rerun.'
+        Write-Host 'install finished but claude is still not on PATH; open a new terminal and rerun.'
 
         exit 1
     }
@@ -72,7 +72,7 @@ else {
     $enteredKey = Read-SolApiKeyFromPrompt -Prompt 'enter openrouter api key (input hidden)'
 
     if (-not $enteredKey) {
-        Write-Host 'no key entered — aborting.'
+        Write-Host 'no key entered; aborting.'
 
         exit 1
     }
@@ -80,7 +80,7 @@ else {
     $validationResult = Test-SolApiKey -ApiKey $enteredKey -ValidationUrl $configuration.CLAUDE_SOL_KEY_VALIDATION_URL
 
     if ($validationResult -eq 'rejected') {
-        Write-Host 'openrouter rejected that key (401/403) — nothing stored.'
+        Write-Host 'openrouter rejected that key (401/403); nothing stored.'
 
         exit 1
     }
@@ -89,7 +89,7 @@ else {
         Write-Host 'openrouter accepted the key.'
     }
     else {
-        Write-Host 'could not verify the key against openrouter — storing it anyway.'
+        Write-Host 'could not verify the key against openrouter; storing it anyway.'
     }
 
     $credentialFile = Write-SolApiKey -ApiKey $enteredKey
@@ -162,7 +162,7 @@ if ($legacyProfiles.Count -eq 0) {
     Write-Host 'no plaintext claude-sol launcher found in your powershell profiles.'
 }
 else {
-    Write-Host 'these profiles appear to hold a bare api key — edit them by hand and delete the token:'
+    Write-Host 'these profiles appear to hold a bare api key; edit them by hand and delete the token:'
 
     foreach ($legacyProfile in $legacyProfiles) {
         Write-Host ('  {0}' -f $legacyProfile)

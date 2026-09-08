@@ -10,7 +10,8 @@
 //
 // Every block has a narrow, per-invocation escape (CLAUDE_ALLOW_*=1) typed into
 // the command itself. Escapes are deliberately per-family, never one blanket
-// switch -- authorising a deploy must not also authorise a repo deletion.
+// switch, because authorising a deploy must not also authorise a repo
+// deletion.
 
 const os = require("os");
 const io = require("./lib/hook-io");
@@ -132,8 +133,8 @@ function bareCommand(segment) {
 
 // Global options sit between `git` and the subcommand, and the ones listed here
 // consume the token after them. Without this, `git -C /repo push` reads as a git
-// invocation whose subcommand never matches /\bgit\s+push\b/ -- every rule below
-// would be one `-C` away from bypass.
+// invocation whose subcommand never matches /\bgit\s+push\b/, and every rule
+// below would then be one `-C` away from bypass.
 const GIT_GLOBAL_TAKING_VALUE =
   /^(?:-C|-c|--exec-path|--git-dir|--work-tree|--namespace|--super-prefix|--config-env)$/;
 
@@ -184,12 +185,12 @@ const OUTWARD_DENIED = [
     /^gh\s+api\b(?=.*(?:-X\s*|--method[= ])(?:POST|PUT|PATCH|DELETE))/i,
     "CLAUDE_ALLOW_GH",
     "This is a writing call to the GitHub API. Read-only `gh api` (the default\n" +
-      "GET) is not blocked -- only the mutating methods are.",
+      "GET) is not blocked. Only the mutating methods are.",
   ],
   [
     /^(?:npm|pnpm|yarn|bun)\s+publish\b/,
     "CLAUDE_ALLOW_PUBLISH",
-    "Publishing to a registry is permanent -- a version number can never be\n" +
+    "Publishing to a registry is permanent: a version number can never be\n" +
       "reused, even after unpublishing.",
   ],
   [
@@ -226,8 +227,8 @@ const OUTWARD_DENIED = [
  * Credential material that must not be read through a shell.
  *
  * settings.json already denies these paths, but a `permissions.deny` entry only
- * binds the Read tool -- `cat ~/.ssh/id_ed25519` walks straight past it. This is
- * where that gap closes, because every Bash command arrives here first.
+ * binds the Read tool, so `cat ~/.ssh/id_ed25519` walks straight past it. This
+ * hook is where the gap closes, because every Bash command arrives here first.
  *
  * Matched against the whole command rather than per-segment, so redirection
  * (`< ~/.aws/credentials`), interpreters (`node -e "...readFileSync..."`) and
@@ -261,10 +262,10 @@ const CREDENTIAL_PATTERNS = [
 // `.env.example` and friends are templates by convention, hold no live values,
 // and are read constantly during ordinary scaffolding. Blocking them would cost
 // something real and buy nothing.
-// The lookbehind is what keeps `process.env.HOME` -- which appears in ordinary
-// JavaScript constantly -- from reading as a dotenv path. A real one is preceded
-// by a separator (space, quote, slash) or starts the token; `process.env` is
-// preceded by an identifier character.
+// `process.env.HOME` appears in ordinary JavaScript constantly, and the
+// lookbehind is what keeps it from reading as a dotenv path. A real dotenv path
+// is preceded by a separator (space, quote, slash) or starts the token, while
+// `process.env` is preceded by an identifier character.
 const ENV_FILE = /(?<![A-Za-z0-9_])\.env(?:\.[A-Za-z0-9_-]+)*/g;
 const ENV_TEMPLATE = /(?:example|sample|template|dist)$/i;
 
@@ -301,7 +302,8 @@ const SECRET_READ_ESCAPE = "CLAUDE_ALLOW_SECRET_READ";
  * Remove quoting so the patterns see the path the kernel will resolve.
  *
  * `cat ~/.s''sh/id_rsa` and `cat ~/.ss\h/id_rsa` open the same file as the
- * plain spelling -- the shell strips the quotes and backslashes first. Matching
+ * plain spelling, because the shell strips the quotes and backslashes first.
+ * Matching
  * only the literal text would make the whole check one apostrophe from useless.
  * Measured: the quoted form read a fixture file before this existed.
  */
@@ -328,8 +330,8 @@ function checkSecretRead(command) {
     `Blocked: this command touches ${[...new Set(reasons)].join(", ")}.\n\n` +
       "Credential material is not read through the shell. A `permissions.deny`\n" +
       "rule only binds the Read tool, so this hook is what actually enforces it.\n\n" +
-      "If you genuinely need it, run it yourself with `! <command>`, or -- when\n" +
-      "you have explicitly asked for it -- prefix this one invocation with:\n" +
+      "If you genuinely need it, run it yourself with `! <command>`. When you\n" +
+      "have explicitly asked for it, prefix this one invocation with:\n" +
       `  ${SECRET_READ_ESCAPE}=1 <command>`,
   );
 }
@@ -342,7 +344,7 @@ const OUTWARD_WARNED = [
   ],
   [
     /^gh\s+repo\s+create\b/,
-    "This creates a repository on GitHub. Check the visibility flag -- `--public`\n" +
+    "This creates a repository on GitHub. Check the visibility flag: `--public`\n" +
       "cannot be taken back once the code is indexed.",
   ],
 ];
@@ -364,8 +366,8 @@ function checkOutward(rawSegment, command) {
     io.deny(
       EVENT,
       `Blocked: ${explanation}\n\n` +
-        "Run it yourself with `! <command>`, or -- when you have explicitly asked\n" +
-        `for it -- prefix this one invocation with: ${escape}=1`,
+        "Run it yourself with `! <command>`. When you have explicitly asked for\n" +
+        `it, prefix this one invocation with: ${escape}=1`,
     );
   }
 }
@@ -416,8 +418,8 @@ function checkBlocking(rawSegment, cwd, pushAuthorized) {
     io.deny(
       EVENT,
       "Blocked: pushing is yours to do, not mine (CLAUDE.md: never commit, never push).\n" +
-        "Run it yourself with `! git push ...`, or -- when you have explicitly asked for a\n" +
-        "push -- prefix the command with the per-invocation escape:\n" +
+        "Run it yourself with `! git push ...`. When you have explicitly asked for a\n" +
+        "push, prefix the command with the per-invocation escape:\n" +
         "  CLAUDE_ALLOW_PUSH=1 git push origin <branch>\n" +
         "Force-push stays blocked either way; use --force-with-lease --force-if-includes.",
     );
@@ -435,7 +437,7 @@ function checkBlocking(rawSegment, cwd, pushAuthorized) {
   if (/\bgit\s+clean\b.*-[a-z]*f/.test(segment)) {
     io.deny(
       EVENT,
-      "Blocked: `git clean -f` permanently deletes untracked files -- git has no record of them.\n" +
+      "Blocked: `git clean -f` permanently deletes untracked files, and git has no record of them.\n" +
         "Run `git clean -n` first and confirm the list, then run the delete yourself.",
     );
   }
@@ -465,15 +467,16 @@ function checkCommit(rawSegment, cwd, commitAuthorized) {
     io.deny(
       EVENT,
       "Blocked: committing is yours to do, not mine (CLAUDE.md: never commit, never push).\n" +
-        "Stage the work and hand it over, or -- when you have explicitly asked for a\n" +
-        "commit -- prefix the command with the per-invocation escape:\n" +
+        "Stage the work and hand it over. When you have explicitly asked for a\n" +
+        "commit, prefix the command with the per-invocation escape:\n" +
         '  CLAUDE_ALLOW_COMMIT=1 git commit -m "..."\n' +
         "The escape still runs the secret scan and the review checks; it only lifts this block.",
     );
   }
 
   // An amend still writes staged content into history, so it gets the secret scan.
-  // Only the advisory checks are skipped -- size and coverage were judged already.
+  // Only the advisory checks are skipped, because size and coverage were judged
+  // already.
   const isAmend = /--amend\b/.test(segment);
 
   const staged = io
@@ -493,7 +496,7 @@ function checkCommit(rawSegment, cwd, commitAuthorized) {
       io.deny(
         EVENT,
         `Blocked: staged changes look like they contain a ${label}.\n` +
-          "Secrets survive in git history even after deletion -- rotate the credential first,\n" +
+          "Secrets survive in git history even after deletion. Rotate the credential first,\n" +
           "then unstage the file and add it to .gitignore.\n" +
           "If this is a false positive (a fixture or example), say so and I'll note it.",
       );
@@ -536,7 +539,7 @@ function checkCommit(rawSegment, cwd, commitAuthorized) {
     );
   }
 
-  // Read from the original text -- `segment` has quoted content blanked out.
+  // Read from the original text, because `segment` has quoted content blanked out.
   // Covers -m and -F alike; passing the message by file is the common case for
   // anything with a body, and used to skip these checks entirely.
   const message = commitMessage.extract(rawSegment, cwd);

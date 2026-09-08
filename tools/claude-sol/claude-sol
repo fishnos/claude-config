@@ -20,7 +20,7 @@ sol_load_config "$tool_directory"
 
 print_help() {
     cat <<'HELP'
-claude-sol — claude code driven by an openrouter model
+claude-sol: claude code driven by an openrouter model
 
 usage:
   claude-sol [claude args...]     launch claude code against openrouter
@@ -48,7 +48,7 @@ run_setup() {
     existing_source=$(sol_key_source || true)
 
     if [ "$existing_source" != none ]; then
-        printf 'existing key found in %s — it will be replaced.\n' "$existing_source" >&2
+        printf 'existing key found in %s; it will be replaced.\n' "$existing_source" >&2
     fi
 
     entered_key=$(sol_prompt_key 'enter openrouter api key: ')
@@ -69,7 +69,7 @@ run_setup() {
 
         return 1
     else
-        printf 'could not reach openrouter to verify the key — storing it anyway.\n' >&2
+        printf 'could not reach openrouter to verify the key; storing it anyway.\n' >&2
     fi
 
     chosen_backend=$(sol_write_key "$entered_key") || {
@@ -81,7 +81,7 @@ run_setup() {
     case $chosen_backend in
         keychain) printf 'stored in the macos keychain (service claude-sol).\n' >&2 ;;
         secret-service) printf 'stored in the desktop keyring (service claude-sol).\n' >&2 ;;
-        file) printf 'no secure keyring available — stored in %s with mode 600.\n' "$(sol_credentials_file)" >&2 ;;
+        file) printf 'no secure keyring available; stored in %s with mode 600.\n' "$(sol_credentials_file)" >&2 ;;
     esac
 }
 
@@ -129,7 +129,7 @@ run_doctor() {
     printf 'baseline limit    %s\n' "${CLAUDE_SOL_BASELINE_LIMIT:-(none set)}"
 
     if [ "$key_source" = none ]; then
-        printf 'key               missing — run claude-sol --sol-setup\n'
+        printf 'key               missing; run claude-sol --sol-setup\n'
 
         return 1
     fi
@@ -144,7 +144,7 @@ run_doctor() {
     if [ "$validation_status" -eq 0 ]; then
         printf 'openrouter        reachable, key valid\n'
     elif [ "$validation_status" -eq 1 ]; then
-        printf 'openrouter        key rejected (401/403) — run claude-sol --sol-setup\n'
+        printf 'openrouter        key rejected (401/403); run claude-sol --sol-setup\n'
 
         return 1
     else
@@ -237,7 +237,7 @@ if [ -n "$CLAUDE_SOL_MAX_OUTPUT_TOKENS" ]; then
 fi
 
 if sol_limit_reset_is_due; then
-    sol_run_limit_command "$tool_directory" auto-reset || printf 'could not reset the raised spend limit — run claude-sol --sol-limit-reset\n' >&2
+    sol_run_limit_command "$tool_directory" auto-reset || printf 'could not reset the raised spend limit; run claude-sol --sol-limit-reset\n' >&2
 fi
 
 exec "$claude_binary" "$@"

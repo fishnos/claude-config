@@ -8,8 +8,8 @@
 //
 // Every single-axis metric asks "do they differ on the thing I guessed?" and a
 // null answers only that. Discrimination asks "do they differ at all?" and uses
-// every signal in the text at once -- length, register, structure, what got
-// mentioned -- without a multiple-comparison penalty, because there is one test.
+// every signal in the text at once (length, register, structure, what got
+// mentioned) without a multiple-comparison penalty, because there is one test.
 //
 // The control is the whole design: pairs drawn from the same arm must score at
 // chance. A judge that "identifies" spike-vs-spike above 50% is guessing from
@@ -64,7 +64,7 @@ Which reply came from the engineer under the "${SHIP_BRIEF}" brief? Answer with 
  *
  * Built separately from the cross-arm pairing because the first version sliced
  * one arm in half and paired the halves, which produced two pairs out of
- * twenty-four cells -- a control too small to validate anything, and it read as
+ * twenty-four cells. A control that small validates nothing, and it read as
  * judge bias rather than as a pairing bug.
  */
 function buildControlPairs(cells, limit) {
@@ -163,7 +163,7 @@ module.exports = {
         `judge identified ship in ${correct}/${scored} pairs ` +
         `(${((correct / scored) * 100).toFixed(0)}%, CI ${(interval.low * 100).toFixed(0)}-${(interval.high * 100).toFixed(0)}, p=${test.p.toFixed(4)})`,
       evidence: controlSane
-        ? `same-arm control ${controlPicked}/${controlScored} -- judge is not guessing from position or length alone`
+        ? `same-arm control ${controlPicked}/${controlScored}: judge is not guessing from position or length alone`
         : `same-arm control ${controlPicked}/${controlScored} is far from chance; the judge is unreliable and the real result cannot be read`,
     };
   },

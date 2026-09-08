@@ -14,7 +14,7 @@ $configuration = Import-SolConfig -ToolDirectory $toolDirectory
 
 function Show-SolHelp {
     @'
-claude-sol — claude code driven by an openrouter model
+claude-sol: claude code driven by an openrouter model
 
 usage:
   claude-sol [claude args...]     launch claude code against openrouter
@@ -42,7 +42,7 @@ function Invoke-SolSetup {
     $existingSource = Get-SolKeySource
 
     if ($existingSource -ne 'none') {
-        Write-Host "existing key found in $existingSource — it will be replaced."
+        Write-Host "existing key found in $existingSource; it will be replaced."
     }
 
     $enteredKey = Read-SolApiKeyFromPrompt
@@ -65,7 +65,7 @@ function Invoke-SolSetup {
         Write-Host 'key accepted by openrouter.'
     }
     else {
-        Write-Host 'could not reach openrouter to verify the key — storing it anyway.'
+        Write-Host 'could not reach openrouter to verify the key; storing it anyway.'
     }
 
     $credentialFile = Write-SolApiKey -ApiKey $enteredKey
@@ -123,7 +123,7 @@ function Invoke-SolDoctor {
     Write-Host ('baseline limit    {0}' -f $baselineLabel)
 
     if ($keySource -eq 'none') {
-        Write-Host 'key               missing — run claude-sol --sol-setup'
+        Write-Host 'key               missing; run claude-sol --sol-setup'
 
         return 1
     }
@@ -131,7 +131,7 @@ function Invoke-SolDoctor {
     $apiKey = Read-SolApiKey
 
     if (-not $apiKey) {
-        Write-Host 'key               present but undecryptable by this account — run claude-sol --sol-setup'
+        Write-Host 'key               present but undecryptable by this account; run claude-sol --sol-setup'
 
         return 1
     }
@@ -144,7 +144,7 @@ function Invoke-SolDoctor {
         Write-Host 'openrouter        reachable, key valid'
     }
     elseif ($validationResult -eq 'rejected') {
-        Write-Host 'openrouter        key rejected (401/403) — run claude-sol --sol-setup'
+        Write-Host 'openrouter        key rejected (401/403); run claude-sol --sol-setup'
 
         return 1
     }

@@ -4,9 +4,9 @@
 //
 // Every piece can be present and correct while the configuration references
 // none of it. That failure is silent in the worst way: `ccfg mode` prints a
-// banner, writes the lock, and reports success, while no hook reads it -- so
-// tools are not gated, a mid-session switch never reaches the model, and the
-// status line shows nothing. Everything looks like it worked.
+// banner, writes the lock, and reports success, while no hook reads the lock.
+// Tools are then not gated, a mid-session switch never reaches the model, and
+// the status line shows nothing. Everything looks like it worked.
 
 const fs = require("fs");
 const path = require("path");
@@ -45,7 +45,7 @@ module.exports = {
       missing.push("no status line shows the active mode");
 
     // A file the mode system needs can sit on disk, pass every test, and still
-    // be invisible to git -- which is exactly what an unanchored `debug/` in
+    // be invisible to git, which is exactly what an unanchored `debug/` in
     // .gitignore did to modes/commands/debug/. Nothing looks wrong until a
     // clone tries to apply the mode and finds the file was never committed.
     for (const directory of ["modes", "probes", "tools/modes", "tools/probe"]) {

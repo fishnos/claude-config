@@ -15,7 +15,8 @@ const SUBJECT_CEILING = 72;
 const BODY_WRAP = 72;
 
 // Past this the body is almost certainly recounting what the diff already shows.
-// A soft signal, not a rule -- some changes genuinely warrant a long explanation.
+// A soft signal rather than a rule, because some changes genuinely warrant a
+// long explanation.
 const BODY_LINES_BEFORE_REVIEW = 30;
 
 const NON_IMPERATIVE =
@@ -25,7 +26,7 @@ const NON_IMPERATIVE =
 // warning" describes what the reader will notice; it does not say what was
 // touched, so it reads as a symptom report and sorts badly beside every other
 // subject in the log. The effect belongs in a purpose clause after the change
-// -- "Modify X to stop Y" -- or in the body, which has room for it.
+// ("Modify X to stop Y"), or in the body, which has room for it.
 const EFFECT_LED =
   /^(stop|prevent|avoid|ensure|allow|let|keep|leave|silence|disallow)\b/i;
 
@@ -70,7 +71,7 @@ function flagValue(segment, flags) {
 
 /**
  * Return the commit message this command would use, or null when there is nothing
- * to check -- no message on the command line, a generated message, or a message
+ * to check: no message on the command line, a generated message, or a message
  * that will not exist until an editor or stdin supplies it.
  */
 function extract(rawSegment, cwd) {
@@ -89,7 +90,7 @@ function extract(rawSegment, cwd) {
     if (fs.statSync(resolved).size > MAX_MESSAGE_BYTES) return null;
     return { text: fs.readFileSync(resolved, "utf8"), source: "file" };
   } catch {
-    // Unreadable or not yet written -- silence beats a false complaint.
+    // Unreadable or not yet written, and silence beats a false complaint.
     return null;
   }
 }
@@ -138,26 +139,26 @@ function lint(text) {
   }
   if (subject.endsWith(".")) subjectProblems.push("trailing period");
   if (NON_IMPERATIVE.test(subject)) {
-    subjectProblems.push('not imperative mood -- "Add", not "Added"/"Adds"');
+    subjectProblems.push('not imperative mood: "Add", not "Added"/"Adds"');
   }
   const effectLed = EFFECT_LED.exec(subject);
   if (effectLed) {
     const verb = effectLed[1].toLowerCase();
     subjectProblems.push(
-      `opens with the effect ("${effectLed[1]}") rather than the change -- ` +
+      `opens with the effect ("${effectLed[1]}") rather than the change; ` +
         `name what was touched, then the effect ("Modify X to ${verb} Y")`,
     );
   }
   const counted = COUNTED_PLACEHOLDER.exec(subject);
   if (counted) {
     subjectProblems.push(
-      `counts what it will not name ("${counted[0]}") -- say which ones`,
+      `counts what it will not name ("${counted[0]}"); say which ones`,
     );
   } else {
     const vague = vagueClause(subject);
     if (vague) {
       subjectProblems.push(
-        `"${vague}" stands in for the thing -- name the symbol, file, ` +
+        `"${vague}" stands in for the thing; name the symbol, file, ` +
           `component or code the change touched`,
       );
     }
@@ -176,7 +177,7 @@ function lint(text) {
 
   const body = lines.slice(2);
 
-  // A line with no spaces cannot be wrapped -- a URL, a path, a hash.
+  // A line with no spaces cannot be wrapped: a URL, a path, a hash.
   const overWide = body.filter(
     (line) => line.length > BODY_WRAP && /\s/.test(line.trim()),
   );

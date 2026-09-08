@@ -16,7 +16,8 @@ const MAX_TRANSCRIPT_BYTES = 4000000;
 const MARKER_TTL_MS = 7 * 24 * 3600 * 1000;
 
 // Overridable so the test suite can point at a scratch directory instead of clearing
-// the markers of whatever session is live -- doing that re-arms the reminder mid-session.
+// the markers of whatever session is live, which would re-arm the reminder
+// mid-session.
 function markerDir() {
   return (
     process.env.CLAUDE_REVIEW_MARKER_DIR ||
@@ -27,20 +28,20 @@ function markerDir() {
 const REVIEW_STEPS = `Before you report this work as done, run one self-review pass (google-code-review):
 
 1. Re-read every line you changed, not just the parts you remember writing.
-2. Design -- do the pieces interact sensibly, and does this belong here?
-3. Complexity -- anything a reader could not follow quickly? Anything built for a
+2. Design: do the pieces interact sensibly, and does this belong here?
+3. Complexity: anything a reader could not follow quickly? Anything built for a
    requirement that does not exist yet?
-4. Tests -- does a test actually fail if this code breaks? Are they in this change?
-5. Naming -- every name says what it holds, spelled out.
-6. Comments -- why, not what. Delete any comment that restates the code.
-7. Style -- google-style is the authority for the language you just wrote.`;
+4. Tests: does a test actually fail if this code breaks? Are they in this change?
+5. Naming: every name says what it holds, spelled out.
+6. Comments: why, not what. Delete any comment that restates the code.
+7. Style: google-style is the authority for the language you just wrote.`;
 
-// "What did you not verify?" rather than "did you verify?" -- the first is a
-// question this reader answers well, the second invites a yes.
+// "What did you not verify?" rather than "did you verify?". The first is a
+// question this reader answers well, while the second invites a yes.
 const EVIDENCE_STEPS = `Then split the report in two, explicitly:
 
-- VERIFIED -- each claim next to the command whose output you actually saw.
-- NOT VERIFIED -- everything asserted from reading, inference, or memory. Anything
+- VERIFIED: each claim next to the command whose output you actually saw.
+- NOT VERIFIED: everything asserted from reading, inference, or memory. Anything
   about performance, or about what code does at runtime, belongs here unless a
   command produced it. Say what would settle each one.
 
@@ -89,7 +90,7 @@ function alreadyFired(sessionId) {
     fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(marker, "1");
   } catch {
-    // Cannot record it -- stay silent rather than risk repeating every turn.
+    // Cannot record it, and so stay silent rather than risk repeating every turn.
     return true;
   }
   pruneMarkers(directory);

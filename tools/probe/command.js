@@ -1,6 +1,6 @@
 "use strict";
 
-// `ccfg probe` -- behavioural checks against this config.
+// `ccfg probe`: behavioural checks against this config.
 //
 // Distinct from `ccfg test`, which runs unit suites over deterministic code.
 // A probe asks one question about how the config actually behaves and answers it
@@ -82,7 +82,7 @@ async function runModel(probe, io, flags) {
   if (flags.dryRun) {
     io.ok(
       `${probe.name}  ${planned.length} cells (${Object.keys(probe.arms).length} arms x ${probe.tasks.length} tasks x ${probe.reps} reps)`,
-      `${already} already filled, ${remaining} to run -- nothing spent`,
+      `${already} already filled, ${remaining} to run, nothing spent`,
     );
     return "UNKNOWN";
   }
@@ -154,7 +154,7 @@ async function runModel(probe, io, flags) {
   console.log(`\n  ${io.bold(probe.name)}  ${io.dim(probe.question)}`);
   if (decision === "INCOMPLETE") {
     io.problem(
-      `INCOMPLETE -- ${cells.length}/${planned.length} cells filled`,
+      `INCOMPLETE: ${cells.length}/${planned.length} cells filled`,
       "a partial run is not a weak result; re-run to fill the rest",
     );
     return "FAIL";
@@ -289,7 +289,7 @@ function commandInspect(argv, io) {
       (entry) => entry.result.violations.length === 0 && entry.result.declined !== true,
     );
 
-    io.heading(`${arm}  --  ${violating.length} violating, ${clean.length} clean, ${mine.length} cells`);
+    io.heading(`${arm}: ${violating.length} violating, ${clean.length} clean, ${mine.length} cells`);
     // Both ends, always. Reading only the failures is how a grader that flags
     // everything looks like a strong effect.
     for (const [label, group] of [["VIOLATING", violating], ["CLEAN", clean]]) {

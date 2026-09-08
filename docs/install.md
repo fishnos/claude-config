@@ -4,18 +4,18 @@ Getting this config onto a machine that does not have it yet.
 
 ## Prerequisites
 
-- **[Node.js](https://nodejs.org/)** (provides `node` + `npx`) — required by the hooks,
+- **[Node.js](https://nodejs.org/)** (provides `node` + `npx`), required by the hooks,
   the statusline (`npx ccstatusline`), and Prettier formatting.
   - macOS: `brew install node` · Windows: `winget install OpenJS.NodeJS` · Debian/Ubuntu: `sudo apt install nodejs npm` · Arch: `sudo pacman -S nodejs npm` · Fedora: `sudo dnf install nodejs`
 - **Optional, for the Notification hook's extras** (each degrades gracefully if absent):
   - Linux: `notify-send` (libnotify) + any of `mpv` / `ffmpeg` / `pulseaudio-utils` / `pipewire`; optional `libcanberra`.
-  - macOS / Windows: nothing extra — `osascript` / PowerShell ship with the OS.
+  - macOS / Windows: nothing extra, since `osascript` / PowerShell ship with the OS.
 
 
 ## Set up on a new machine
 
 ```sh
-# fresh machine, no ~/.claude yet — pick ONE remote form:
+# fresh machine, no ~/.claude yet; pick ONE remote form:
 git clone https://github.com/<you>/claude-config.git ~/.claude   # HTTPS (works with `gh auth`)
 git clone git@github.com:<you>/claude-config.git ~/.claude       # SSH
 
@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File $env:USERPROFILE\.claude\tools\claude-s
 ```
 
 One command per machine: installs Claude Code only if missing, prompts once for the
-OpenRouter key with hidden input, and stores it in the OS credential store — macOS
+OpenRouter key with hidden input, and stores it in the OS credential store: the macOS
 Keychain, Secret Service on Linux, DPAPI on Windows, falling back to a mode-600 file
 only where no keyring exists. The key never enters this repo, `settings.json`, or a shell
 rc file. Details and per-machine overrides: `tools/claude-sol/README.md`.
@@ -59,11 +59,11 @@ rc file. Details and per-machine overrides: `tools/claude-sol/README.md`.
 
 ## Avoiding merge conflicts
 
-- Runtime files are untracked — machines never conflict over them.
+- Runtime files are untracked, and so machines never conflict over them.
 - Conflicts can only happen in deliberately edited config. To stay safe:
   - `git pull` before editing config on any machine
   - commit + push right after editing
-- If a conflict does happen, it is a normal text-file merge in `CLAUDE.md`/`settings.json` — resolve by hand.
+- If a conflict does happen, it is a normal text-file merge in `CLAUDE.md`/`settings.json`. Resolve by hand.
 
 ---
 

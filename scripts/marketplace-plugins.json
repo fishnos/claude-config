@@ -1,5 +1,5 @@
 {
-  "comment": "Source of truth for the plugin marketplace. `node scripts/build-marketplace.js` generates .claude-plugin/marketplace.json and the marketplace/ trees from this file; nothing under marketplace/ should be edited by hand. A plugin root gets its own copy of each skill because Claude Code always scans a plugin's own skills/ directory -- a manifest path cannot narrow that -- so pointing a plugin at the repository root would publish all 126 skills, vendored ones included.",
+  "comment": "Source of truth for the plugin marketplace. `node scripts/build-marketplace.js` generates .claude-plugin/marketplace.json and the marketplace/ trees from this file; nothing under marketplace/ should be edited by hand. A plugin root gets its own copy of each skill because Claude Code always scans a plugin's own skills/ directory and a manifest path cannot narrow that, so pointing a plugin at the repository root would publish all 126 skills, vendored ones included.",
   "owner": {
     "name": "Daniel Kosukhin",
     "url": "https://github.com/fishnos"

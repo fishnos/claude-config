@@ -15,10 +15,11 @@
 // opposite rule sitting in the system prompt above the same burial. The
 // difference is new information, not freshness.
 //
-// So: silence while the mode holds, full rules the moment it changes. A session
-// that starts with a mode already applied needs nothing either, because the
-// generated rules file is loaded from rules/ at startup anyway -- injecting then
-// would only say the same thing twice.
+// The hook therefore stays silent while the mode holds, and sends the full
+// rules the moment the mode changes. A session that starts with a mode already
+// applied needs nothing either, because the harness loads the generated rules
+// file from rules/ at startup, and injecting the same text again would only
+// say it twice.
 
 const fs = require("fs");
 const path = require("path");

@@ -4,7 +4,7 @@ A version-controlled `~/.claude`: global instructions, 126 skills, ten hooks tha
 enforce an engineering standard, and a zero-dependency CLI to set it all up on a
 machine that has nothing installed yet.
 
-Tracks **config only** — never transcripts, history, caches, or credentials.
+Tracks **config only**, never transcripts, history, caches, or credentials.
 
 ```sh
 git clone https://github.com/fishnos/claude-config.git ~/.claude
@@ -47,7 +47,7 @@ a plugin rooted at this repository would publish all 126 skills no matter what i
 claimed. Isolated roots are what make the advertised contents and the installed
 contents the same thing.
 
-The roots are generated — edit `scripts/marketplace-plugins.json`, then:
+The roots are generated. Edit `scripts/marketplace-plugins.json`, then:
 
 ```sh
 node ~/.claude/scripts/build-marketplace.js
@@ -89,6 +89,6 @@ on every push.
 
 ## Licence
 
-MIT for the work written here. The vendored reference material — Google's style
-guides and engineering practices, and skills copied from other repositories —
+MIT for the work written here. The vendored reference material (Google's style
+guides and engineering practices, and skills copied from other repositories)
 keeps its own terms. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

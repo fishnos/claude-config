@@ -1,5 +1,5 @@
 #!/bin/bash
-# Claude Code statusline — mellow blue gradient with powerline arrows
+# Claude Code statusline: mellow blue gradient with powerline arrows
 #
 # Each segment has its own blue-shade bg, separated by  arrows.
 # Text gradient sweeps L→R across ALL segments continuously.
@@ -26,7 +26,7 @@ BOLD="${ESC}[1m"
 fg() { printf '%s[38;2;%d;%d;%dm' "$ESC" "$1" "$2" "$3"; }
 bg() { printf '%s[48;2;%d;%d;%dm' "$ESC" "$1" "$2" "$3"; }
 
-# Powerline glyphs (UTF-8 bytes — written this way so they survive editor saves)
+# Powerline glyphs (UTF-8 bytes, written this way so they survive editor saves)
 PL_ARROW=$'\xee\x82\xb0'   # U+E0B0  right wedge
 PL_LARROW=$'\xee\x82\xb2'  # U+E0B2  left wedge
 PL_CAP_L=$'\xee\x82\xb6'   # U+E0B6  rounded left
@@ -45,14 +45,14 @@ clamp() { local v=$1; ((v<0))&&v=0; ((v>255))&&v=255; echo "$v"; }
 TG1_R=120; TG1_G=145; TG1_B=195
 TG2_R=190; TG2_G=215; TG2_B=240
 
-# Segment bg stops — dark blue, gradually lightening L→R
+# Segment bg stops: dark blue, gradually lightening L to R
 BG1_R=18;  BG1_G=24;  BG1_B=42
 BG2_R=26;  BG2_G=34;  BG2_B=58
 BG3_R=34;  BG3_G=44;  BG3_B=74
 BG4_R=42;  BG4_G=54;  BG4_B=88
 BG5_R=50;  BG5_G=64;  BG5_B=100
 
-# Approximate terminal background — used for the left-side notch cutout.
+# Approximate terminal background, used for the left-side notch cutout.
 # Adjust if your terminal has a different bg (e.g. pure black 0/0/0).
 TERM_BG_R=11; TERM_BG_G=12; TERM_BG_B=18
 
@@ -163,7 +163,7 @@ for entry in "${SEGS[@]}"; do
     i=$(( i + 1 ))
   done
 
-  # Right wedge arrow on transparent bg — no extra gap (wedges create their own breathing room)
+  # Right wedge arrow on transparent bg, with no extra gap (wedges create their own breathing room)
   out+="${RESET}$(fg $br $bgc $bb)${PL_ARROW}${RESET}"
 done
 

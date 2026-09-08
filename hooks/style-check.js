@@ -3,7 +3,8 @@
 // PostToolUse(Edit|Write): flag style-guide violations a formatter cannot fix.
 //
 // Only patterns that are unambiguous in the Google style guides, or that silently
-// break a test suite. High precision on purpose -- a noisy hook gets ignored.
+// break a test suite. High precision on purpose, because a noisy hook gets
+// ignored.
 
 const fs = require("fs");
 const path = require("path");
@@ -21,7 +22,7 @@ const PYTHON_EXTENSIONS = new Set([".py"]);
 const WEB_RULES = [
   [
     /@ts-(ignore|nocheck)\b/,
-    "@ts-ignore / @ts-nocheck are banned -- they hide the real error and leave the " +
+    "@ts-ignore / @ts-nocheck are banned. They hide the real error and leave the " +
       "surrounding types unpredictable. Fix the type, narrow with a guard, or use a " +
       "documented `unknown` cast.",
     true,
@@ -34,7 +35,7 @@ const WEB_RULES = [
   [/^\s*debugger\s*;?\s*$/m, "`debugger` statement must not ship.", false],
   [
     /\b(describe|it|test)\.only\s*\(|^\s*(fdescribe|fit)\s*\(/m,
-    "`.only` silently disables every other test in the file -- CI will pass while " +
+    "`.only` silently disables every other test in the file, so CI passes while " +
       "covering almost nothing. Remove before committing.",
     false,
   ],
@@ -56,7 +57,7 @@ const PYTHON_RULES = [
   ],
   [
     /def\s+\w+\s*\([^)]*=\s*(\[\]|\{\}|set\(\))/,
-    "Mutable default argument -- it is created once and shared across every call. " +
+    "Mutable default argument: it is created once and shared across every call. " +
       "Default to `None` and build the container inside the function.",
     false,
   ],
@@ -101,7 +102,7 @@ io.run(() => {
     if (!match) continue;
     const line = source.slice(0, match.index).split("\n").length;
     findings.push(
-      `- ${path.basename(paths.normalize(filePath))}:${line} -- ${message}`,
+      `- ${path.basename(paths.normalize(filePath))}:${line}  ${message}`,
     );
   }
 
@@ -111,7 +112,7 @@ io.run(() => {
       "Style-guide violations in the file just written (google-style):\n" +
         findings.join("\n") +
         "\nFix these now rather than leaving them for review. These checks are regex-based " +
-        "and cannot tell code from a string literal or comment -- if a hit is fixture data or " +
+        "and cannot tell code from a string literal or comment. If a hit is fixture data or " +
         "an example, say so and move on rather than editing it.",
     );
   }

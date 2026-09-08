@@ -3,8 +3,8 @@ description: Shrink a failing case to the smallest input that still fails
 argument-hint: "[optional: the failing test, command, or symptom]"
 ---
 
-Narrow the failure named in `$ARGUMENTS` — or the one under discussion if that
-is empty — to the smallest case that still fails.
+Narrow the failure named in `$ARGUMENTS`, or the one under discussion if that
+is empty, to the smallest case that still fails.
 
 Work by halving, not by reading. Cut the input, the configuration, or the code
 path in half, run it, and keep the half that still fails. Repeat until removing

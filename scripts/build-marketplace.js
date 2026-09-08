@@ -8,9 +8,9 @@
 // Why a plugin gets its own copy of a skill rather than pointing at skills/:
 // Claude Code always scans a plugin's own skills/ directory, and a manifest path
 // only ever adds to that scan. A plugin rooted at this repository would
-// therefore publish all of skills/ -- every vendored skill included, two of
-// whose upstreams grant no redistribution right at all -- no matter what the
-// manifest listed. An isolated root is the only way the advertised contents and
+// therefore publish all of skills/ no matter what the manifest listed, and
+// that sweep takes in every vendored skill, including two whose upstreams
+// grant no redistribution right at all. An isolated root is the only way the advertised contents and
 // the installed contents are the same thing.
 //
 // Pass --check to report drift without writing, which is what CI wants.

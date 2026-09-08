@@ -2,7 +2,7 @@
 
 // SessionStart: catch config drift before it costs a session.
 //
-// Deliberately cheap -- file existence and JSON parsing only, no subprocesses.
+// Deliberately cheap: file existence and JSON parsing only, no subprocesses.
 // The thorough version is `ccfg validate`, which runs the whole hook
 // suite and is far too slow to sit in front of every session.
 

@@ -3,8 +3,9 @@
 // SessionStart: keep SKILL-INDEX.md in step with what is actually installed.
 //
 // CLAUDE.md tells Claude to read that catalog before deciding no skill covers a
-// task. A stale catalog is worse than none -- it answers confidently from a list
-// that no longer matches settings.json -- so the rebuild happens here rather
+// task. A stale catalog is worse than none, because it answers confidently from
+// a list that no longer matches settings.json, and so the rebuild happens here
+// rather
 // than relying on anyone to run the CLI after editing a skill.
 //
 // Never blocks and never speaks. A session that cannot write the catalog is

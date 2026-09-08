@@ -126,7 +126,7 @@ function render(groups) {
   const out = [
     "# Skill index",
     "",
-    "Generated. Do not edit by hand -- rerun `node ~/.claude/scripts/build-skill-index.js`,",
+    "Generated. Do not edit by hand. Rerun `node ~/.claude/scripts/build-skill-index.js`,",
     "or start a session and the SessionStart hook rebuilds it when it goes stale.",
     "",
     `Every personal skill on this machine and whether Claude can see it. ${invocable} of these`,

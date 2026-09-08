@@ -3,7 +3,8 @@
 // Running probes, and the two guards that make a result trustworthy.
 //
 // Both guards exist because the failure happened, in this config, and both
-// produced a confident wrong answer rather than an error -- which is the only
+// produced a confident wrong answer rather than an error, and a confident wrong
+// answer is the only
 // kind of harness bug that survives to be reported.
 
 const fs = require("fs");

@@ -3,7 +3,7 @@
 // UserPromptSubmit: state the model would otherwise burn a tool call discovering.
 //
 // Branch, working-tree cleanliness, upstream drift and package manager, in one
-// line. Emitted only when it changes -- repeating identical context every turn
+// line. Emitted only when it changes, because repeating identical context every turn
 // costs tokens and trains the model to skim past it.
 
 const fs = require("fs");

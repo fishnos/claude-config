@@ -4,7 +4,7 @@
 //
 // The whole system assumes they do. The measured evidence says rule *position*
 // moves adherence; it says nothing about whether these particular ten postures
-// diverge. If spike and ship -- the two extremes -- come out the same, the modes
+// diverge. If spike and ship, the two extremes, come out the same, the modes
 // are decoration over a working renderer.
 //
 // The observable chosen is whether tests come back with the code. `ship` sets

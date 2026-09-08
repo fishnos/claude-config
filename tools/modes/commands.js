@@ -67,7 +67,7 @@ function frontmatterLines(text) {
 function read(configDir, modeName, name) {
   if (!validName(name))
     throw new Error(
-      `${modeName}: "${name}" is not a usable command name -- use lowercase letters, digits and dashes`,
+      `${modeName}: "${name}" is not a usable command name. Use lowercase letters, digits and dashes`,
     );
 
   const source = path.join(modeCommandDir(configDir, modeName), `${name}.md`);
@@ -81,8 +81,8 @@ function read(configDir, modeName, name) {
     const key = line.split(":")[0].trim().toLowerCase();
     if (GRANTING_KEYS.includes(key))
       throw new Error(
-        `${modeName}/${name}: allowed-tools is not permitted in a mode command -- ` +
-          `a mode may only take capability away, and a command's grant list would add it`,
+        `${modeName}/${name}: allowed-tools is not permitted in a mode command. ` +
+          `A mode may only take capability away, and a command's grant list would add it`,
       );
   }
 
@@ -110,8 +110,8 @@ function plan(configDir, modeName, declared, previous = []) {
     if (leaving.has(file.name)) continue;
     if (fs.existsSync(installedPath(configDir, file.name)))
       throw new Error(
-        `${modeName} carries a command called "${file.name}" but you already have one -- ` +
-          `a mode may not replace a command you wrote`,
+        `${modeName} carries a command called "${file.name}" but you already have ` +
+          `one. A mode may not replace a command you wrote`,
       );
   }
   return files;

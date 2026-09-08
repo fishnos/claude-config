@@ -4,7 +4,7 @@
 //
 // The gate exists because `ccfg keys set <name>` takes the name positionally,
 // so transposing the arguments files a live credential as a variable name. It
-// must refuse before prompting -- a refusal that arrives after the value is
+// must refuse before prompting, because a refusal that arrives after the value is
 // read has already let the mistake happen.
 //
 // The wiring tests all run against a temp directory: a suite that edits the

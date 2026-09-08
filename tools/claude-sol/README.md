@@ -3,7 +3,7 @@
 runs claude code against an openrouter model (`openai/gpt-5.6-sol` by default) on any
 machine, without the api key ever touching this git repository.
 
-normal `claude` is untouched — it keeps using your anthropic login. `claude-sol` is a
+normal `claude` is untouched, and it keeps using your anthropic login. `claude-sol` is a
 separate command.
 
 ## new machine, one command
@@ -37,7 +37,7 @@ with a doctor check.
 
 | platform | store |
 | --- | --- |
-| macos | keychain — service `claude-sol`, account `openrouter-api-key` |
+| macos | keychain, service `claude-sol`, account `openrouter-api-key` |
 | linux / wsl with a keyring | secret service via `secret-tool`, same service and account |
 | linux / wsl without a keyring | `~/.config/claude-sol/credentials`, file mode 600 in a 700 directory |
 | windows | `%LOCALAPPDATA%\claude-sol\credentials.dpapi`, dpapi-encrypted for the current user, owner-only acl |
@@ -46,7 +46,7 @@ the key is never written into this repo, into `settings.json`, or into a shell r
 the `.gitignore` allowlist tracks only `tools/claude-sol/**`, so a stray credential file
 inside the repo still could not be committed.
 
-`CLAUDE_SOL_API_KEY` in the environment overrides every store — useful for ci or a
+`CLAUDE_SOL_API_KEY` in the environment overrides every store, which is useful for ci or a
 throwaway container.
 
 the plaintext-file fallback is the weak link: anyone who can read your account (or root)
@@ -69,10 +69,10 @@ that `PATCH`es the key at openrouter, records the previous limit in
 `~/.config/claude-sol/limit-state.json`, and stamps a `reset_on` date of tomorrow (utc).
 the raise is temporary by construction: the first `claude-sol` launch on or after that
 date puts the limit back to the baseline and deletes the state file. no cron, no launch
-agent, nothing to install — the check is a local file read, and it only touches the
+agent, nothing to install, because the check is a local file read that only touches the
 network on the day a reset is actually due.
 
-raising and resetting need a **provisioning key** — a separate openrouter key that is
+raising and resetting need a **provisioning key**, a separate openrouter key that is
 allowed to manage other keys, created at
 <https://openrouter.ai/settings/provisioning-keys>. store it once per machine with
 `claude-sol --sol-provision-setup`; it goes into the same credential store as the
@@ -124,7 +124,7 @@ variables of the same names win over both.
 
 `CLAUDE_SOL_MAX_OUTPUT_TOKENS` caps claude code's requested output tokens. leave it
 empty for claude's default (32000). set it when openrouter answers `402 this request
-requires more credits, or fewer max_tokens` — that error is your key's remaining daily
+requires more credits, or fewer max_tokens`. that error is your key's remaining daily
 limit, not a launcher problem; either raise the limit at openrouter or set this below
 the affordable number.
 
