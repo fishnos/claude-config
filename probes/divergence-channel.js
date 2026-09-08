@@ -107,7 +107,7 @@ module.exports = {
           : "no single channel retained significance",
       evidence:
         `not significant at n=16: ${lost.map((entry) => `${entry.name} ${(entry.rate * 100).toFixed(0)}%`).join(", ")}` +
-        " -- underpowered to separate these from the full-text rate, not evidence of collapse",
+        "; n=16 is underpowered to separate these from the full-text rate, which is not evidence of collapse",
     };
   },
 };

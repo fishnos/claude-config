@@ -37,7 +37,7 @@ function armPromptFile(temporaryDir, arm, text) {
  * One cell, in a scratch directory.
  *
  * `--safe-mode` drops CLAUDE.md, skills, plugins, hooks and MCP, but it does not
- * change the working directory -- so a cell run from the config repo can read the
+ * change the working directory, and so a cell run from the config repo can read the
  * operator's uncommitted diff and answer from that instead of from the task. One
  * probe did exactly that and prefaced every reply with commentary on real files.
  */

@@ -30,9 +30,10 @@ function readPayload() {
  *
  * process.stdout.write() to a pipe is asynchronous on Windows, so the
  * process.exit() that follows each emit would terminate before the payload
- * flushed -- the hook would return nothing and the harness would read that as
- * "no opinion", silently permitting whatever was being blocked. fs.writeSync
- * is synchronous on every platform. It may also write short, hence the loop.
+ * flushed. The hook would then return nothing, the harness would read the
+ * silence as "no opinion", and whatever was being blocked would go through.
+ * fs.writeSync is synchronous on every platform. It may also write short,
+ * hence the loop.
  */
 function emit(object) {
   const payload = Buffer.from(JSON.stringify(object), "utf8");
@@ -69,10 +70,10 @@ function warn(hookEventName, additionalContext) {
  * Say something to the operator and something to the model, in one reply.
  *
  * `additionalContext` reaches the model as a system reminder and is never
- * displayed; `systemMessage` is the opposite -- shown in the transcript, never
- * given to the model. A hook that needs the operator to SEE something has to
- * use the second one, which is why a session-start notice written only as
- * context looked, from the outside, like a hook that had not run.
+ * displayed; `systemMessage` is the opposite, shown in the transcript and
+ * never given to the model. A hook that needs the operator to SEE something
+ * has to use `systemMessage`. A session-start notice written only as context
+ * therefore looked like a hook that had never run.
  *
  * systemMessage is a top-level field and needs Claude Code 2.1.227 or newer;
  * older versions ignore it and still deliver the context.
@@ -97,9 +98,10 @@ function configDir() {
 }
 
 /**
- * Where the evidence log lives. Defined once because three separate callers read
- * it -- the logger, the Stop reminder, and `ccfg evidence`. Spelled out in each,
- * a renamed env var would silently split them into two locations.
+ * Where the evidence log lives. Defined once because three separate callers
+ * read it: the logger, the Stop reminder, and `ccfg evidence`. Spelled out in
+ * each of the three instead, a renamed environment variable would split them
+ * into two locations without saying so.
  */
 function evidenceDir() {
   return (
@@ -131,7 +133,7 @@ function run(body) {
   try {
     body();
   } catch {
-    // Deliberately silent -- see above.
+    // Deliberately silent, for the reason in the docblock above.
   }
   process.exit(0);
 }

@@ -24,8 +24,8 @@
 # The mode corpus: the 25 rules whose priority varies by mode, the mode files
 # that order them, and the pre-cut copy of CLAUDE.md that `ccfg probe run
 # corpus-fidelity` checks them against. Whitelisted because the `*` rule above
-# would otherwise ship the renderer with nothing to render -- a clone would get
-# `ccfg mode` and an empty mode list.
+# would otherwise ship the renderer with nothing to render, and a clone would
+# get `ccfg mode` and an empty mode list.
 !modes/
 !modes/**
 
@@ -95,7 +95,7 @@ history.jsonl
 /shell-snapshots/
 /file-history/
 /paste-cache/
-# The install cache is 1.2GB of vendored plugin trees -- node_modules, not config.
+# The install cache is 1.2GB of vendored plugin trees: node_modules, not config.
 # installed_plugins.json is its lockfile (versions + commit SHAs) and settings.json
 # only records which plugins are enabled, so without it a clone floats to whatever
 # the marketplaces serve that day.
@@ -108,8 +108,8 @@ plugins/plugin-catalog-cache.json
 !plugins/known_marketplaces.json
 # Anchored to the repository root with a leading slash. Written bare, each of
 # these matches a directory of that name at any depth, and `debug/` duly
-# swallowed modes/commands/debug/ -- so TRACE shipped declaring a command whose
-# file was never committed, and applying it on a fresh clone would throw.
+# swallowed modes/commands/debug/, and so TRACE shipped declaring a command
+# whose file was never committed, and applying it on a fresh clone would throw.
 /cache/
 /debug/
 /telemetry/

@@ -31,7 +31,7 @@ function normalTailTwoSided(z) {
 /**
  * Two-proportion z-test between arms.
  *
- * Returns p = 1 for two arms with no combined variance -- both empty, or both
+ * Returns p = 1 for two arms with no combined variance: both empty, or both
  * at the same extreme. That case is genuinely "no evidence of a difference",
  * and returning NaN would let it print as a result.
  */

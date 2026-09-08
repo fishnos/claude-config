@@ -11,8 +11,8 @@
 //
 // So this checks text, not vocabulary, and checks it both ways:
 //
-//   forward  -- every sentence of every rule traces to the source
-//   backward -- every source sentence the corpus claims is carried in full
+//   forward:  every sentence of every rule traces to the source
+//   backward: every source sentence the corpus claims is carried in full
 //
 // Backward is the one that matters. A rule can be trimmed without ever failing
 // a forward check, and a trimmed rule is a silently weakened instruction.
@@ -27,6 +27,24 @@ const path = require("path");
 const rules = require("../tools/modes/rules.js");
 
 const norm = (text) => text.replace(/\s+/g, " ").trim();
+
+/**
+ * Fold the punctuation that carries no instruction.
+ *
+ * Every comparison below is an exact substring match, so a rule that swaps an
+ * em dash for a comma would be reported as a sentence invented and a sentence
+ * lost, neither of which happened. Dashes, commas, semicolons and colons are
+ * therefore flattened to a space on both sides before matching. What survives
+ * the fold is the words and their order, which is what "carried in full" means
+ * and the only thing a weakened instruction can hide in.
+ */
+const fold = (text) =>
+  norm(
+    String(text)
+      .replace(/\u2014|\u2013|--/g, " ")
+      .replace(/[,;:]/g, " "),
+  );
+
 const strip = (text) =>
   norm(text)
     .replace(/^[-*]\s+/, "")
@@ -65,7 +83,7 @@ module.exports = {
         evidence: `${snapshotPath} is missing, so no rule can be traced to its source`,
       };
 
-    const snapshot = norm(fs.readFileSync(snapshotPath, "utf8"));
+    const snapshot = fold(fs.readFileSync(snapshotPath, "utf8"));
     const corpus = rules.loadCorpus(path.join(configDir, "modes", "rules"));
     if (corpus.errors.length > 0)
       return {
@@ -77,13 +95,14 @@ module.exports = {
     const added = [];
     for (const rule of corpus.rules) {
       for (const sentence of sentences(rule.body)) {
-        if (snapshot.includes(sentence)) continue;
-        if (ALLOWED_ADDITIONS.includes(sentence)) continue;
+        if (snapshot.includes(fold(sentence))) continue;
+        if (ALLOWED_ADDITIONS.some((allowed) => fold(allowed) === fold(sentence)))
+          continue;
         added.push(`${rule.id}: ${sentence.slice(0, 80)}`);
       }
     }
 
-    const joined = corpus.rules.map((rule) => norm(rule.body)).join("\n");
+    const joined = corpus.rules.map((rule) => fold(rule.body)).join("\n");
     const lost = [];
     const truncated = [];
     for (const line of fs.readFileSync(snapshotPath, "utf8").split("\n")) {
@@ -91,13 +110,13 @@ module.exports = {
       if (text.length < 40 || text.startsWith("#") || text.startsWith("|")) continue;
       const parts = sentences(text);
       // A line the corpus claims: at least one of its sentences is carried.
-      const claims = parts.some((piece) => joined.includes(piece));
+      const claims = parts.some((piece) => joined.includes(fold(piece)));
       if (!claims) continue;
       for (const piece of parts) {
-        if (joined.includes(piece)) continue;
+        if (joined.includes(fold(piece))) continue;
         let longest = 0;
         for (let end = piece.length; end > 24; end -= 1) {
-          if (joined.includes(piece.slice(0, end))) {
+          if (joined.includes(fold(piece.slice(0, end)))) {
             longest = end;
             break;
           }

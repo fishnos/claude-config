@@ -176,7 +176,7 @@ const docPages = fs.existsSync(docsDir)
 const pages = ["README.md", ...docPages];
 const prose = pages.map(read).join("\n");
 check("docs/ carries the pages README links to", docPages.length >= 5, `found ${docPages.length}`);
-const claimed = /— (\d+) cases/.exec(prose);
+const claimed = /covering (\d+) cases/.exec(prose);
 check(
   "documented case count matches the suite",
   claimed !== null && Number(claimed[1]) === suiteCount,

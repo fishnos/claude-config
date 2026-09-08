@@ -111,7 +111,7 @@ const write = (relative, contents) => {
   return target;
 };
 
-header("PreToolUse(Bash) -- blocking cases");
+header("PreToolUse(Bash): blocking cases");
 for (const [label, command] of [
   ["plain push", PUSH + " origin main"],
   ["push after a passing test", "npm test && " + PUSH],
@@ -124,7 +124,7 @@ for (const [label, command] of [
   check(label, verdict, "DENY", reason);
 }
 
-header("PreToolUse(Bash) -- env-prefix must not bypass the guard");
+header("PreToolUse(Bash): env-prefix must not bypass the guard");
 for (const [label, command] of [
   ["unrelated env var before push", "FOO=1 " + PUSH],
   ["env var before force-push", "DEBUG=true " + PUSH + " --force"],
@@ -135,7 +135,7 @@ for (const [label, command] of [
   check(label, verdict, "DENY", reason);
 }
 
-header("PreToolUse(Bash) -- cmd.exe chaining");
+header("PreToolUse(Bash): cmd.exe chaining");
 for (const [label, command] of [
   ["single & chain (cmd.exe) before push", "dir & " + PUSH],
   ["single & chain before reset --hard", "echo hi & " + HARD],
@@ -144,7 +144,7 @@ for (const [label, command] of [
   check(label, verdict, "DENY", reason);
 }
 
-header("PreToolUse(Bash) -- push escape hatch");
+header("PreToolUse(Bash): push escape hatch");
 {
   let r = run(
     GUARD,
@@ -160,7 +160,7 @@ header("PreToolUse(Bash) -- push escape hatch");
   check("wrong escape value still blocks", r.verdict, "DENY", r.reason);
 }
 
-header("PreToolUse(Bash) -- must NOT block (false-positive guard)");
+header("PreToolUse(Bash): must NOT block (false-positive guard)");
 for (const [label, command] of [
   ["git status", "git status"],
   ["git log", "git log --oneline -20"],
@@ -177,7 +177,7 @@ for (const [label, command] of [
   check(label, verdict, "allow", reason);
 }
 
-header("PreToolUse(Bash) -- commit warnings");
+header("PreToolUse(Bash): commit warnings");
 write(
   "src/calc.ts",
   "export function add(a: number, b: number) {\n  return a + b;\n}\n",
@@ -212,7 +212,7 @@ git(["add", "src/__tests__/calc.test.ts"], repo);
   check("tests staged + good subject -> silent", r.verdict, "allow", r.reason);
 }
 
-header("PreToolUse(Bash) -- staged secret");
+header("PreToolUse(Bash): staged secret");
 write("src/config.ts", `export const KEY = '${AWS_KEY}';\n`);
 git(["add", "src/config.ts"], repo);
 {
@@ -223,7 +223,7 @@ git(["add", "src/config.ts"], repo);
   check("AWS key in staged diff", r.verdict, "DENY", r.reason);
 }
 
-header("PreToolUse(Bash) -- amend still scans for secrets");
+header("PreToolUse(Bash): amend still scans for secrets");
 git(["reset", "-q"], repo);
 write("src/creds.ts", `export const T = '${GH_TOKEN}';\n`);
 git(["add", "src/creds.ts"], repo);
@@ -245,7 +245,7 @@ git(["add", "src/plain.ts"], repo);
   check("clean amend -> no test/size nagging", r.verdict, "allow", r.reason);
 }
 
-header("PostToolUse(Edit|Write) -- style check");
+header("PostToolUse(Edit|Write): style check");
 {
   const badTs = write(
     "src/bad.ts",
@@ -324,7 +324,7 @@ header("PostToolUse(Edit|Write) -- style check");
   check(".only never tolerated in tests", only.verdict, "warn", only.reason);
 }
 
-header("Stop -- self-review reminder");
+header("Stop: self-review reminder");
 {
   const transcript = path.join(repo, "transcript.jsonl");
   fs.writeFileSync(
@@ -423,7 +423,7 @@ header("Stop -- self-review reminder");
   );
 }
 
-header("commit-message -- lint() policy");
+header("commit-message: lint() policy");
 {
   const { lint } = require(path.join(HOOKS, "lib", "commit-message.js"));
   const has = (message, fragment) =>
@@ -563,8 +563,8 @@ header("commit-message -- lint() policy");
     JSON.stringify(lint("Explain what resolveTargetPath returns")),
   );
   // Every clause is judged, so a concrete first half no longer covers for a
-  // vague second half -- but a compound subject that is concrete throughout
-  // must still pass, or the split would reject ordinary work.
+  // vague second half. A compound subject that is concrete throughout must
+  // still pass, or the split would reject ordinary work.
   check(
     "a concrete compound subject is accepted",
     lint("Rename UserRecord and drop the unused email column").length === 0
@@ -576,7 +576,7 @@ header("commit-message -- lint() policy");
   check("empty message flagged", has("", "empty") ? "ok" : "missed", "ok");
 }
 
-header("commit-message -- extract() sources");
+header("commit-message: extract() sources");
 {
   const { extract } = require(path.join(HOOKS, "lib", "commit-message.js"));
   fs.writeFileSync(
@@ -624,7 +624,7 @@ header("commit-message -- extract() sources");
   check("--amend alone skipped", got("git commit --amend"), null, "");
 }
 
-header("PreToolUse(Bash) -- message passed by file is linted");
+header("PreToolUse(Bash): message passed by file is linted");
 {
   git(["reset", "-q"], repo);
   write("src/lint.ts", "export const q = 1;\n");
@@ -652,7 +652,7 @@ header("PreToolUse(Bash) -- message passed by file is linted");
   check("--fixup not linted", r.verdict, "allow", r.reason);
 }
 
-header("hook-io -- output integrity");
+header("hook-io: output integrity");
 {
   // A payload far larger than one pipe buffer, which exercises the short-write loop
   // in emit(). A regression to process.stdout.write() + process.exit() truncates
@@ -684,7 +684,7 @@ header("hook-io -- output integrity");
   );
 }
 
-header("PreToolUse(Bash) -- commit is blocked without the escape");
+header("PreToolUse(Bash): commit is blocked without the escape");
 for (const [label, command] of [
   ["plain commit", 'git commit -m "Add a thing"'],
   ["amend", "git commit --amend --no-edit"],
@@ -699,7 +699,7 @@ for (const [label, command] of [
   check("--dry-run is not a commit", r.verdict, "allow", r.reason);
 }
 
-header("PreToolUse(Bash) -- git global options must not bypass the guard");
+header("PreToolUse(Bash): git global options must not bypass the guard");
 for (const [label, command] of [
   ["-C before push", "git -C " + repo + " " + PUSH],
   ["--no-pager before push", "git --no-pager " + PUSH],
@@ -712,7 +712,7 @@ for (const [label, command] of [
   check(label, verdict, "DENY", reason);
 }
 
-header("PreToolUse(Bash) -- outward-facing commands are blocked");
+header("PreToolUse(Bash): outward-facing commands are blocked");
 for (const [label, command] of [
   ["gh repo delete", "gh repo delete owner/thing --yes"],
   ["gh repo archive", "gh repo archive owner/thing"],
@@ -743,7 +743,7 @@ for (const [label, command] of [
   check(label, verdict, "DENY", reason);
 }
 
-header("PreToolUse(Bash) -- outward escapes are per-family, not blanket");
+header("PreToolUse(Bash): outward escapes are per-family, not blanket");
 {
   let r = run(
     GUARD,
@@ -766,7 +766,7 @@ header("PreToolUse(Bash) -- outward escapes are per-family, not blanket");
 }
 
 header(
-  "PreToolUse(Bash) -- outward false-positive guard (these run constantly)",
+  "PreToolUse(Bash): outward false-positive guard (these run constantly)",
 );
 for (const [label, command] of [
   ["gh repo view", "gh repo view owner/thing"],
@@ -793,7 +793,7 @@ for (const [label, command] of [
   check(label, verdict, "allow", reason);
 }
 
-header("PreToolUse(Bash) -- outward warnings");
+header("PreToolUse(Bash): outward warnings");
 for (const [label, command] of [
   ["gh pr create", "gh pr create --title x --body y"],
   ["gh repo create", "gh repo create thing --public"],
@@ -802,7 +802,7 @@ for (const [label, command] of [
   check(label, verdict, "warn", reason);
 }
 
-header("PreToolUse(Bash) -- separators inside quotes are not separators");
+header("PreToolUse(Bash): separators inside quotes are not separators");
 {
   const chain = " " + "&".repeat(2) + " ";
   for (const [label, command] of [
@@ -832,7 +832,7 @@ header("PreToolUse(Bash) -- separators inside quotes are not separators");
   );
 }
 
-header("PreToolUse(Bash) -- a warning must never cut short the deny scan");
+header("PreToolUse(Bash): a warning must never cut short the deny scan");
 for (const [label, command] of [
   [
     "warn segment before a denied segment",
@@ -855,7 +855,7 @@ for (const [label, command] of [
   check(label, verdict, "DENY", reason);
 }
 
-header("PostToolUse(Bash) -- evidence log");
+header("PostToolUse(Bash): evidence log");
 {
   const EVIDENCE = path.join(HOOKS, "evidence-log.js");
   const evidenceDir = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-"));
@@ -1019,7 +1019,7 @@ header("PostToolUse(Bash) -- evidence log");
   fs.rmSync(evidenceDir, { recursive: true, force: true });
 }
 
-header("SessionStart -- config-sentinel");
+header("SessionStart: config-sentinel");
 {
   const SENTINEL = path.join(HOOKS, "config-sentinel.js");
 
@@ -1150,7 +1150,7 @@ header("SessionStart -- config-sentinel");
   );
 
   // Neither the installer nor the daemon spells it this way, so a header that
-  // only looks like the broker's earns no exemption -- not even beside the real
+  // only looks like the broker's earns no exemption, not even beside the real
   // one, where the server is genuinely brokered and the exemption does apply to
   // its neighbour.
   fake = makeConfig(wired, {
@@ -1177,7 +1177,7 @@ header("SessionStart -- config-sentinel");
     fs.rmSync(home, { recursive: true, force: true });
 }
 
-header("UserPromptSubmit -- repo-context");
+header("UserPromptSubmit: repo-context");
 {
   const CONTEXT = path.join(HOOKS, "repo-context.js");
   const cacheHome = fs.mkdtempSync(path.join(os.tmpdir(), "ctxcache-"));
@@ -1234,7 +1234,7 @@ header("UserPromptSubmit -- repo-context");
   fs.rmSync(outerHome, { recursive: true, force: true });
 }
 
-header("ccfg -- secret migration and doctor");
+header("ccfg: secret migration and doctor");
 {
   const CCFG = path.join(HOOKS, "..", "tools", "ccfg.js");
   const PLAINTEXT = "ctx7sk-" + "b".repeat(30);
@@ -1367,7 +1367,7 @@ header("ccfg -- secret migration and doctor");
   fs.rmSync(home, { recursive: true, force: true });
 }
 
-header("PostToolUse(Bash) -- evidence log is size-capped");
+header("PostToolUse(Bash): evidence log is size-capped");
 {
   const EVIDENCE = path.join(HOOKS, "evidence-log.js");
   const cappedDir = fs.mkdtempSync(path.join(os.tmpdir(), "evcap-"));
@@ -1416,7 +1416,7 @@ header("PostToolUse(Bash) -- evidence log is size-capped");
   fs.rmSync(cappedDir, { recursive: true, force: true });
 }
 
-header("ccfg -- clean, backup and install");
+header("ccfg: clean, backup and install");
 {
   const CCFG = path.join(HOOKS, "..", "tools", "ccfg.js");
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "ccfgops-"));
@@ -1578,7 +1578,7 @@ header("ccfg -- clean, backup and install");
   fs.rmSync(home, { recursive: true, force: true });
 }
 
-header("ccfg -- secrets never reach argv, and backups get scrubbed");
+header("ccfg: secrets never reach argv, and backups get scrubbed");
 {
   const CCFG = path.join(HOOKS, "..", "tools", "ccfg.js");
   const LIVE_KEY = "ctx7sk-" + "c".repeat(30);
@@ -1592,8 +1592,8 @@ header("ccfg -- secrets never reach argv, and backups get scrubbed");
       mcpServers: { context7: { headers: { CONTEXT7_API_KEY: LIVE_KEY } } },
     }),
   );
-  // A backup taken while the key was still plaintext -- the case migration alone
-  // cannot fix, because it rewrites only the live file.
+  // A backup taken while the key was still plaintext, which the case migration
+  // alone cannot fix, because it rewrites only the live file.
   const staleBackup = path.join(configDir, "backups", "old", "claude.json");
   fs.writeFileSync(
     staleBackup,
@@ -1729,7 +1729,7 @@ header("ccfg -- secrets never reach argv, and backups get scrubbed");
   fs.rmSync(home, { recursive: true, force: true });
 }
 
-header("Credential reads -- the Read deny rules do not bind Bash");
+header("Credential reads: the Read deny rules do not bind Bash");
 
 // The point of this block: `permissions.deny` entries only constrain the Read
 // tool. Every one of these reaches the same file through a shell instead.
@@ -1824,7 +1824,7 @@ for (const [label, command] of [
   check("the per-invocation escape works", verdict, "allow", reason);
 }
 
-header("Malformed input -- must never block");
+header("Malformed input: must never block");
 for (const [label, payload] of [
   ["empty object", {}],
   ["no tool_input", { tool_name: "Bash" }],

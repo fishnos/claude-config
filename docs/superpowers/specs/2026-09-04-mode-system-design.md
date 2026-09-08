@@ -22,7 +22,7 @@ Collapse" (arXiv:2608.02639) stacks up to 24 verifier-checked instructions again
 Claude Sonnet 4.6, GPT-5-mini and Gemini 2.5 Flash. Follow rate falls from ~96%
 with a single instruction to as low as 20% under stacking. The mechanism is a
 structured, reproducible set of pairwise conflicts rather than context length
-alone -- one "output JSON" constraint is jointly unsatisfiable with nine others.
+alone, since one "output JSON" constraint is jointly unsatisfiable with nine others.
 
 **The remedy is capability-dependent, and this cuts against the design.** The same
 paper tests an instruction compiler that rewrites a stacked prompt in one call.
@@ -31,7 +31,7 @@ essentially no improvement. This config runs Opus 5. We should therefore expect 
 *smaller* adherence gain from rule selection than the headline number suggests,
 and possibly none.
 
-This does not sink the design -- pairwise conflict is real, and rules written for
+This does not sink the design, because pairwise conflict is real, and rules written for
 production code genuinely do conflict with rules for a throwaway spike. It does
 mean the payoff must be measured rather than assumed, and that adherence may not
 be where the win shows up. Latency, token cost, and the ability to reach postures
@@ -52,7 +52,7 @@ config), `kubectl` contexts (a named, switchable active context), and `rustup`
 profiles (named presets over a component set: minimal/default/complete) are the
 closest analogues. All three share a property worth copying: the active selection
 is a single named thing, cheap to query, and cheap to change. OPA contributes the
-precedence discipline -- specific rules override general ones, and conflicts are
+precedence discipline: specific rules override general ones, and conflicts are
 resolved by an explicit documented order rather than file load order.
 
 ## Vocabulary
@@ -74,7 +74,7 @@ no shorthand, no numeric levels.
 | How do I talk? | `voice` | `caveman` / `normal` / `prose` |
 
 `verify` and `claims` are independent on purpose. `verify: none, claims: labeled`
-is the spike posture -- an explicitly unverified answer, honestly labelled. No
+is the spike posture, an explicitly unverified answer honestly labelled. No
 single setting expresses that.
 
 ## Rule corpus
@@ -89,8 +89,8 @@ setting: claims
 min: labeled
 ---
 A claim about performance, runtime behaviour, or what code does is worth exactly
-what produced it. Measured -- a command ran and its output is in this
-conversation. Assumed -- read from code, inferred, or remembered. Say which.
+what produced it. Measured: a command ran and its output is in this
+conversation. Assumed: read from code, inferred, or remembered. Say which.
 ```
 
 The active rule set is computed, never authored. This is what makes modes
@@ -105,10 +105,10 @@ threshold, so it can no longer tax every task by default.
 
 Later layers win. Documented, not emergent from file order.
 
-1. **Core** -- rules and hooks belonging to no mode. Always active.
-2. **Personal mode** -- `~/.claude/modes/<name>.yaml`
-3. **Repo mode** -- `<repo>/.claude/modes/<name>.yaml`, overrides a personal mode of the same name
-4. **Ad-hoc override** -- `ccfg mode set verify=prove-it`, one setting, current session only
+1. **Core**: rules and hooks belonging to no mode. Always active.
+2. **Personal mode**: `~/.claude/modes/<name>.yaml`
+3. **Repo mode**: `<repo>/.claude/modes/<name>.yaml`, overrides a personal mode of the same name
+4. **Ad-hoc override**: `ccfg mode set verify=prove-it`, one setting, current session only
 
 `<repo>/.claude/mode` names the repo's default mode and is entered on session start.
 
@@ -158,15 +158,15 @@ may override it. The subagent's rendered rule set is prepended to its prompt.
 
 **Replace, do not inherit.** A subagent's rules are exactly its own mode's rules.
 Nothing leaks down from the parent. Inheritance is how a search agent ends up
-carrying commit-hygiene rules it can never use -- a live defect today. The cost is
+carrying commit-hygiene rules it can never use, which is a live defect today. The cost is
 that some rules are duplicated across modes; that is cheaper than debugging an
 inherited gate nobody intended.
 
 ## Application, and mode visibility
 
 `CLAUDE.md` loads once per session, so file rewriting alone would require a
-restart per switch. Instead the `UserPromptSubmit` hook -- already registered in
-this config -- reads `mode.lock` and injects the rendered rule set every turn.
+restart per switch. Instead the `UserPromptSubmit` hook, already registered in
+this config, reads `mode.lock` and injects the rendered rule set every turn.
 
 Three consequences, all wanted. Switches take effect immediately. The posture
 survives compaction, unlike anything loaded once at session start. And the mode is
@@ -183,7 +183,7 @@ the mode only at switch time is precisely the failure Norman documents.
   rules/<id>.md              atomic rules with setting frontmatter
   modes/<name>.yaml          personal modes
   modes/proposed/<id>.yaml   agent-writable; never auto-applied
-  rules/_active.md           GENERATED -- rendered rule set
+  rules/_active.md           GENERATED: rendered rule set
   mode.lock                  active mode, resolved settings, backup ref
 <repo>/.claude/
   modes/<name>.yaml          project modes
@@ -264,7 +264,7 @@ Because settings are ordinal, the interesting run is not an A/B but a
 values, and find where rigour stops paying. That is the question this config has
 never been able to ask.
 
-Graders must be deterministic wherever possible -- did the named command run, did
+Graders must be deterministic wherever possible: did the named command run, did
 every DOI resolve, did the ledger file appear, did the skill fire. An LLM judge
 stacks its own variance on top of the agent's.
 

@@ -8,10 +8,11 @@
 // correction. Either the judge reads something none of those capture, or it is
 // right for a reason that is not the posture.
 //
-// So ask it. Collect a one-line reason with every verdict, count what the reasons
-// name, and hand the top answers back as candidate metrics. This does not prove
-// anything on its own -- a stated reason is a report, not a mechanism -- which is
-// why the output is a list of things to go and measure.
+// Asking it is the cheap move. Collect a one-line reason with every verdict,
+// count what the reasons name, and hand the top answers back as candidate
+// metrics. The count proves nothing on its own, because a stated reason is a
+// report rather than a mechanism, and so the output is a list of things to go
+// and measure.
 
 const fs = require("fs");
 const os = require("os");
@@ -131,7 +132,7 @@ module.exports = {
       pass: null,
       answer: `${correct}/${scored} correct; reasons cluster on ${ranked.slice(0, 3).map(([theme]) => theme).join(", ")}`,
       evidence:
-        "a stated reason is a report, not a mechanism -- these are the next things to measure, not findings",
+        "a stated reason is a report, not a mechanism; these are the next things to measure, not findings",
     };
   },
 };

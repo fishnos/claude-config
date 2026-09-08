@@ -31,7 +31,7 @@ while [ $# -gt 0 ]; do
         --remove-legacy-alias) remove_legacy_alias=yes ;;
         --help|-h)
             cat <<'HELP'
-claude-sol bootstrap — make claude-sol work on this machine
+claude-sol bootstrap: make claude-sol work on this machine
 
   sh bootstrap.sh [options]
 
@@ -68,7 +68,7 @@ elif [ "$install_claude_when_missing" -eq 0 ]; then
 
     exit 1
 else
-    printf 'not found — installing claude code...\n'
+    printf 'not found; installing claude code...\n'
 
     if sol_has_command curl; then
         if sol_has_command bash; then
@@ -79,7 +79,7 @@ else
     elif sol_has_command npm; then
         npm install -g @anthropic-ai/claude-code
     else
-        printf 'neither curl nor npm is available — install claude code manually, then rerun.\n' >&2
+        printf 'neither curl nor npm is available; install claude code manually, then rerun.\n' >&2
 
         exit 1
     fi
@@ -90,7 +90,7 @@ else
     claude_binary=$(sol_find_claude_binary || true)
 
     if [ -z "$claude_binary" ]; then
-        printf 'install finished but claude is still not on PATH — open a new shell and rerun.\n' >&2
+        printf 'install finished but claude is still not on PATH; open a new shell and rerun.\n' >&2
 
         exit 1
     fi
@@ -110,13 +110,13 @@ else
     case $preferred_backend in
         keychain) printf 'this machine will use the macos keychain.\n' ;;
         secret-service) printf 'this machine will use the desktop keyring (secret service).\n' ;;
-        file) printf 'no secure keyring detected — falling back to a mode-600 file at %s\n' "$(sol_credentials_file)" ;;
+        file) printf 'no secure keyring detected; falling back to a mode-600 file at %s\n' "$(sol_credentials_file)" ;;
     esac
 
     entered_key=$(sol_prompt_key 'enter openrouter api key (input hidden): ')
 
     if [ -z "$entered_key" ]; then
-        printf 'no key entered — aborting.\n' >&2
+        printf 'no key entered; aborting.\n' >&2
 
         exit 1
     fi
@@ -127,11 +127,11 @@ else
     if [ "$validation_status" -eq 0 ]; then
         printf 'openrouter accepted the key.\n'
     elif [ "$validation_status" -eq 1 ]; then
-        printf 'openrouter rejected that key (401/403) — nothing stored.\n' >&2
+        printf 'openrouter rejected that key (401/403); nothing stored.\n' >&2
 
         exit 1
     else
-        printf 'could not verify the key against openrouter — storing it anyway.\n'
+        printf 'could not verify the key against openrouter; storing it anyway.\n'
     fi
 
     chosen_backend=$(sol_write_key "$entered_key")
@@ -250,7 +250,7 @@ else
             printf 'cleaned %s (backup: %s)\n' "$legacy_file" "$backup_path"
         done
 
-        printf 'the old key is still in shell history and in that backup — rotate it at openrouter if you want it dead.\n'
+        printf 'the old key is still in shell history and in that backup; rotate it at openrouter if you want it dead.\n'
     else
         printf 'left in place. your key stays in plaintext on disk until you remove it.\n'
     fi

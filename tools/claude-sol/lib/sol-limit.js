@@ -53,7 +53,7 @@ function fail(message) {
 
 async function readCurrentKey() {
     if (!inferenceKey) {
-        fail('no openrouter api key available — run claude-sol --sol-setup')
+        fail('no openrouter api key available; run claude-sol --sol-setup')
     }
 
     const { status, payload } = await callApi('GET', '/v1/key', inferenceKey)
@@ -71,7 +71,7 @@ async function resolveKeyHash(currentKey) {
     }
 
     if (!provisioningKey) {
-        fail('raising or resetting the limit needs a provisioning key — run claude-sol --sol-provision-setup')
+        fail('raising or resetting the limit needs a provisioning key; run claude-sol --sol-provision-setup')
     }
 
     const { status, payload } = await callApi('GET', '/v1/keys', provisioningKey)
@@ -91,7 +91,7 @@ async function resolveKeyHash(currentKey) {
         return keys[0].hash
     }
 
-    fail('could not tell which of ' + keys.length + ' keys is in use — set CLAUDE_SOL_KEY_HASH in ~/.config/claude-sol/config')
+    fail('could not tell which of ' + keys.length + ' keys is in use; set CLAUDE_SOL_KEY_HASH in ~/.config/claude-sol/config')
 }
 
 function readState() {

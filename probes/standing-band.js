@@ -11,8 +11,8 @@
 // without being active.
 //
 // Two questions, one test each:
-//   1. spike vs spike-only  -- does removing the standing band change the output?
-//   2. spike-only vs ship-only -- do modes still diverge once nothing is shared?
+//   1. spike vs spike-only:    does removing the standing band change the output?
+//   2. spike-only vs ship-only: do modes still diverge once nothing is shared?
 
 const fs = require("fs");
 const path = require("path");
@@ -90,7 +90,7 @@ module.exports = {
     return {
       pass: banded.controlSane && dropped.controlSane ? banded.discriminates : null,
       answer: banded.discriminates
-        ? "the standing band changes the output -- it is not inert"
+        ? "the standing band changes the output, so it is not inert"
         : "output with and without the standing band is indistinguishable",
       evidence: banded.discriminates
         ? "never-drop preserves rules that still act, so the safety property is real"

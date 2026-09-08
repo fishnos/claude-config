@@ -1,6 +1,6 @@
 # ccfg
 
-`tools/ccfg.js` manages this configuration. Zero dependencies on purpose — it has to run on a machine where nothing is installed yet, which is exactly when setup tooling is most needed. `install` puts a `ccfg` shim in `~/.local/bin`.
+`tools/ccfg.js` manages this configuration. Zero dependencies on purpose, because it has to run on a machine where nothing is installed yet, which is exactly when setup tooling is most needed. `install` puts a `ccfg` shim in `~/.local/bin`.
 
 | Command             | Does                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------- |

@@ -1,6 +1,6 @@
 "use strict";
 
-// `ccfg broker install|status|uninstall` -- stands the credential broker up.
+// `ccfg broker install|status|uninstall`: stands the credential broker up.
 //
 // The broker only helps if the account it runs as is one this user cannot
 // reach. Every step here exists to keep that true, and the install refuses
@@ -34,7 +34,7 @@ const INSTALLED_NODE = path.join(LIBEXEC, "node");
  * A daemon is only as isolated as the binary it executes. Homebrew installs
  * into a prefix owned by the logged-in user, so pointing launchd at
  * /opt/homebrew/bin/node would let this user replace the interpreter and have
- * it run as the broker account -- reading the very config the account exists to
+ * it run as the broker account, reading the very config the account exists to
  * protect. Ownership of every ancestor matters too: write access to a parent
  * directory is write access to what it contains.
  */
@@ -70,7 +70,7 @@ function selfContained(binary) {
  *
  * A Homebrew node resolves its dylibs out of the Homebrew prefix, so copying
  * the binary alone produces a daemon that dies at exec with a linker error.
- * Official builds -- which is what nvm installs -- depend only on system
+ * Official builds, which is what nvm installs, depend only on system
  * libraries, so one file is the whole interpreter.
  */
 function candidateInterpreters() {
@@ -402,7 +402,7 @@ function commandBrokerInstall(argv, io) {
   );
 
   // Everything above is inert until this runs: while the keychain entries
-  // remain, this user -- and so the agent -- can still read the keys, and the
+  // remain, this user (and so the agent) can still read the keys, and the
   // broker is an extra hop rather than a boundary.
   console.log(`\n  ${io.bold("Seal")}`);
   console.log(
@@ -494,7 +494,7 @@ function commandBrokerStatus(argv, io) {
     fs.readFileSync(CONFIG_FILE, "utf8");
     io.problem(
       "this user can read the broker config",
-      "the keys are not actually isolated -- check ownership on " + CONFIG_FILE,
+      "the keys are not actually isolated; check ownership on " + CONFIG_FILE,
     );
   } catch {
     io.ok("broker config is unreadable by this user", "as intended");

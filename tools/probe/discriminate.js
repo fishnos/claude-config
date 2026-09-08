@@ -4,7 +4,7 @@
 // an output?
 //
 // Extracted because every remaining question about the mode system is the same
-// question -- do these two things differ -- and a single-axis metric answers only
+// question, whether these two things differ, and a single-axis metric answers only
 // "do they differ on the axis I guessed". Discrimination uses every signal at
 // once and costs one test rather than one per axis.
 //

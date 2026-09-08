@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// ccfg -- manage this Claude Code configuration.
+// ccfg: manage this Claude Code configuration.
 //
 // Zero dependencies on purpose: this has to run on a machine where nothing is
 // installed yet, which is exactly when setup tooling is most needed.
@@ -32,15 +32,15 @@ const KEYCHAIN_SERVICE = process.env.CCFG_KEYCHAIN_SERVICE || "ccfg";
 
 // Every MCP secret this config knows how to manage, and where it lives inside
 // ~/.claude.json. Adding a server here is all it takes for the whole toolchain
-// -- migrate, check, install -- to cover it.
+// (migrate, check, install) to cover it.
 const MANAGED_SECRETS = [
   {
     variable: "STITCH_API_KEY",
     server: "stitch",
     location: ["headers", "X-Goog-Api-Key"],
     describe: "Google Stitch API key",
-    // Checked before storing. Without this, a value typed at the wrong prompt
-    // -- a passphrase, a username, an empty paste -- is filed as a credential
+    // Checked before storing. Without the check, a value typed at the wrong
+    // prompt (a passphrase, a username, an empty paste) is filed as a credential
     // and only surfaces later as an auth failure with no obvious cause.
     pattern: /^AQ\.[A-Za-z0-9._~-]{30,}$/,
     shape: "AQ. followed by 30+ characters",
@@ -49,7 +49,7 @@ const MANAGED_SECRETS = [
     // Supersedes MAGIC_API_KEY: @21st-dev/magic is a compatibility proxy for
     // old configs and its keys were reset upstream, so every old key now 401s.
     // `npx @21st-dev/cli login` writes a token to ~/.config/21st/auth.json that
-    // authenticates this endpoint directly -- no separate key to issue.
+    // authenticates this endpoint directly, so there is no separate key to issue.
     variable: "API_KEY_21ST",
     server: "21st",
     location: ["headers", "x-api-key"],
@@ -187,8 +187,8 @@ function keychainSet(variable, value) {
     throw new Error(`${variable} contains a newline and cannot be stored`);
 
   // `security -i` takes its command line on stdin, which is what keeps the
-  // secret out of argv -- argv is readable via `ps` by any same-uid process for
-  // the life of the call.
+  // secret out of argv, because argv is readable via `ps` by any same-uid
+  // process for the life of the call.
   //
   // The obvious alternative, piping the value into a bare
   // `add-generic-password -w`, is silently wrong: when a controlling terminal
@@ -260,7 +260,7 @@ function secretStore(variable, value, backend) {
  * Render a secret as an identifying hint, never as recoverable material.
  *
  * The 8 revealed characters are only a hint on a long random key. On a short
- * value they are most of it -- and a short value in this store is, by
+ * value they are most of it, and a short value in this store is, by
  * definition, something that failed to be an API key.
  */
 function maskSecret(value) {
@@ -314,7 +314,7 @@ function commandKeysList() {
     const backing = stored.value
       ? `${stored.source} ${dim(maskSecret(stored.value))}` +
         (route
-          ? yellow("  -- also still readable by you; ccfg broker seal")
+          ? yellow("  also still readable by you; ccfg broker seal")
           : "")
       : route
         ? green("held by the broker")
@@ -379,7 +379,7 @@ function readSecretFromStdin() {
 // replacement rather than a bare "unknown variable".
 const RETIRED_VARIABLES = {
   MAGIC_API_KEY:
-    "API_KEY_21ST -- @21st-dev/magic was retired upstream and its keys reset",
+    "API_KEY_21ST: @21st-dev/magic was retired upstream and its keys reset",
 };
 
 /** Collapse a name so realistic typos compare equal: case, dashes, spacing. */
@@ -472,7 +472,7 @@ function commandKeysSet(argv) {
   }
 
   // Checked before prompting, because the interesting failure is transposing
-  // the arguments -- `ccfg keys set <the-key-itself>`. Prompting for a value to
+  // the arguments, as in `ccfg keys set <the-key-itself>`. Prompting for a value to
   // file under a name that is itself a live credential buries the mistake
   // instead of reporting it.
   const rejection = variableRejection(variable);
@@ -660,12 +660,12 @@ function commandKeysMigrate(argv) {
     const raw = rawConfiguredValue(claudeJson, secret);
     if (raw === undefined) {
       console.log(
-        `  ${dim("skip")} ${secret.variable} -- server "${secret.server}" not configured`,
+        `  ${dim("skip")} ${secret.variable}: server "${secret.server}" not configured`,
       );
       continue;
     }
     if (PLACEHOLDER.test(String(raw))) {
-      console.log(`  ${green("done")} ${secret.variable} -- already indirect`);
+      console.log(`  ${green("done")} ${secret.variable}: already indirect`);
       continue;
     }
     pending.push({ secret, value: String(raw) });
@@ -691,7 +691,7 @@ function commandKeysMigrate(argv) {
     const stored = secretLookup(secret.variable);
     if (stored.value && stored.value !== value) {
       console.log(
-        `  ${yellow("keep")} ${secret.variable} -- a different value is already in ${stored.source};\n` +
+        `  ${yellow("keep")} ${secret.variable}: a different value is already in ${stored.source};\n` +
           "       leaving it alone and only rewriting the placeholder",
       );
     } else {
@@ -712,7 +712,7 @@ function commandKeysMigrate(argv) {
         "These keys were plaintext on disk. Rotate them at the provider, then re-run\n",
       ) +
       bold(
-        "`ccfg keys set <VAR>` and paste the new one -- migration is not rotation.",
+        "`ccfg keys set <VAR>` and paste the new one. Migration is not rotation.",
       ),
   );
   commandShellInit([]);
@@ -746,7 +746,7 @@ function writeShellInit() {
   );
   // A brokered secret is deliberately absent from this machine's keychain, so
   // looking it up would spawn a `security` call per launch to produce an empty
-  // string -- and would quietly re-export the key on any machine that still had
+  // string, and would quietly re-export the key on any machine that still had
   // one, defeating the move.
   const claudeJson = readJson(CLAUDE_JSON);
   const supplied = MANAGED_SECRETS.filter(
@@ -787,8 +787,8 @@ function profileBlock(file) {
  * Profiles to wire, in the order a shell reads them.
  *
  * Only files that already exist are touched, except for the current shell's
- * own profile, which is created if absent -- a machine with no ~/.zshrc is a
- * fresh one, which is exactly the case this is meant to serve.
+ * own profile, which is created if absent. A machine with no ~/.zshrc is a
+ * fresh one, and a fresh machine is exactly the case this is meant to serve.
  */
 function shellProfileTargets() {
   const home = os.homedir();
@@ -976,7 +976,7 @@ function commandDoctor() {
   const denyCount = (permissions.deny || []).length;
   if (allowCount === 0)
     warn(
-      "no allow rules -- every read-only command goes through a prompt",
+      "no allow rules, so every read-only command goes through a prompt",
       "see README",
     );
   else ok(`${allowCount} allow rules`);
@@ -986,7 +986,7 @@ function commandDoctor() {
   if (denyProtectsReads)
     ok(`${denyCount} deny rules, credential files covered`);
   else
-    problem("no Read() denies -- .env and ssh keys are readable", "see README");
+    problem("no Read() denies, so .env and ssh keys are readable", "see README");
 
   heading("Startup cost");
   const servers = (claudeJson && claudeJson.mcpServers) || {};
@@ -1054,7 +1054,7 @@ function commandClean(argv) {
     const idleDays =
       (Date.now() - fs.statSync(file).mtimeMs) / (24 * 60 * 60 * 1000);
     if (idleDays < 7) {
-      console.log(`  ${dim("skip")} ${name} -- written to in the last 7 days`);
+      console.log(`  ${dim("skip")} ${name}: written to in the last 7 days`);
       continue;
     }
     console.log(`  archive ${name} ${dim(bytesToHuman(size))} -> ${name}.gz`);
@@ -1165,7 +1165,7 @@ function commandEvidence(argv) {
     })
     .filter(Boolean);
 
-  heading(`Commands run -- session ${chosen.name.replace(/\.jsonl$/, "")}`);
+  heading(`Commands run in session ${chosen.name.replace(/\.jsonl$/, "")}`);
   // An unknown exit status renders as "?" and never as "ok". Showing success for
   // something never observed is the exact confusion this log exists to prevent.
   const describeStatus = (entry) => {
@@ -1194,7 +1194,7 @@ function commandEvidence(argv) {
   if (unknown > 0)
     console.log(
       dim(
-        `  ${unknown} with no exit status -- this harness does not report one.\n` +
+        `  ${unknown} with no exit status, which this harness does not report.\n` +
           "  A recorded command means it ran, not that it succeeded.",
       ),
     );
@@ -1363,12 +1363,12 @@ const COMMANDS = {
 
 function commandHelp() {
   console.log(`
-${bold("ccfg")} -- manage this Claude Code configuration
+${bold("ccfg")}: manage this Claude Code configuration
 
   ${bold("doctor")}              health check: secrets, hooks, permissions, startup cost, disk
   ${bold("mode")}                active mode, its seven dials, and whether it is corrupted
   ${bold("mode list")}           every mode with its codename and what it gates
-  ${bold("mode")} NAME           switch to it -- rules and tools change now, skills
+  ${bold("mode")} NAME           switch to it: rules and tools change now, skills
                       and model at the next session (diff A B | revert)
   ${bold("install")}             put ccfg on PATH and wire your shell (--no-shell to skip)
   ${bold("keys list")}           show every managed secret and where its value comes from

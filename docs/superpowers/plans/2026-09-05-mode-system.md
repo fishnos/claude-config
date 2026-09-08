@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship a mode system for this config where switching a mode reorders which rules the model reads first, projects a posture onto `settings.json`, and stays visible at all times -- driven by `ccfg mode`.
+**Goal:** Ship a mode system for this config where switching a mode reorders which rules the model reads first, projects a posture onto `settings.json`, and stays visible at all times, all driven by `ccfg mode`.
 
-**Architecture:** Seven ordinal settings (`verify`, `claims`, `process`, `autonomy`, `code`, `subagents`, `voice`) describe a posture. Ten named modes are points in that space. A rule corpus of atomic markdown files each declare which setting governs them and at which value they become primary. Switching a mode re-sorts the corpus into `rules/_active.md` -- primary band first, everything else below, **nothing ever dropped** -- and projects the mode's `settings.json` keys. A `UserPromptSubmit` hook re-injects the rendered rules every turn, so a switch takes effect without a restart and the primary band lands at the freshest context position on every prompt.
+**Architecture:** Seven ordinal settings (`verify`, `claims`, `process`, `autonomy`, `code`, `subagents`, `voice`) describe a posture. Ten named modes are points in that space. A rule corpus of atomic markdown files each declare which setting governs them and at which value they become primary. Switching a mode re-sorts the corpus into `rules/_active.md` (primary band first, everything else below, **nothing ever dropped**) and projects the mode's `settings.json` keys. A `UserPromptSubmit` hook re-injects the rendered rules every turn, so a switch takes effect without a restart and the primary band lands at the freshest context position on every prompt.
 
 **Tech Stack:** Node (whatever `/opt/homebrew/bin/node` is; currently 26.7.0), zero third-party dependencies, CommonJS. New modules under `tools/modes/`, tests in `tools/test-modes.js` mirroring the assertion style of `tools/test-ccfg.js`.
 
@@ -14,7 +14,7 @@
 
 - **The corpus lives under `modes/`, never in `rules/`.** The harness auto-loads
   every `~/.claude/rules/*.md` as a global instruction, so a corpus placed there
-  would load in full, in fixed order, every session, regardless of mode -- and
+  would load in full, in fixed order, every session, regardless of mode, and
   would double against the hook's injection. Found by running Task 5, not by
   reading.
 - **`autonomy` is ordered `just-go` -> `check-in` -> `ask-first`**, the same
@@ -26,12 +26,12 @@
   primary.
 
 - **Zero dependencies.** `ccfg` must run on a machine where nothing is installed. No `npm install`, no YAML library, no argument parser. Node stdlib only.
-- **Mode files are JSON, not YAML** -- a deliberate deviation from the spec, which said `.yaml`. Hand-rolling a YAML subset is a new failure surface for no gain, and every other config file here (`settings.json`, `~/.claude.json`) is JSON. Rule frontmatter is a fixed three-key header parsed by regex, not YAML.
+- **Mode files are JSON, not YAML**, a deliberate deviation from the spec, which said `.yaml`. Hand-rolling a YAML subset is a new failure surface for no gain, and every other config file here (`settings.json`, `~/.claude.json`) is JSON. Rule frontmatter is a fixed three-key header parsed by regex, not YAML.
 - **Never delete a rule.** The renderer sorts; it never filters. `primary.length + standing.length === corpus.length` is an invariant with a test.
 - **Core hooks are untouchable.** `git-guard.js` (enforces never-commit / never-push / no `--no-verify`) and `config-sentinel.js` (config drift) are active in every mode. A mode that disables one is refused by `ccfg mode` and flagged by `ccfg doctor`.
 - **No new vocabulary.** One word for the concept: **mode**. Setting values are plain English (`prove-it`, `just-go`, `ask-first`). No numeric levels, no coined nouns.
-- **No emoji anywhere**, including the banner -- the config's own frontend rule forbids emoji-as-icon and this config publishes to a public repo.
-- **Naming is spelled out**: `configuration` not `cfg`, `settings` not `s`, `index` not `i` except as a loop counter. This is measured -- the F6 probe put the violation rate at 0% when this rule is read early and 46% when absent.
+- **No emoji anywhere**, including the banner, because the config's own frontend rule forbids emoji-as-icon and this config publishes to a public repo.
+- **Naming is spelled out**: `configuration` not `cfg`, `settings` not `s`, `index` not `i` except as a loop counter. This is measured: the F6 probe put the violation rate at 0% when this rule is read early and 46% when absent.
 - **Every module honours `CLAUDE_CONFIG_DIR`.** Tests run against a temp directory; a suite that edits the operator's real config to prove it can edit config is not a test.
 - **No commit steps in this plan.** The operator's working agreement is "Never commit, never push." Each task ends by running the suite; landing the work is theirs.
 
@@ -170,7 +170,7 @@ process.exit(failed === 0 ? 0 : 1);
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `Cannot find module './modes/settings.js'`
+Expected: FAIL with `Cannot find module './modes/settings.js'`
 
 - [ ] **Step 3: Write the implementation**
 
@@ -361,7 +361,7 @@ The exact-string assertions call `parseRule` directly, because `loadCorpus` repo
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `Cannot find module './modes/rules.js'`
+Expected: FAIL with `Cannot find module './modes/rules.js'`
 
 - [ ] **Step 3: Write the implementation**
 
@@ -462,7 +462,7 @@ Expected: `PASS 18  FAIL 0`
 
 ---
 
-### Task 3: Renderer -- sorts, never filters
+### Task 3: Renderer that sorts and never filters
 
 **Files:**
 
@@ -566,7 +566,7 @@ check(
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `Cannot find module './modes/render.js'`
+Expected: FAIL with `Cannot find module './modes/render.js'`
 
 - [ ] **Step 3: Write the implementation**
 
@@ -582,9 +582,9 @@ Create `tools/modes/render.js`:
 // line 145 by 26 percentage points, and matched a 22-line prompt containing
 // nothing else. Burial was worse than absence for at least one rule.
 //
-// So a mode re-sorts the corpus and never removes from it. Nothing is dropped,
-// which means a mode cannot quietly disable a guardrail -- the failure that
-// would make this whole system a liability.
+// A mode therefore re-sorts the corpus and never removes from it. Dropping
+// nothing is what stops a mode from quietly disabling a guardrail, and a
+// guardrail disabled in silence would make this whole system a liability.
 
 const settings = require("./settings.js");
 
@@ -623,7 +623,7 @@ function renderActive(corpusRules, resolvedSettings, modeName) {
 
   const document =
     "<!-- Generated by `ccfg mode`. Edit the rules in rules/, not this file. -->\n" +
-    `<!-- mode: ${modeName} -- ${posture} -->\n\n` +
+    `<!-- mode: ${modeName} (${posture}) -->\n\n` +
     section("Rules for this mode", primary) +
     section("Standing rules", standing);
 
@@ -750,7 +750,7 @@ check(
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `Cannot find module './modes/modes.js'`
+Expected: FAIL with `Cannot find module './modes/modes.js'`
 
 - [ ] **Step 3: Write the implementation**
 
@@ -773,9 +773,9 @@ const settings = require("./settings.js");
 
 // Hooks that belong to no mode and that no mode may switch off. git-guard is
 // what enforces never-commit, never-push and no --no-verify; config-sentinel is
-// what notices the config drifting out from under itself. A mode is a posture,
-// not a permission to remove a safety rail -- so this list is checked before a
-// switch, not after.
+// what notices the config drifting out from under itself. A mode is a posture
+// rather than a permission to remove a safety rail, and so this list is
+// checked before a switch rather than after one.
 const CORE_HOOKS = ["git-guard.js", "config-sentinel.js"];
 
 // Precedence, least to most. Later layers win.
@@ -950,11 +950,11 @@ check(
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `ENOENT` on `~/.claude/modes/spike.json`, and the corpus is empty.
+Expected: FAIL with `ENOENT` on `~/.claude/modes/spike.json`, and the corpus is empty.
 
 - [ ] **Step 3: Extract the corpus**
 
-Split `CLAUDE.md`'s rule text into `~/.claude/rules/*.md`, one rule per file, each with the three-key header. Copy the text **verbatim** -- this task moves rules, it does not rewrite them.
+Split `CLAUDE.md`'s rule text into `~/.claude/rules/*.md`, one rule per file, each with the three-key header. Copy the text **verbatim**, because this task moves rules rather than rewriting them.
 
 Assign the ids, settings and thresholds exactly as follows. Nothing else goes in the corpus; universal rules (communication, explaining, code style, security, data access) stay in `CLAUDE.md`, because a mode must never be able to demote them.
 
@@ -969,7 +969,7 @@ Assign the ids, settings and thresholds exactly as follows. Nothing else goes in
 | `claims-measure-before-ordering.md`     | claims    | sourced    | "Measure before ordering the work."                         |
 | `claims-checkpoint-phases.md`           | claims    | sourced    | "Checkpoint multi-phase work."                              |
 | `process-skills-first.md`               | process   | light      | "Skills are part of the process, not a fallback."           |
-| `process-brainstorm-before-code.md`     | process   | full       | "Anything new or creative -- brainstorming before code"     |
+| `process-brainstorm-before-code.md`     | process   | full       | "Anything new or creative: brainstorming before code"      |
 | `process-written-plan.md`               | process   | full       | "Multi-step work gets a written plan"                       |
 | `process-tdd.md`                        | process   | full       | "Tests first where the behavior is specifiable"             |
 | `process-self-review.md`                | process   | full       | "google-code-review as a self-review pass"                  |
@@ -986,7 +986,7 @@ Assign the ids, settings and thresholds exactly as follows. Nothing else goes in
 | `voice-caveman.md`                      | voice     | caveman    | the Communication section's caveman paragraph               |
 | `voice-lead-with-outcome.md`            | voice     | caveman    | "Before the first tool call... lead with the outcome."      |
 
-The two `subagents` rules sit at `primary_at: none` on purpose. The scale reads "how many subagents", so `none` is its low end, and the rules that hold the line against spawning belong exactly there -- restraint matters most in the mode that says not to spawn any.
+The two `subagents` rules sit at `primary_at: none` on purpose. The scale reads "how many subagents", so `none` is its low end, and the rules that hold the line against spawning belong exactly there, because restraint matters most in the mode that says not to spawn any.
 
 Each file follows this shape:
 
@@ -1000,8 +1000,8 @@ primary_at: labeled
 A claim about performance, runtime behaviour, or what code does is worth exactly
 what produced it. Two states, never a blur between them:
 
-- **Measured** -- a command ran and its output is in this conversation. Name the command.
-- **Assumed** -- read from code, inferred, or remembered. Say "assumed", and say what would settle it.
+- **Measured**: a command ran and its output is in this conversation. Name the command.
+- **Assumed**: read from code, inferred, or remembered. Say "assumed", and say what would settle it.
 ```
 
 - [ ] **Step 4: Write the ten mode files**
@@ -1074,11 +1074,11 @@ Write the remaining eight the same way, taking each row verbatim from the spec's
 Run: `node ~/.claude/tools/test-modes.js`
 Expected: `PASS 53  FAIL 0`
 
-If "under ship every rule is primary" fails, a rule's `primary_at` sits above the value `ship` sets for its setting. Lower the threshold or move the rule to a different setting -- do not weaken the assertion. `ship` is the maximum posture, so a rule it cannot reach is a rule no mode can reach.
+If "under ship every rule is primary" fails, a rule's `primary_at` sits above the value `ship` sets for its setting. Lower the threshold or move the rule to a different setting. Do not weaken the assertion. `ship` is the maximum posture, so a rule it cannot reach is a rule no mode can reach.
 
 ---
 
-### Task 6: `ccfg mode` -- show, list, diff
+### Task 6: `ccfg mode` show, list, and diff
 
 **Files:**
 
@@ -1142,17 +1142,17 @@ check(
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `mode list exits clean` gets `2`, because `mode` is not in `COMMANDS`.
+Expected: FAIL with `mode list exits clean` getting `2`, because `mode` is not in `COMMANDS`.
 
 - [ ] **Step 3: Write the implementation**
 
 Create `tools/modes/command.js` exporting `commandMode(argv, IO)`, dispatching on the first argument:
 
-- no argument, or `show` -- print the active posture: the mode name, all seven settings with their values, the rule band counts, and any ad-hoc overrides on their own line.
-- `list` -- every file in `modes/` with its `description`.
-- `diff a b` -- the two postures side by side. For this task print a plain two-column table; Task 7 replaces it with the banner.
-- a name matching a mode file -- a switch. For this task, exit 2 with `not yet implemented`; Task 8 fills it in.
-- anything else -- exit 2 with `unknown mode: <name>` on stderr.
+- no argument, or `show`: print the active posture: the mode name, all seven settings with their values, the rule band counts, and any ad-hoc overrides on their own line.
+- `list`: every file in `modes/` with its `description`.
+- `diff a b`: the two postures side by side. For this task print a plain two-column table; Task 7 replaces it with the banner.
+- a name matching a mode file: a switch. For this task, exit 2 with `not yet implemented`; Task 8 fills it in.
+- anything else: exit 2 with `unknown mode: <name>` on stderr.
 
 Read modes from `path.join(configDir, "modes")` and the active posture from `mode.lock`, falling back to `settings.DEFAULTS` under the name `(none)`.
 
@@ -1277,7 +1277,7 @@ check(
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `Cannot find module './modes/banner.js'`
+Expected: FAIL with `Cannot find module './modes/banner.js'`
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1324,7 +1324,7 @@ Expected: no stray escapes survive `--plain`.
 
 ---
 
-### Task 8: Switching -- apply, lock, revert
+### Task 8: Switching that applies, locks, and reverts
 
 **Files:**
 
@@ -1449,7 +1449,7 @@ fs.rmSync(applySandbox, { recursive: true, force: true });
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `Cannot find module './modes/apply.js'`
+Expected: FAIL with `Cannot find module './modes/apply.js'`
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1526,13 +1526,13 @@ check(
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `command.parseOverrides is not a function`
+Expected: FAIL with `command.parseOverrides is not a function`
 
 - [ ] **Step 3: Write the implementation**
 
 Add `parseOverrides` to `command.js` and export it. Wire `ccfg mode set k=v ...` to re-apply the mode currently in the lock with the overrides merged in as the `adhoc` layer, recording them in the lock so they survive until the next switch.
 
-`ccfg mode` with no argument reports the overrides on their own line, marked as overrides -- so a posture that is not any named mode never masquerades as one.
+`ccfg mode` with no argument reports the overrides on their own line, marked as overrides, and so a posture that is not any named mode never masquerades as one.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -1623,13 +1623,13 @@ fs.rmSync(hookSandbox, { recursive: true, force: true });
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- the hook file does not exist, so `status` is 1 and `JSON.parse` throws on empty stdout.
+Expected: FAIL, because the hook file does not exist, so `status` is 1 and `JSON.parse` throws on empty stdout.
 
 - [ ] **Step 3: Write the injection hook**
 
-Create `hooks/mode-inject.js` following the shape of `hooks/repo-context.js`: `io.run(() => {...})`, `io.readPayload()`, `io.warn("UserPromptSubmit", context)`. It reads `mode.lock`; when there is none it returns without emitting. It reads `rules/_active.md`, caps it at 64 KB (a runaway corpus must not eat the context window -- truncate with a visible marker), and emits `Mode: <name>\n\n<rendered>`.
+Create `hooks/mode-inject.js` following the shape of `hooks/repo-context.js`: `io.run(() => {...})`, `io.readPayload()`, `io.warn("UserPromptSubmit", context)`. It reads `mode.lock`; when there is none it returns without emitting. It reads `rules/_active.md`, caps it at 64 KB (a runaway corpus must not eat the context window; truncate with a visible marker), and emits `Mode: <name>\n\n<rendered>`.
 
-Unlike `repo-context.js`, this hook does **not** suppress repeat output. Re-asserting the primary band every turn is the mechanism: it is what makes a switch take effect without a restart, what carries the posture through compaction, and what keeps the primary band at the freshest context position -- the position effect the experiments measured.
+Unlike `repo-context.js`, this hook does **not** suppress repeat output. Re-asserting the primary band every turn is the mechanism: it is what makes a switch take effect without a restart, what carries the posture through compaction, and what keeps the primary band at the freshest context position, which is the position effect the experiments measured.
 
 - [ ] **Step 4: Wire it in**
 
@@ -1657,7 +1657,7 @@ The current status line is `npx -y ccstatusline@2.2.27`. Replace it with a wrapp
 }
 ```
 
-Create `hooks/mode-status.js`: read `mode.lock`, print `[<mode>] ` (nothing when there is no lock), then spawn `npx -y ccstatusline@2.2.27` with the same stdin payload and pass its stdout through. If the spawn fails, still print the mode -- a broken status line must not hide which mode is active.
+Create `hooks/mode-status.js`: read `mode.lock`, print `[<mode>] ` (nothing when there is no lock), then spawn `npx -y ccstatusline@2.2.27` with the same stdin payload and pass its stdout through. If the spawn fails, still print the mode, because a broken status line must not hide which mode is active.
 
 - [ ] **Step 6: Run the tests**
 
@@ -1748,13 +1748,13 @@ check("doctor reports the active mode", /mode/i.test(doctored.stdout), true);
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `enableHooks` is ignored, so `review-freeze.js` is absent.
+Expected: FAIL, because `enableHooks` is ignored, so `review-freeze.js` is absent.
 
 - [ ] **Step 3: Write the implementation**
 
 Teach `applyMode` to read `enableHooks` (an object of event -> `{matcher, command}[]`) and splice those entries into `settings.json` alongside the existing ones, marked so `revert` removes exactly them and nothing else. Core hooks are never removed by either path.
 
-Then give the modes their teeth -- this is what makes a mode more than a mood:
+Then give the modes their teeth, which is what makes a mode more than a mood:
 
 - `review` gains a `PreToolUse` hook on `Edit|Write` that denies the call. This doubles the `permissions.deny` from Task 5 on purpose: prose is guidance, a hook is the guarantee.
 - `ship` gains a `Stop` hook that blocks a completion claim until a test command appears in the evidence log for this session.
@@ -1836,11 +1836,11 @@ fs.rmSync(noRepo, { recursive: true, force: true });
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `modes.loadRepoMode is not a function`
+Expected: FAIL with `modes.loadRepoMode is not a function`
 
 - [ ] **Step 3: Write the implementation**
 
-Add both functions to `modes.js`, walking up from `cwd` and stopping at the directory holding `.git`. Bound the walk at 40 levels the way `repo-context.js` does at its `findPackageRoot` -- an unbounded walk escapes into the home directory and applies a stray repo's posture to everything.
+Add both functions to `modes.js`, walking up from `cwd` and stopping at the directory holding `.git`. Bound the walk at 40 levels the way `repo-context.js` does at its `findPackageRoot`, because an unbounded walk escapes into the home directory and applies a stray repo's posture to everything.
 
 Then make `command.js` consult the repo layer on every operation, and extend `hooks/repo-setup.js` (already a `SessionStart` hook) to apply the repo default when one exists and the lock holds no ad-hoc override.
 
@@ -1912,7 +1912,7 @@ check(
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `render.renderForAgent is not a function`
+Expected: FAIL with `render.renderForAgent is not a function`
 
 - [ ] **Step 3: Write the implementation**
 
@@ -2008,7 +2008,7 @@ fs.rmSync(noEval);
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- the guard does not exist, so `JSON.parse` throws on empty stdout.
+Expected: FAIL, because the guard does not exist, so `JSON.parse` throws on empty stdout.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -2020,7 +2020,7 @@ Wire it into `hooks.PreToolUse` with matcher `Write|Edit|NotebookEdit`.
 
 Add `ccfg mode proposals` (list what is in `modes/proposed/`, with the diff each would make against the nearest existing mode) and `ccfg mode accept <id>` (show that diff, require confirmation, then move the file into `modes/`).
 
-`accept` refuses a proposal carrying no `eval` key naming a runnable case. An agent cannot propose a rule without proposing how to falsify it -- which is the same standard the audit behind this design had to meet, and failed to meet on its first attempt.
+`accept` refuses a proposal carrying no `eval` key naming a runnable case. An agent cannot propose a rule without proposing how to falsify it, which is the same standard the audit behind this design had to meet and failed to meet on its first attempt.
 
 Self-switching follows the same boundary: an agent may propose a mode change and must not apply one.
 
@@ -2072,16 +2072,16 @@ check(
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `node ~/.claude/tools/test-modes.js`
-Expected: FAIL -- `prove` is not a subcommand, so the status is 2.
+Expected: FAIL, because `prove` is not a subcommand, so the status is 2.
 
 - [ ] **Step 3: Write the implementation**
 
-`ccfg mode prove <name>` builds and runs `claude plugin eval --ablation with-without --runs N` against `modes/evals/<name>.json`. `--dry-run` prints the command without running it, which is what the test exercises -- a suite that spends real API budget on every run is a suite nobody runs.
+`ccfg mode prove <name>` builds and runs `claude plugin eval --ablation with-without --runs N` against `modes/evals/<name>.json`. `--dry-run` prints the command without running it, which is what the test exercises, because a suite that spends real API budget on every run is a suite nobody runs.
 
 Two guards the harness must carry, both learned the hard way during the work that produced this design, and both non-negotiable:
 
 - **A rate-limit notice is not a model response.** Discard any output matching `session limit|usage limit|rate limit` and exit non-zero, leaving the cell unfilled. An earlier run of exactly this kind was 99% contaminated by limit notices graded as data, and produced a confident finding that had to be retracted.
-- **Read the raw output of the best and worst arms before trusting a result.** A grader that cannot recognise the correct answer produces inverted findings -- which is how the same work came to report that a rule was causing the behaviour it forbade, when the rule was working and the grader was misreading it.
+- **Read the raw output of the best and worst arms before trusting a result.** A grader that cannot recognise the correct answer produces inverted findings, which is how the same work came to report that a rule was causing the behaviour it forbade, when the rule was working and the grader was misreading it.
 
 Write eval suites for `ship` and `spike` first: they are the two extremes and the pair most likely to show a real delta. Because settings are ordinal, the informative run is a dose-response sweep across a setting's three values, not a two-arm A/B.
 
@@ -2101,6 +2101,6 @@ Expected: all green; doctor reports the active mode and no core-hook failure.
 
 Stated so nobody assumes it was covered:
 
-- **No measurement of whether the ten modes differ in outcome.** Task 15 builds the harness; running it is separate work. The evidence behind this design says ordering moves adherence -- it does not say `research` outperforms `build` at research. That is a hypothesis this system makes testable, not one it has tested.
+- **No measurement of whether the ten modes differ in outcome.** Task 15 builds the harness; running it is separate work. The evidence behind this design says ordering moves adherence. It does not say `research` outperforms `build` at research. That is a hypothesis this system makes testable, not one it has tested.
 - **No migration of `CLAUDE.md`.** Task 5 copies rule text into the corpus; it removes nothing from `CLAUDE.md`. Running both means those rules are stated twice. Deciding what leaves `CLAUDE.md` needs its own measurement, because burial was measured to be worse than absence and a wrong cut is a real regression.
 - **Zotero is out of scope entirely**, despite being the origin of this thread. It belongs to the `research` mode's capability set and needs its own design.

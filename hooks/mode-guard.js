@@ -7,11 +7,12 @@
 // re-reads mode.lock on every tool call, so switching to a read-only posture
 // takes hold on the very next action.
 //
-// Measured before it was written: with a gate like this in force the model was
-// refused a Write, did not create the file, and explicitly declined to route
-// around it with a shell command -- "that would have defeated a guard that was
-// deliberately put in place". A denial is a boundary here, not a suggestion,
-// which is what makes gating worth doing at all.
+// Measured before it was written: with a gate like this in force, the model
+// was refused a Write, did not create the file, and explicitly declined to
+// route around the refusal with a shell command, saying "that would have
+// defeated a guard that was deliberately put in place". A denial reads as a
+// boundary here rather than a suggestion, and a boundary is what makes gating
+// worth doing at all.
 //
 // The reason text matters as much as the refusal. It names the mode and says
 // what to do instead, because a bare "denied" invites the model to try the same
@@ -65,7 +66,7 @@ io.run(() => {
       `${label} does not carry ${tool}. ` +
         `Report what you would have done instead of doing it, or ask the ` +
         `operator to switch modes. Do not achieve the same effect through ` +
-        `another tool -- the gate is deliberate.`,
+        `another tool. The gate is deliberate.`,
     );
   }
 });

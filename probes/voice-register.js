@@ -2,7 +2,7 @@
 
 // Does the voice setting do anything?
 //
-// It is the only setting with no evidence behind it whatsoever -- zero trials --
+// It is the only setting with no evidence behind it whatsoever, at zero trials,
 // and it is the one setting that is categorical rather than ordered, so it is
 // also the one whose mechanism is least like the others.
 //

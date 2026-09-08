@@ -3,8 +3,8 @@ description: Judge the current diff against the google-code-review bar and rank 
 argument-hint: "[optional: path, commit range, or area to focus on]"
 ---
 
-Review the change named in `$ARGUMENTS` — or the uncommitted work if that is
-empty — and deliver a verdict.
+Review the change named in `$ARGUMENTS`, or the uncommitted work if that is
+empty, and deliver a verdict.
 
 Judge whether the change improves overall code health, not whether it is
 perfect. Take the dimensions in order: design first, then functionality,
@@ -17,5 +17,5 @@ Label every point so nothing optional reads as mandatory: `Nit:`, `Optional:`,
 is good, not only what is wrong.
 
 End with the two things a verdict is for: whether this should land as it stands,
-and which areas you did not cover. Name the uncovered areas explicitly — a
-review that is silent about its own gaps reads as a review that found none.
+and which areas you did not cover. Name the uncovered areas explicitly, because
+a review that is silent about its own gaps reads as a review that found none.

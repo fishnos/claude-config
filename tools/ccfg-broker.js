@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// ccfg-broker -- holds MCP API keys so the agent never can.
+// ccfg-broker: holds MCP API keys so the agent never can.
 //
 // Runs as a dedicated service account (_ccfgbroker) under launchd. Claude Code
 // points at http://127.0.0.1:<port>/<route> with no credential in its config;
@@ -12,7 +12,7 @@
 //
 // Why a 0600 file rather than the account's keychain: an unattended daemon has
 // to unlock its keychain at boot, which means storing that passphrase beside
-// the ciphertext -- no better than the file, with more moving parts. The
+// the ciphertext, which is no better than the file and has more moving parts. The
 // boundary in both designs is the uid, plus FileVault at rest.
 //
 // Zero dependencies, matching the rest of this config: it must run on a machine
@@ -35,7 +35,7 @@ const UPSTREAM_TIMEOUT_MS = 120000;
 
 // Never forwarded upstream: the caller does not get to choose how this proxy
 // authenticates. Without this, anything on the machine could supply its own
-// credential -- or overwrite ours -- and use the route as an open relay.
+// credential, or overwrite ours, and use the route as an open relay.
 const STRIPPED_REQUEST_HEADERS = new Set([
   "authorization",
   "proxy-authorization",
@@ -74,7 +74,7 @@ function readConfig() {
  * Refuse to start on a route that would leak the key it carries.
  *
  * A plaintext upstream would put the credential on the wire in the clear, and a
- * misconfigured one is not something to discover at request time -- the daemon
+ * misconfigured one is not something to discover at request time. The daemon
  * fails loudly at boot instead, where launchd and `ccfg doctor` will show it.
  */
 function validateRoutes(routes) {
@@ -88,7 +88,7 @@ function validateRoutes(routes) {
   }
 }
 
-/** Log a line with no body, no headers, and no query string -- any of which can carry a secret. */
+/** Log a line with no body, no headers, and no query string, since each of the three can carry a secret. */
 function log(fields) {
   if (process.env.CCFG_BROKER_QUIET === "1") return;
   process.stdout.write(
@@ -142,7 +142,7 @@ function readBody(request, limit) {
         // Buffered chunks are dropped so an oversized upload cannot cost more
         // than the cap, but the stream keeps draining. Destroying the socket
         // here instead would reach the caller as a connection reset rather than
-        // a 413, which reads as "the broker crashed" -- measured, it did.
+        // a 413, which reads as "the broker crashed". Measured: it did.
         overflowed = true;
         chunks.length = 0;
         return;
@@ -219,7 +219,7 @@ function createServer(config) {
     const name = (request.url || "").split("?")[0].replace(/^\/+|\/+$/g, "");
 
     if (name === "health") {
-      // Deliberately reports no secret material -- only whether each route is
+      // Deliberately reports no secret material, only whether each route is
       // configured, which is what a health check needs to be useful.
       response.writeHead(200, { "content-type": "application/json" });
       response.end(

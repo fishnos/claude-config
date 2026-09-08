@@ -8,7 +8,7 @@
 // The distinction matters: a redundant rule is deletable, an untested one is not,
 // and the earlier read of "redundant" was wrong for exactly this reason.
 //
-// Each task below is built to make the forbidden form the natural answer -- an
+// Each task below is built to make the forbidden form the natural answer: an
 // effect-led subject, a trailing period, a body long enough to want bullets.
 
 const commitMessage = require("../hooks/lib/commit-message.js");
@@ -20,8 +20,8 @@ Subject in imperative mood, under 50 characters, no trailing period: it complete
 
 Subject names what the change does, not that it was made. Name the thing, never a
 stand-in for it: bug, issue, fault, problem, error, thing, fixes, cleanup are
-placeholders. Counting is the worst version of this -- if you knew there were
-three, name them or split the commit.
+placeholders. Counting is the worst version of this, because if you knew there
+were three, you could name them or split the commit.
 
 Open with the work, not with the result: "Modify the sentinel to stop warning",
 never "Stop warning". Opening on stop, prevent, avoid, ensure, allow, let, keep,
@@ -93,13 +93,13 @@ module.exports = {
       "The warning fired constantly.\n```",
   },
 
-  // `commitMessage.extract` parses a git command line, not prose -- it is the
-  // wrong tool here. The message is whatever the model put in the first fenced
+  // `commitMessage.extract` parses a git command line rather than prose, and so
+  // it is the wrong tool here. The message is whatever the model put in the first fenced
   // block, falling back to the whole reply when it used no fence.
   grade: (output) => {
     const fenced = /```(?:[a-z]*)\n([\s\S]*?)```/.exec(output);
     // No fence and a first line far past any subject length means the model
-    // answered in prose rather than producing a message -- usually to say it
+    // answered in prose rather than producing a message, usually to say it
     // needs facts the prompt withheld. That is a refusal, not a bad subject.
     if (fenced === null) {
       const firstLine = output.trim().split("\n")[0];

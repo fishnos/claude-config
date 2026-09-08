@@ -33,14 +33,14 @@ const HISTORY = Array.from(
 // Ported verbatim from the harness that measured a 46 percent violation rate
 // with no rule present. The strength is in the surrounding file: every task
 // hands the model a whole module saturated with abbreviations and asks it to add
-// to *that file*, which invites matching the local style. A weaker fixture --
-// two lines and "reply with code only" -- produced 0 percent in every arm
+// to *that file*, which invites matching the local style. A weaker fixture of
+// two lines and "reply with code only" produced 0 percent in every arm
 // including the control, and a floor leaves nothing for a rule to improve.
 // Ported verbatim from the harness that measured a 46 percent violation rate
 // with no rule present. The strength is in the surrounding file: every task
 // hands the model a whole module saturated with abbreviations and asks it to add
-// to *that file*, which invites matching the local style. A weaker fixture --
-// two lines and "reply with code only" -- produced 0 percent in every arm
+// to *that file*, which invites matching the local style. A weaker fixture of
+// two lines and "reply with code only" produced 0 percent in every arm
 // including the control, and a floor leaves nothing for a rule to improve.
 const TASKS = [
   {
@@ -89,9 +89,9 @@ module.exports = {
   arms: {
     // No rule at all. Establishes what the temptation is worth on its own.
     none: "",
-    // Stated once, then buried under history -- a session-start load.
+    // Stated once, then buried under history, as a session-start load does.
     buried: `${RULE}\n\n---\n\nEarlier in this session:\n\n${HISTORY}`,
-    // Same distance, then stated again at the freshest position -- the hook.
+    // Same distance, then stated again at the freshest position, as the hook does.
     reasserted: `${RULE}\n\n---\n\nEarlier in this session:\n\n${HISTORY}\n\n---\n\n${RULE}`,
   },
 

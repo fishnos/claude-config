@@ -142,7 +142,7 @@ function Write-SolApiKey {
     param([Parameter(Mandatory)][string] $ApiKey)
 
     if (-not (Test-SolDpapiSupported)) {
-        throw 'dpapi is only available on windows — use the posix launcher on this platform.'
+        throw 'dpapi is only available on windows; use the posix launcher on this platform.'
     }
 
     $configDirectory = Get-SolConfigDirectory
@@ -289,7 +289,7 @@ function Write-SolProvisioningKey {
     param([Parameter(Mandatory)][string] $ProvisioningKey)
 
     if (-not (Test-SolDpapiSupported)) {
-        throw 'dpapi is only available on windows — use the posix launcher on this platform.'
+        throw 'dpapi is only available on windows; use the posix launcher on this platform.'
     }
 
     $configDirectory = Get-SolConfigDirectory

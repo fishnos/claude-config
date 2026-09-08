@@ -3,8 +3,8 @@
 Status: draft for review. Supersedes `2026-09-04-mode-system-design.md`.
 Date: 2026-09-05. Target model: `claude-opus-5`.
 
-v1 assumed a mode's job was to **select** rules -- load the relevant ones, drop
-the rest -- and treated the adherence benefit as unmeasured. Both assumptions
+v1 assumed a mode's job was to **select** rules, loading the relevant ones and
+dropping the rest, and treated the adherence benefit as unmeasured. Both assumptions
 were wrong. 1,218 trials later the mechanism is **ordering**, and the benefit is
 measured. This version is rebuilt on that.
 
@@ -24,7 +24,7 @@ tasks stratified by change size, deterministic grader
 | full-first | 212 | top | **85%** |
 
 `full-first` vs `full`: +26.0pp, p<0.0001. `full-first` vs `scoped`: +3.1pp,
-p=0.56 -- indistinguishable. **Hoisting the relevant section to the top of the
+p=0.56, indistinguishable. **Hoisting the relevant section to the top of the
 full 211-line prompt fully recovers the benefit of a 22-line prompt, while
 keeping every rule.** Replicated in a second domain (identifier naming under
 priming): 29% violations buried vs 8% early, p=0.0089.
@@ -34,14 +34,14 @@ Burial is worse than absence for at least one rule: body-wrap violations ran
 
 **Rules are load-bearing, but only visible under pressure.** Neutral prompts
 showed zero naming violations in every arm including `bare`, which reads as "the
-rule is redundant". Under realistic pressure -- extend a file that already uses
-`cfg`, `ctx`, `buf` -- `bare` violated 52% and `scoped` 8% (+43.8pp, p<0.0001).
+rule is redundant". Under realistic pressure, extending a file that already uses
+`cfg`, `ctx` and `buf`, `bare` violated 52% and `scoped` 8% (+43.8pp, p<0.0001).
 In the commit domain, six of nine rules had never fired in 210 neutral trials;
 targeted temptation showed `trailing-period` (100% -> 0%) and `body-too-long`
 (63% -> 0%) both strongly load-bearing.
 
 **Consequence for the design: a mode orders, it never deletes.** Nothing is
-dropped, so a mode cannot silently disable a guardrail -- which was v1's main
+dropped, and so a mode cannot silently disable a guardrail, which was v1's main
 risk. It also explains the config's history: CLAUDE.md degraded as it grew not
 because of line count but because new sections pushed older ones into the middle.
 
@@ -67,24 +67,24 @@ no coined vocabulary. One word for the concept: **mode**.
 | How do I talk? | `voice` | `caveman` / `normal` / `prose` |
 
 `verify` and `claims` are independent on purpose: `verify: none, claims: labeled`
-is the spike posture -- an explicitly unverified answer, honestly labelled.
+is the spike posture, an explicitly unverified answer honestly labelled.
 
 ## Rule corpus and rendering
 
 Rules are atomic files. Each declares the setting that governs it and where on
-that setting's scale it becomes **primary** -- `primary_at` for an ordered
+that setting's scale it becomes **primary**: `primary_at` for an ordered
 setting, `only_at` for a categorical one.
 
 Six of the seven settings are ordered least-to-most, so `primary_at: labeled`
 means "at labeled or above". `voice` is the exception: three registers with no
 ladder between them, so a voice rule declares `only_at: caveman` and is primary
 in exactly that register. Building it without this, `voice: normal` still made
-the caveman rules primary -- the opposite of what the mode says.
+the caveman rules primary, the opposite of what the mode says.
 
 The direction of the scale is load-bearing. `autonomy` originally ran
 `ask-first -> just-go`, which put the most careful mode at the bottom of the
 scale and made three restraint rules unreachable in every mode. Ordered the same
-way as the others -- least of the thing, then most -- `ask-first` is the top and
+way as the others, least of the thing and then most, `ask-first` is the top and
 the rules land where they are meant to.
 
 ```markdown
@@ -94,16 +94,16 @@ setting: claims
 primary_at: labeled
 ---
 A claim about performance, runtime behaviour, or what code does is worth exactly
-what produced it. Measured -- a command ran and its output is in this
-conversation. Assumed -- read from code, inferred, or remembered. Say which.
+what produced it. Measured: a command ran and its output is in this
+conversation. Assumed: read from code, inferred, or remembered. Say which.
 ```
 
 **Rendering is a sort, not a filter.** `rules/_active.md` contains every rule,
 in two bands:
 
-1. **Primary** -- rules whose setting is at or above `primary_at` for the active
+1. **Primary**: rules whose setting is at or above `primary_at` for the active
    mode. These go first, in the order the mode declares.
-2. **Standing** -- everything else, unchanged, below.
+2. **Standing**: everything else, unchanged, below.
 
 Nothing is ever omitted. A mode changes which rules the model reads first, which
 is the variable the experiments showed actually moves behaviour.
@@ -130,7 +130,7 @@ Beyond rule order, a mode projects onto keys that already exist in
 **Hooks are what make a mode more than a mood.** `review` blocks Edit and Write
 at `PreToolUse`. `ship` blocks a completion claim at `Stop` until the test
 command has run. `paper` resolves every DOI before a draft returns. `spike` runs
-with most hooks off -- that is where its speed comes from, and it is honest
+with most hooks off, which is where its speed comes from, and it is honest
 about the trade.
 
 **Core hooks belong to no mode and no mode can remove them.** The git guard and
@@ -153,17 +153,17 @@ missing. This is the safety boundary of the system.
 | `unattended` | prove-it | sourced | full | just-go | polished | few | prose |
 | `pair` | run-it | labeled | skip | ask-first | decent | none | caveman |
 
-`unattended` and `pair` differ only in `autonomy` and `voice` -- same task, same
+`unattended` and `pair` differ only in `autonomy` and `voice`: same task, same
 skills, opposite postures. No capability toggle expresses that difference.
 
 ## Scope and resolution
 
 Later layers win; the order is documented rather than emergent from file order.
 
-1. **Core** -- rules and hooks belonging to no mode. Always active.
-2. **Personal mode** -- `~/.claude/modes/<name>.yaml`
-3. **Repo mode** -- `<repo>/.claude/modes/<name>.yaml`, overrides a personal mode of the same name
-4. **Ad-hoc** -- `ccfg mode set verify=prove-it`, one setting, this session only
+1. **Core**: rules and hooks belonging to no mode. Always active.
+2. **Personal mode**: `~/.claude/modes/<name>.yaml`
+3. **Repo mode**: `<repo>/.claude/modes/<name>.yaml`, overrides a personal mode of the same name
+4. **Ad-hoc**: `ccfg mode set verify=prove-it`, one setting, this session only
 
 `<repo>/.claude/mode` names the repo's default, entered on session start. Repo
 modes are committed files, so a team shares one posture.
@@ -171,7 +171,7 @@ modes are committed files, so a team shares one posture.
 ## Application, and mode visibility
 
 `CLAUDE.md` loads once per session, so file rewriting alone would need a restart
-per switch. The `UserPromptSubmit` hook -- already registered here -- reads
+per switch. The `UserPromptSubmit` hook, already registered here, reads
 `mode.lock` and injects the rendered rule set every turn.
 
 Three consequences, all wanted: switches take effect immediately; the posture
@@ -189,7 +189,7 @@ may override it. The subagent's rendered rule set is prepended to its prompt.
 
 **Replace, do not inherit.** A subagent's rules are exactly its own mode's rules;
 nothing leaks from the parent. Inheritance is how a search agent ends up carrying
-commit-hygiene rules -- a live defect today.
+commit-hygiene rules, which is a live defect today.
 
 ## Agent-proposed rules
 
@@ -210,7 +210,7 @@ must not apply one.
   modes/rules/<id>.md        atomic rules with setting frontmatter
   modes/<name>.json          personal modes
   modes/proposed/<id>.json   agent-writable; never auto-applied
-  modes/_active.md           GENERATED -- all rules, primary band first
+  modes/_active.md           GENERATED: all rules, primary band first
   mode.lock                  active mode, resolved settings, backup ref
 <repo>/.claude/
   modes/<name>.json          project modes
@@ -220,7 +220,7 @@ must not apply one.
 **The corpus does not live in `rules/`.** The harness auto-loads every
 `~/.claude/rules/*.md` into the system prompt as global instructions. A corpus
 placed there would load in full, in fixed order, in every session, whatever the
-mode -- which is precisely the behaviour this design exists to replace. It also
+mode, which is precisely the behaviour this design exists to replace. It also
 would have doubled every rule against the hook's injection. Everything the mode
 system owns sits under `modes/`, and reaches the model only through the hook.
 

@@ -26,7 +26,7 @@ function logFile(sessionId) {
  * Exit status, if the harness reports one.
  *
  * Observed shape as of 2026-08: {stdout, stderr, interrupted, isImage,
- * noOutputExpected} -- no exit code in it, so this returns null on the harness
+ * noOutputExpected}, with no exit code in it, so this returns null on the harness
  * this config runs on. The spellings are kept because the shape is undocumented
  * and has changed before; a reader should know the null is the harness's doing,
  * not a bug here. Anything consuming this must render null as "unknown", never
@@ -60,7 +60,8 @@ function appendEntry(file, entry) {
   // Bounded by size rather than entry count: this runs after every command, so
   // reading the file back to count lines would cost O(n) per command and O(n^2)
   // over a session. stat is constant-time and the cap only needs to be roughly
-  // right -- it exists to stop unbounded growth, not to hit an exact number.
+  // right, because it exists to stop unbounded growth rather than to hit an
+  // exact number.
   try {
     if (fs.statSync(file).size >= MAX_LOG_BYTES) return;
   } catch {

@@ -2,28 +2,29 @@
 
 // The glitch layer: what a mode changes beyond the order of the rules.
 //
-// The seven dials only re-sort the corpus. A glitched mode goes further -- it
-// hides skills, refuses tools, forbids subagents, and pins the model. Those are
-// the things that make a mode "insanely good at one task with no distractions"
-// rather than merely differently worded.
+// The seven dials only re-sort the corpus. A glitched mode goes further: it
+// hides skills, refuses tools, forbids subagents, and pins the model. Those
+// four powers are what make a mode "insanely good at one task with no
+// distractions" rather than merely differently worded.
 //
 // Two facts from measurement shape this module, and neither is negotiable.
 //
 // FIRST: the layer splits by when it can take effect. Claude Code reads its
-// configuration once, at session start, and freezes it -- two subagents spawned
-// from a session that had edited CLAUDE.md hours earlier still reported the old
-// text. So skills, model and effort cannot change inside a running session,
-// while tools and subagents can, because a PreToolUse hook re-reads the lock on
-// every call. A mode switched mid-session is therefore only half in force. That
-// half-state is real, it is invisible without being told, and this module names
-// it: CORRUPTED.
+// configuration once, at session start, and then freezes it. Two subagents
+// spawned from a session that had edited CLAUDE.md hours earlier still
+// reported the old text. Skills, model and effort therefore cannot change
+// inside a running session, while tools and subagents can, because a
+// PreToolUse hook re-reads the lock on every call. A mode switched
+// mid-session is only half in force. Nothing about such a session looks wrong
+// from the inside, and so this module gives the half-state a name: CORRUPTED.
 //
 // SECOND: a glitched mode may only ever SUBTRACT. It can hide a skill the
 // operator has on; it can never reveal one they turned off. It can refuse a
 // tool the base config permits; it can never permit one the base config denies.
-// Without that rule a mode file is a privilege-escalation vector -- talk the
-// model into "switch to this mode" and it widens its own access. With it, the
-// worst a hostile mode can do is make the model less capable.
+// Without the subtract-only rule, a mode file becomes a privilege-escalation
+// vector: talk the model into "switch to this mode" and it widens its own
+// access. With the rule in place, the worst a hostile mode can do is make the
+// model less capable.
 
 const crypto = require("crypto");
 
@@ -72,7 +73,7 @@ function parseGlitch(value, sourcePath) {
     // obvious to whoever wrote it.
     if (skills.on !== undefined)
       return fail(
-        `${sourcePath}: glitch.skills.on is not allowed -- a mode may only hide skills, never reveal them`,
+        `${sourcePath}: glitch.skills.on is not allowed. A mode may only hide skills, never reveal them`,
       );
     if (skills.only === undefined && skills.off === undefined)
       return fail(`${sourcePath}: glitch.skills needs 'only' or 'off'`);
@@ -83,7 +84,7 @@ function parseGlitch(value, sourcePath) {
     return fail(`${sourcePath}: glitch.tools must be an object`);
   if (tools.allow !== undefined)
     return fail(
-      `${sourcePath}: glitch.tools.allow is not allowed -- a mode may only deny tools, never grant them`,
+      `${sourcePath}: glitch.tools.allow is not allowed. A mode may only deny tools, never grant them`,
     );
   const denied = tools.deny ?? [];
   if (!Array.isArray(denied))
@@ -91,7 +92,7 @@ function parseGlitch(value, sourcePath) {
   for (const tool of denied) {
     if (UNGATEABLE_TOOLS.includes(tool))
       return fail(
-        `${sourcePath}: ${tool} cannot be gated -- the model must always be able to read and report`,
+        `${sourcePath}: ${tool} cannot be gated. The model must always be able to read and report`,
       );
   }
 

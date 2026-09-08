@@ -5,8 +5,8 @@
 // The corpus was first copied out of CLAUDE.md without removing the originals,
 // so every rule existed in both places. That was inert while nothing injected;
 // with the switch machinery live it would send each rule twice and, worse,
-// dilute the ordering the whole design rests on -- a fixed-order second copy
-// sitting beside the mode's deliberately ordered one.
+// dilute the ordering the whole design rests on, since a fixed-order second copy
+// would sit beside the mode's deliberately ordered one.
 //
 // The originals were cut on 2026-09-07, so this now asserts rather than watches.
 

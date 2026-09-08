@@ -1,4 +1,4 @@
-# `ccfg probe` -- a test harness for the config itself
+# `ccfg probe`: a test harness for the config itself
 
 Status: design. Date: 2026-09-06.
 
@@ -21,7 +21,7 @@ was not cosmetic. Two failures came directly out of it:
 - **A grader that could not recognise the correct answer inverted a finding.**
   The commit-message grader classified the real violation under a different check
   than the one the probe was keyed on, so the arm that broke the rule scored as a
-  pass. The reported conclusion -- that a rule caused the behaviour it forbade --
+  pass. The reported conclusion, that a rule caused the behaviour it forbade,
   was wrong and had to be retracted.
 
 Both are harness bugs, not analysis mistakes, and both are the kind that produce
@@ -76,11 +76,11 @@ These are the design. Everything else is plumbing.
 **1. A rate-limit notice is not a model response.** The runner discards any
 output matching a limit notice and leaves the cell unfilled rather than grading
 it. Unfilled cells are counted and printed. A probe with any unfilled cell reports
-`INCOMPLETE`, never a result. The failure this prevents is not a crash -- it is a
+`INCOMPLETE`, never a result. The failure this prevents is not a crash. It is a
 clean-looking table built from text the model never wrote.
 
 **2. A grader must be shown to work before it is trusted.** Every `model` probe
-ships `fixtures: {clean, violating}` -- one output that must grade clean and one
+ships `fixtures: {clean, violating}`, one output that must grade clean and one
 that must grade as a violation. The runner checks both **before spending any API
 budget** and refuses to run if either is wrong. A grader that cannot tell the two
 apart cannot produce a finding, only a number.
@@ -88,15 +88,15 @@ apart cannot produce a finding, only a number.
 **A fixture must share the shape of real output, not the shape of the ideal
 answer.** The first version of the commit probe used bare one-line strings. The
 gate passed. Every real reply then arrived as a fenced block behind a paragraph
-of preamble, the grader linted the preamble, and both arms scored 100% -- a
+of preamble, the grader linted the preamble, and both arms scored 100%, a
 result that looked like a strong null and was entirely an artifact. Write the
 fixture as the model would actually answer, fence and preamble included.
 
 **3. A declined task is not a violation.** A grader returning `declined: true`
 takes the cell out of the denominator and into its own column. This is not
 bookkeeping: in the commit probe the ruled arm correctly refused to invent fault
-names the prompt never supplied -- the rule working exactly as written -- and the
-grader scored every refusal as a bad subject, making the rule look 45 points
+names the prompt never supplied, which is the rule working exactly as written,
+and the grader scored every refusal as a bad subject, making the rule look 45 points
 weaker than it is. Once refusals were separated and the task was given the facts
 it had been withholding, the same rule measured 66 points.
 
@@ -112,16 +112,16 @@ control arm, and a 95% confidence interval. Never a bare percentage.
 
 Three verdicts, and no others:
 
-- `RESULT` -- every cell filled, fixtures passed, p < 0.05.
-- `NO EFFECT` -- every cell filled, fixtures passed, p >= 0.05. Reported with the
+- `RESULT`: every cell filled, fixtures passed, p < 0.05.
+- `NO EFFECT`: every cell filled, fixtures passed, p >= 0.05. Reported with the
   interval, because "no effect" at n=12 and at n=576 are different claims.
-- `INCOMPLETE` -- an unfilled cell, or a fixture failure. No numbers printed.
+- `INCOMPLETE`: an unfilled cell, or a fixture failure. No numbers printed.
   A partial run is not a weak result; it is not a result.
 
 `oracle` and `live` probes report `PASS` / `FAIL` / `UNKNOWN`, with the evidence
 inline. `UNKNOWN` exists because "the probe could not tell" must be
-distinguishable from "the answer is no" -- collapsing those is how an untested
-assumption becomes a fact.
+distinguishable from "the answer is no", because collapsing those is how an
+untested assumption becomes a fact.
 
 ## Cost
 

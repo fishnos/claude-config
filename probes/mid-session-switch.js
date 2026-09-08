@@ -5,9 +5,9 @@
 // The design assumes it does: a hook re-injects the active mode's rules onto
 // every user message, so a switch is supposed to take hold on the next turn.
 // Nothing has ever tested that. Two outcomes make the switching machinery a
-// mistake -- the new rules are ignored, or the old and new rules together
-// produce something worse than either alone -- and both look identical to a
-// working switch from the outside, because the banner prints either way.
+// mistake: the new rules are ignored, or the old and new rules together produce
+// something worse than either alone. Both outcomes look identical to a working
+// switch from the outside, because the banner prints either way.
 //
 // Measured on voice, which is the setting with the cleanest separation on
 // record: caveman scored 0 violations in 24 cells and prose 24 in 24. A dial
@@ -15,8 +15,8 @@
 // to move it has not moved anything subtler either.
 //
 // This tests the ceiling on purpose. The injected text is one crisp instruction
-// at the freshest position, not a whole rendered mode -- the easiest case a
-// switch will ever get. A negative result here settles the question; a positive
+// at the freshest position rather than a whole rendered mode, which is the
+// easiest case a switch will ever get. A negative result here settles the question; a positive
 // one would still need repeating against a full mode render.
 
 const CAVEMAN = `## Voice
@@ -100,8 +100,8 @@ module.exports = {
     // message the way the hook would deliver them. This is the question.
     switched: `${CAVEMAN}\n\n---\n\nEarlier in this session:\n\n${HISTORY}`,
 
-    // New rules from the start with no history at all -- what restarting the
-    // session would give you. This is the target a switch has to match.
+    // New rules from the start with no history at all, which is what restarting
+    // the session would give you. This is the target a switch has to match.
     "clean-start": PROSE,
 
     // New rules from the start, then the same burial. Separates "the switch was

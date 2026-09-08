@@ -54,7 +54,7 @@ function readJson(root, relative) {
  * This is an approximation of gitignore matching covering the forms that occur
  * in practice at the repository root: a bare name, a rooted `/name`, a `*` glob
  * and a `!` negation. Directory-scoped and `**` patterns are deliberately not
- * handled -- a missed match costs one unshown notice, while `git check-ignore`
+ * handled, because a missed match costs one unshown notice, while `git check-ignore`
  * in the skill gives the authoritative answer when it matters.
  */
 function ignorePatternMatches(pattern, fileName) {

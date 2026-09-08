@@ -4,7 +4,7 @@
 //
 // Every case runs against a fake upstream on loopback that echoes back the
 // headers it was handed, so the assertions are about what the broker actually
-// sent -- not about what the code appears to do. Nothing here contacts a real
+// sent, rather than about what the code appears to do. Nothing here contacts a real
 // provider or reads a real credential.
 //
 // Usage: node ~/.claude/tools/test-broker.js
@@ -317,7 +317,7 @@ async function main() {
 
   // The account boundary is only as good as the binary launchd executes. A
   // Homebrew prefix is owned by the logged-in user, so an interpreter there
-  // could be swapped for one that prints the config -- and it would run as the
+  // could be swapped for one that prints the config, and the replacement would run as the
   // broker. This check is what refuses that install.
   // Every case here is about POSIX ownership: uids, mode bits, and absolute
   // paths like /usr/bin/true, which Windows resolves onto the current drive and

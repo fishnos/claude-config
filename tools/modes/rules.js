@@ -1,8 +1,8 @@
 "use strict";
 
 // The rule corpus: one rule per file, each declaring which setting governs it
-// and where on that setting it becomes primary -- `primary_at` for an ordered
-// scale, `only_at` for a set of categories.
+// and where on that setting it becomes primary. An ordered scale uses
+// `primary_at`, and a set of categories uses `only_at`.
 //
 // The header is a handful of fixed keys read by regex, not YAML. ccfg has no
 // dependencies by design, and a hand-rolled YAML subset is a parser to maintain

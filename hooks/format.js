@@ -17,7 +17,7 @@ process.stdin.on("end", () => {
   try {
     filePath = JSON.parse(payload)?.tool_input?.file_path;
   } catch {
-    return; // malformed payload — nothing to format
+    return; // malformed payload, nothing to format
   }
   if (!filePath) return;
 
