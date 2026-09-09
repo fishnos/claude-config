@@ -1,6 +1,6 @@
 # Skill index
 
-Generated. Do not edit by hand -- rerun `node ~/.claude/scripts/build-skill-index.js`,
+Generated. Do not edit by hand. Rerun `node ~/.claude/scripts/build-skill-index.js`,
 or start a session and the SessionStart hook rebuilds it when it goes stale.
 
 Every personal skill on this machine and whether Claude can see it. 70 of these
@@ -446,9 +446,17 @@ Activates on: `**/*.urdf,**/*.xacro`
 
 Create robot models using URDF with proper links, joints, visual geometry, collision shapes, and physical properties
 
-## Always listed (14)
+## Always listed (16)
 
 Already in the session listing with descriptions.
+
+### `/academic-paper-composer`
+
+Systematic writing framework taking an optimized outline to a submission-ready manuscript, for philosophy and interdisciplinary papers and for IEEE robotics conference submissions (ICRA, IROS, RA-L). Use when users want to: (1) write a paper from a detailed outline, (2) ensure quality control during writing, (3) maintain consistency across chapters, (4) prepare a submission-ready manuscript, or (5) systematically execute a planned paper. Triggered by phrases like 'write the paper from this outline,' 'compose the full manuscript,' 'execute the outline,' or when users have completed strategic planning (academic-paper-strategist skill) and are ready to write. Takes optimized outline as input; outputs complete manuscript with iterative quality checks. Owns structure and quality gates only, so load daniel-voice for sentence-level prose, and references/venue_icra.md in the strategist skill for IEEE robotics word budgets and anonymization rules.
+
+### `/academic-paper-strategist`
+
+Systematic strategic planning framework for academic papers, covering philosophy and interdisciplinary preprints (PhilArchive, arXiv, PhilSci-Archive) and IEEE robotics conference submissions (ICRA, IROS, RA-L) via references/venue_icra.md. Use when users want to: (1) plan a paper on a specific topic, (2) identify research gaps and assess originality, (3) develop optimized paper outlines, (4) prepare for preprint submission, or (5) understand platform requirements and writing standards. Triggered by phrases like 'plan a paper on,' 'help me design a paper about,' 'identify research gaps in,' 'is this idea original,' or when users need structured research planning. The skill guides through three phases: Platform Analysis (identifying target venue and studying sample papers), Theoretical Framework (AI-driven literature search and gap identification), and Outline Optimization (structured design with reviewer-perspective self-assessment). Each phase includes quality evaluation standards and validation checkpoints. Output: optimized detailed outline ready for systematic writing (use with academic-paper-composer skill; daniel-voice governs sentence-level prose in both).
 
 ### `/agent-reach`
 
