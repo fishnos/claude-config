@@ -350,6 +350,5 @@
   "tui": "fullscreen",
   "theme": "custom:sugarplum",
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true,
   "voiceEnabled": true
 }
