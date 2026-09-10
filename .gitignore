@@ -84,6 +84,8 @@
 *.bak
 *.orig
 *.log
+bash-commands.log
+cost-tracker.log
 .credentials.json
 settings.local.json
 secrets.env

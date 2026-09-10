@@ -236,6 +236,10 @@
           {
             "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','mode-session.js'))\""
+          },
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','handoff-restore.js'))\""
           }
         ]
       }
@@ -251,6 +255,21 @@
           {
             "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','mode-inject.js'))\""
+          },
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','constraint-capture.js'))\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','pre-compact.js'))\""
           }
         ]
       }
@@ -290,12 +309,6 @@
         "repo": "affaan-m/ECC"
       }
     },
-    "claude-code-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-code"
-      }
-    },
     "caveman": {
       "source": {
         "source": "github",
@@ -306,24 +319,6 @@
       "source": {
         "source": "github",
         "repo": "thedotmack/claude-mem"
-      }
-    },
-    "ui-ux-pro-max-skill": {
-      "source": {
-        "source": "github",
-        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
-      }
-    },
-    "claude-code-nano-banana": {
-      "source": {
-        "source": "git",
-        "url": "https://github.com/jawhnycooke/claude-code-nano-banana.git"
-      }
-    },
-    "playwright-skill": {
-      "source": {
-        "source": "github",
-        "repo": "lackeyjb/playwright-skill"
       }
     },
     "ai-builder-club": {
@@ -345,7 +340,7 @@
       }
     }
   },
-  "effortLevel": "high",
+  "effortLevel": "xhigh",
   "autoCompactWindow": 400000,
   "tui": "fullscreen",
   "theme": "custom:sugarplum",

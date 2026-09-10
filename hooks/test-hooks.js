@@ -191,7 +191,7 @@ git(["add", "src/calc.ts"], repo);
       repo,
     ),
   );
-  check("logic staged, no tests + bad subject", r.verdict, "warn", r.reason);
+  check("logic staged, no tests + bad subject", r.verdict, "DENY", r.reason);
   console.log(
     String(r.reason)
       .split("\n")
@@ -518,7 +518,9 @@ header("commit-message: lint() policy");
   );
   check(
     "comment lines ignored",
-    lint("# comment\nAdd a retry to the upload client").length === 0 ? "ok" : "problems",
+    lint("# comment\nAdd a retry to the upload client").length === 0
+      ? "ok"
+      : "problems",
     "ok",
     JSON.stringify(lint("# comment\nAdd a retry to the upload client")),
   );
@@ -538,7 +540,9 @@ header("commit-message: lint() policy");
   // thing. Without it the noun list would reject every honest mention of a bug.
   check(
     "placeholder beside an anchor is accepted",
-    lint("Repair the bug in resolveTargetPath").length === 0 ? "ok" : "problems",
+    lint("Repair the bug in resolveTargetPath").length === 0
+      ? "ok"
+      : "problems",
     "ok",
     JSON.stringify(lint("Repair the bug in resolveTargetPath")),
   );
@@ -546,19 +550,26 @@ header("commit-message: lint() policy");
   // compound subject hides it: the anchor sits in the half that is already fine.
   check(
     "vague clause flagged",
-    has("Split the README and track what a clone missed", "stands in for the thing")
+    has(
+      "Split the README and track what a clone missed",
+      "stands in for the thing",
+    )
       ? "ok"
       : "missed",
     "ok",
   );
   check(
     "vague clause flagged on its own",
-    has("Track what a clone missed", "stands in for the thing") ? "ok" : "missed",
+    has("Track what a clone missed", "stands in for the thing")
+      ? "ok"
+      : "missed",
     "ok",
   );
   check(
     "a clause naming its subject is accepted",
-    lint("Explain what resolveTargetPath returns").length === 0 ? "ok" : "problems",
+    lint("Explain what resolveTargetPath returns").length === 0
+      ? "ok"
+      : "problems",
     "ok",
     JSON.stringify(lint("Explain what resolveTargetPath returns")),
   );
@@ -574,6 +585,47 @@ header("commit-message: lint() policy");
     JSON.stringify(lint("Rename UserRecord and drop the unused email column")),
   );
   check("empty message flagged", has("", "empty") ? "ok" : "missed", "ok");
+}
+
+header("commit-message: classify() splits judgment calls from rule violations");
+{
+  const { classify } = require(path.join(HOOKS, "lib", "commit-message.js"));
+
+  const body35 = classify(
+    "Exempt broker tokens from the secret warning\n\n" + "line\n".repeat(35),
+  );
+  check(
+    "35-line body is advisory, not blocking",
+    body35.blocking.length === 0 &&
+      body35.advisory.some((problem) => problem.includes("Body is"))
+      ? "ok"
+      : "wrong",
+    "ok",
+    JSON.stringify(body35),
+  );
+
+  const subject55 = classify("A".repeat(55));
+  check(
+    "55-char subject is advisory, not blocking",
+    subject55.blocking.length === 0 &&
+      subject55.advisory.some((problem) =>
+        problem.includes("chars (target 50)"),
+      )
+      ? "ok"
+      : "wrong",
+    "ok",
+    JSON.stringify(subject55),
+  );
+
+  const subject75 = classify("A".repeat(75));
+  check(
+    "75-char subject is blocking",
+    subject75.blocking.some((problem) => problem.includes("hard ceiling"))
+      ? "ok"
+      : "missed",
+    "ok",
+    JSON.stringify(subject75),
+  );
 }
 
 header("commit-message: extract() sources");
@@ -622,6 +674,18 @@ header("commit-message: extract() sources");
   check("--squash skipped", got("git commit --squash=abc123"), null, "");
   check("-C reuse skipped", got("git commit -C HEAD"), null, "");
   check("--amend alone skipped", got("git commit --amend"), null, "");
+
+  // The shell composes this value at runtime; the hook only ever sees the
+  // literal `$(cat <<'EOF' ...)` source, which is not a message to judge.
+  const heredocCommand =
+    "git commit -m \"$(cat <<'EOF'\nSubject here\n\nBody.\nEOF\n)\"";
+  check("heredoc -m form skipped", got(heredocCommand), null, "");
+  check(
+    "backtick-composed -m form skipped",
+    got('git commit -m "`generate-message`"'),
+    null,
+    "",
+  );
 }
 
 header("PreToolUse(Bash): message passed by file is linted");
@@ -636,7 +700,7 @@ header("PreToolUse(Bash): message passed by file is linted");
     "Added a thing that should have been imperative.\n",
   );
   let r = run(GUARD, bash("CLAUDE_ALLOW_COMMIT=1 git commit -F bad.txt", repo));
-  check("-F with bad subject now warns", r.verdict, "warn", r.reason);
+  check("-F with bad subject is denied", r.verdict, "DENY", r.reason);
 
   fs.writeFileSync(
     path.join(repo, "ok.txt"),
@@ -650,6 +714,13 @@ header("PreToolUse(Bash): message passed by file is linted");
 
   r = run(GUARD, bash("CLAUDE_ALLOW_COMMIT=1 git commit --fixup=HEAD", repo));
   check("--fixup not linted", r.verdict, "allow", r.reason);
+
+  // A correct message the parser cannot see must not be denied for a reason
+  // that misdescribes it (it used to report "Second line must be blank").
+  const heredocCommit =
+    "CLAUDE_ALLOW_COMMIT=1 git commit -m \"$(cat <<'EOF'\nSubject here\n\nBody.\nEOF\n)\"";
+  r = run(GUARD, bash(heredocCommit, repo));
+  check("heredoc commit form is not denied", r.verdict, "allow", r.reason);
 }
 
 header("hook-io: output integrity");
@@ -765,9 +836,7 @@ header("PreToolUse(Bash): outward escapes are per-family, not blanket");
   check("wrong escape value still blocks", r.verdict, "DENY", r.reason);
 }
 
-header(
-  "PreToolUse(Bash): outward false-positive guard (these run constantly)",
-);
+header("PreToolUse(Bash): outward false-positive guard (these run constantly)");
 for (const [label, command] of [
   ["gh repo view", "gh repo view owner/thing"],
   ["gh repo list", "gh repo list"],
@@ -853,6 +922,98 @@ for (const [label, command] of [
 ]) {
   const { verdict, reason } = run(GUARD, bash(command, repo));
   check(label, verdict, "DENY", reason);
+}
+
+header("PreToolUse(Bash): commit subject is a gate, not a warning");
+
+const ALLOW = "CLAUDE_ALLOW_COMMIT=1 ";
+const VAGUE_OK = "CLAUDE_ALLOW_VAGUE_SUBJECT=1 ";
+
+for (const [label, subject] of [
+  ["placeholder noun", "Fix the login bug"],
+  ["counted placeholder", "Repair three faults found while chasing one bug"],
+  ["effect-led subject", "Stop warning about missing tests"],
+  ["trailing period", "Widen the supabase token wait."],
+]) {
+  const command = ALLOW + 'git commit -m "' + subject + '"';
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check("blocks: " + label, verdict, "DENY", reason);
+}
+
+for (const [label, subject] of [
+  ["names the symbol", "Widen the wait when supabase calls a token early"],
+  ["names the component", "Line the queue cards up with the column"],
+]) {
+  const command = ALLOW + 'git commit -m "' + subject + '"';
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check(
+    "allows: " + label,
+    verdict === "DENY" ? "DENY" : "not-denied",
+    "not-denied",
+    reason,
+  );
+}
+
+{
+  const command = VAGUE_OK + ALLOW + 'git commit -m "Fix the login bug"';
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check("escape downgrades to warn", verdict, "warn", reason);
+}
+
+{
+  const command = 'git commit -m "Fix the login bug"';
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check("unauthorized commit still denied first", verdict, "DENY", reason);
+}
+
+header("PreToolUse(Bash): judgment calls warn, rule violations deny");
+
+// All lowercase after the opening word so CONCRETE_ANCHOR never matches, and
+// long enough to slice a 40- and a 55-character vague subject from the same
+// safe source rather than hand-counting characters.
+const VAGUE_SOURCE =
+  "Fix the login bug for the checkout page today please go review it now again soon and later";
+
+{
+  const subject = "A".repeat(55);
+  const command = ALLOW + `git commit -m "${subject}"`;
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check("55-char subject with no other problem warns", verdict, "warn", reason);
+}
+
+{
+  const subject = "Exempt broker tokens from the secret warning";
+  const body = "line\n".repeat(35);
+  const command = ALLOW + `git commit -m "${subject}\n\n${body}"`;
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check("35-line body warns", verdict, "warn", reason);
+}
+
+{
+  const subject = "A".repeat(75);
+  const command = ALLOW + `git commit -m "${subject}"`;
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check("75-char subject still denies", verdict, "DENY", reason);
+}
+
+{
+  const subject = VAGUE_SOURCE.slice(0, 40);
+  const command = ALLOW + `git commit -m "${subject}"`;
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check("vague 40-char subject still denies", verdict, "DENY", reason);
+}
+
+{
+  const subject = VAGUE_SOURCE.slice(0, 55);
+  const command = ALLOW + `git commit -m "${subject}"`;
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check("55-char AND vague subject denies", verdict, "DENY", reason);
+  check(
+    "its deny text carries no character-count advisory",
+    /chars \(target 50\)/.test(String(reason)) ? "leaked" : "clean",
+    "clean",
+    reason,
+  );
 }
 
 header("PostToolUse(Bash): evidence log");
@@ -1322,11 +1483,15 @@ header("ccfg: secret migration and doctor");
     "",
   );
   if (process.platform === "win32") {
-    skip("secrets file is not world-readable", "POSIX mode bits; Windows uses ACLs");
+    skip(
+      "secrets file is not world-readable",
+      "POSIX mode bits; Windows uses ACLs",
+    );
   } else {
     check(
       "secrets file is not world-readable",
-      fs.existsSync(secretsFile) && (fs.statSync(secretsFile).mode & 0o077) === 0
+      fs.existsSync(secretsFile) &&
+        (fs.statSync(secretsFile).mode & 0o077) === 0
         ? "allow"
         : "TOO OPEN",
       "allow",
@@ -1558,7 +1723,10 @@ header("ccfg: clean, backup and install");
   );
   // The shim must launch the real CLI, not just exist.
   if (process.platform === "win32") {
-    skip("the installed shim actually runs ccfg", "the shim is a POSIX sh script");
+    skip(
+      "the installed shim actually runs ccfg",
+      "the shim is a POSIX sh script",
+    );
   } else {
     const viaShim = spawnSync(shim, ["help"], {
       encoding: "utf8",
@@ -1834,7 +2002,497 @@ for (const [label, payload] of [
   check(`${label} (exit ${code})`, verdict, "allow", reason);
 }
 
+header("lib/session-cache: one path builder for all four call sites");
+{
+  const { cachePath } = require(path.join(HOOKS, "lib", "session-cache.js"));
+  const cacheHome = fs.mkdtempSync(path.join(os.tmpdir(), "session-cache-"));
+  const env = { CLAUDE_CONFIG_DIR: cacheHome };
+  const withEnv = (fn) => {
+    const previous = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = cacheHome;
+    try {
+      return fn();
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previous;
+    }
+  };
+
+  const traversal = withEnv(() => cachePath("handoff", "../../etc/passwd"));
+  check(
+    "a session id containing ../ resolves inside the cache directory",
+    traversal.startsWith(path.join(cacheHome, "cache", "handoff"))
+      ? "allow"
+      : "escaped",
+    "allow",
+    traversal,
+  );
+
+  const slashed = withEnv(() => cachePath("handoff", "a/b/c"));
+  check(
+    "a session id containing / resolves inside the cache directory, not a subdirectory",
+    path.dirname(slashed) === path.join(cacheHome, "cache", "handoff")
+      ? "allow"
+      : "escaped",
+    "allow",
+    slashed,
+  );
+
+  const empty = withEnv(() => cachePath("handoff", ""));
+  check(
+    "an empty session id resolves to unknown.md",
+    path.basename(empty),
+    "unknown.md",
+    empty,
+  );
+
+  const dotdot = withEnv(() => cachePath("handoff", ".."));
+  check(
+    "a bare .. session id resolves to unknown.md",
+    path.basename(dotdot),
+    "unknown.md",
+    dotdot,
+  );
+
+  const writerPath = withEnv(() =>
+    cachePath("handoff", "agree-1", { create: true }),
+  );
+  const readerPath = withEnv(() => cachePath("handoff", "agree-1"));
+  check("writer and reader agree on the same path", readerPath, writerPath, "");
+  check(
+    "create: false never makes the directory",
+    fs.existsSync(
+      path.dirname(withEnv(() => cachePath("constraints", "no-create-1"))),
+    ),
+    false,
+    "",
+  );
+
+  fs.rmSync(cacheHome, { recursive: true, force: true });
+}
+
+header("PreCompact: writes a handoff file");
+
+const PRECOMPACT = path.join(HOOKS, "pre-compact.js");
+const handoffHome = fs.mkdtempSync(path.join(os.tmpdir(), "handoff-"));
+
+{
+  const payload = {
+    hook_event_name: "PreCompact",
+    session_id: "test-session-1",
+    trigger: "auto",
+    cwd: repo,
+  };
+  run(PRECOMPACT, payload, { CLAUDE_CONFIG_DIR: handoffHome });
+  const written = path.join(
+    handoffHome,
+    "cache",
+    "handoff",
+    "test-session-1.md",
+  );
+  const exists = fs.existsSync(written);
+  check("handoff file created", exists ? "allow" : "missing", "allow", written);
+  if (exists) {
+    const text = fs.readFileSync(written, "utf8");
+    for (const heading of [
+      "## Mode",
+      "## Decisions",
+      "## Open threads",
+      "## Possible standing constraints, captured by keyword",
+    ]) {
+      check(
+        "handoff has " + heading,
+        text.includes(heading) ? "allow" : "missing",
+        "allow",
+        text.slice(0, 200),
+      );
+    }
+  }
+}
+
+{
+  // A dial whose value is an object (rather than the usual string or number)
+  // must be skipped, not rendered as the useless "[object Object]".
+  const modeHome = fs.mkdtempSync(path.join(os.tmpdir(), "mode-lock-"));
+  fs.writeFileSync(
+    path.join(modeHome, "mode.lock"),
+    JSON.stringify({
+      mode: "build",
+      codename: "RUNNER",
+      settings: { voice: "terse", nested: { deep: true } },
+    }),
+    "utf8",
+  );
+  run(
+    PRECOMPACT,
+    {
+      hook_event_name: "PreCompact",
+      session_id: "mode-object-1",
+      trigger: "auto",
+    },
+    { CLAUDE_CONFIG_DIR: modeHome },
+  );
+  const text = fs.readFileSync(
+    path.join(modeHome, "cache", "handoff", "mode-object-1.md"),
+    "utf8",
+  );
+  check(
+    "a nested-object dial never renders as [object Object]",
+    text.includes("[object Object]") ? "leaked" : "clean",
+    "clean",
+    text,
+  );
+  check(
+    "a primitive dial sitting beside it still renders",
+    text.includes("voice: terse") ? "allow" : "missing",
+    "allow",
+    text,
+  );
+  fs.rmSync(modeHome, { recursive: true, force: true });
+}
+
+header("SessionStart: restores the handoff after compaction");
+
+const RESTORE = path.join(HOOKS, "handoff-restore.js");
+
+{
+  const directory = path.join(handoffHome, "cache", "handoff");
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(
+    path.join(directory, "test-session-2.md"),
+    "# Handoff across compaction\n\n## Mode\n\nbuild / RUNNER\n",
+    "utf8",
+  );
+
+  const compacted = {
+    hook_event_name: "SessionStart",
+    source: "compact",
+    session_id: "test-session-2",
+  };
+  const restored = run(RESTORE, compacted, { CLAUDE_CONFIG_DIR: handoffHome });
+  check("restores on compact", restored.verdict, "warn", restored.reason);
+  check(
+    "carries the mode",
+    String(restored.reason).includes("RUNNER") ? "allow" : "missing",
+    "allow",
+    restored.reason,
+  );
+
+  const fresh = {
+    hook_event_name: "SessionStart",
+    source: "startup",
+    session_id: "test-session-2",
+  };
+  const quiet = run(RESTORE, fresh, { CLAUDE_CONFIG_DIR: handoffHome });
+  check("silent on a fresh start", quiet.verdict, "allow", quiet.reason);
+
+  const missing = {
+    hook_event_name: "SessionStart",
+    source: "compact",
+    session_id: "no-such-session",
+  };
+  const absent = run(RESTORE, missing, { CLAUDE_CONFIG_DIR: handoffHome });
+  check(
+    "silent when no handoff exists",
+    absent.verdict,
+    "allow",
+    absent.reason,
+  );
+}
+
+{
+  // The reader must stay bounded on its own, not because pre-compact.js's own
+  // MAX_SECTION happens to cap what it wrote.
+  const directory = path.join(handoffHome, "cache", "handoff");
+  fs.writeFileSync(
+    path.join(directory, "oversized-1.md"),
+    "START_MARKER" + "x".repeat(8990) + "END_MARKER",
+    "utf8",
+  );
+  const restored = run(
+    RESTORE,
+    {
+      hook_event_name: "SessionStart",
+      source: "compact",
+      session_id: "oversized-1",
+    },
+    { CLAUDE_CONFIG_DIR: handoffHome },
+  );
+  check(
+    "an oversized handoff is capped at 8000 characters",
+    String(restored.reason).includes("START_MARKER") &&
+      !String(restored.reason).includes("END_MARKER")
+      ? "allow"
+      : "uncapped",
+    "allow",
+    restored.reason.length,
+  );
+}
+
+header("UserPromptSubmit: captures standing constraints");
+
+const CAPTURE = path.join(HOOKS, "constraint-capture.js");
+
+function capture(prompt, sessionIdentifier) {
+  run(
+    CAPTURE,
+    {
+      hook_event_name: "UserPromptSubmit",
+      session_id: sessionIdentifier,
+      prompt,
+    },
+    { CLAUDE_CONFIG_DIR: handoffHome },
+  );
+  try {
+    return fs.readFileSync(
+      path.join(handoffHome, "cache", "constraints", sessionIdentifier + ".md"),
+      "utf8",
+    );
+  } catch {
+    return "";
+  }
+}
+
+for (const [label, prompt] of [
+  ["from now on", "From now on use pnpm, never npm"],
+  ["until I confirm", "Don't delete any files until I confirm"],
+  ["for the rest of", "For the rest of this session stay off the main branch"],
+  ["never", "Never edit files under vendor/"],
+]) {
+  const text = capture(prompt, "constraint-" + label.replace(/\s+/g, "-"));
+  check(
+    "captures: " + label,
+    text.includes(prompt) ? "allow" : "missing",
+    "allow",
+    text,
+  );
+}
+
+for (const [label, prompt] of [
+  ["plain request", "Add a test for the parser"],
+  ["question", "What does this function do?"],
+]) {
+  const text = capture(prompt, "ignore-" + label.replace(/\s+/g, "-"));
+  check("ignores: " + label, text === "" ? "allow" : "captured", "allow", text);
+}
+
+{
+  const first = capture("Never edit files under vendor/", "accumulate-1");
+  const second = capture("From now on use pnpm", "accumulate-1");
+  const bullets = second.split("\n").filter((line) => line.startsWith("- "));
+  check(
+    "accumulates across turns",
+    bullets.length === 2 ? "allow" : String(bullets.length),
+    "allow",
+    second,
+  );
+  check(
+    "keeps the first",
+    first.trim() !== "" ? "allow" : "empty",
+    "allow",
+    first,
+  );
+}
+
+{
+  const long = capture(
+    "Never edit files under vendor/ or build/",
+    "substring-1",
+  );
+  const short = capture("Never edit files under vendor/", "substring-1");
+  const bullets = short.split("\n").filter((line) => line.startsWith("- "));
+  check(
+    "captures a constraint that is a substring of an existing one",
+    bullets.length === 2 ? "allow" : String(bullets.length),
+    "allow",
+    short,
+  );
+}
+
+{
+  const prompt =
+    "Add a test for the parser. Never touch the vendor directory. " +
+    "Also check the README.";
+  const text = capture(prompt, "sentence-scoped-1");
+  check(
+    "captures only the matching sentence",
+    text.includes("Never touch the vendor directory.") &&
+      !text.includes("Add a test for the parser") &&
+      !text.includes("Also check the README")
+      ? "allow"
+      : "wrong",
+    "allow",
+    text,
+  );
+}
+
+{
+  // The exception lives in its own sentence, so capturing the trigger sentence
+  // alone would store the exact inverse of the instruction.
+  const prompt = "Never use the cache. Unless the flag is explicitly set.";
+  const text = capture(prompt, "qualifier-attached-1");
+  check(
+    "a following exception stays attached to the rule it scopes",
+    text.includes("Never use the cache. Unless the flag is explicitly set.")
+      ? "allow"
+      : "dropped",
+    "allow",
+    text,
+  );
+}
+
+{
+  const prompt = "Never touch the lockfile. Then run the installer.";
+  const text = capture(prompt, "qualifier-attached-2");
+  check(
+    "an ordinary following sentence is not swept in",
+    !text.includes("Then run the installer") ? "allow" : "swept",
+    "allow",
+    text,
+  );
+}
+
+{
+  // One sentence, no internal punctuation, so it survives sentence-splitting
+  // as a single unit long enough to trip the truncation marker.
+  const longSentence = "Never " + "x".repeat(450);
+  const text = capture(longSentence, "long-sentence-1");
+  check(
+    "a sentence over MAX_LINE carries the truncation marker",
+    text.includes("… (truncated)") ? "allow" : "missing",
+    "allow",
+    text,
+  );
+}
+
+{
+  // Fill the file past MAX_FILE (4000) with near-MAX_LINE (400) entries the
+  // pattern still matches, then confirm the newest survives and the oldest
+  // was dropped rather than the newest capture being silently refused.
+  const sessionIdentifier = "over-cap-1";
+  for (let index = 0; index < 11; index += 1) {
+    capture(
+      `Never touch fixture ${index} ` + "x".repeat(380),
+      sessionIdentifier,
+    );
+  }
+  const text = capture("Never touch the final fixture", sessionIdentifier);
+  check(
+    "over-cap file keeps the newest line",
+    text.includes("Never touch the final fixture") ? "allow" : "missing",
+    "allow",
+    text.slice(0, 200),
+  );
+  check(
+    "over-cap file drops the oldest line",
+    text.includes("fixture 0 ") ? "kept" : "dropped",
+    "dropped",
+    text.slice(0, 200),
+  );
+}
+
+header("PreCompact carries constraints verbatim");
+
+{
+  const sessionIdentifier = "carry-1";
+  const directory = path.join(handoffHome, "cache", "constraints");
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(
+    path.join(directory, sessionIdentifier + ".md"),
+    "- Never edit files under vendor/\n- From now on use pnpm\n",
+    "utf8",
+  );
+
+  run(
+    PRECOMPACT,
+    {
+      hook_event_name: "PreCompact",
+      session_id: sessionIdentifier,
+      trigger: "auto",
+    },
+    { CLAUDE_CONFIG_DIR: handoffHome },
+  );
+
+  const text = fs.readFileSync(
+    path.join(handoffHome, "cache", "handoff", sessionIdentifier + ".md"),
+    "utf8",
+  );
+  check(
+    "handoff carries the first constraint",
+    text.includes("Never edit files under vendor/") ? "allow" : "missing",
+    "allow",
+    text,
+  );
+  check(
+    "handoff carries the second constraint",
+    text.includes("From now on use pnpm") ? "allow" : "missing",
+    "allow",
+    text,
+  );
+  const headingIndex = text.indexOf(
+    "## Possible standing constraints, captured by keyword",
+  );
+  check(
+    "constraints sit under their heading",
+    headingIndex !== -1 && headingIndex < text.indexOf("Never edit files")
+      ? "allow"
+      : "misplaced",
+    "allow",
+    text,
+  );
+}
+
+header("Round trip: a constraint survives capture, compaction and restore");
+
+{
+  // Every other test in this file builds its own fixture for the stage under
+  // test. None of them run capture, then pre-compact, then restore, against
+  // the same session id through the real files each hook reads and writes --
+  // so a future path mismatch between any two of the three could stay green
+  // here while doing nothing in production.
+  const sessionIdentifier = "roundtrip-1";
+  const constraintText = "From now on never touch the vendor directory";
+
+  run(
+    CAPTURE,
+    {
+      hook_event_name: "UserPromptSubmit",
+      session_id: sessionIdentifier,
+      prompt: constraintText,
+    },
+    { CLAUDE_CONFIG_DIR: handoffHome },
+  );
+
+  run(
+    PRECOMPACT,
+    {
+      hook_event_name: "PreCompact",
+      session_id: sessionIdentifier,
+      trigger: "auto",
+    },
+    { CLAUDE_CONFIG_DIR: handoffHome },
+  );
+
+  const restored = run(
+    RESTORE,
+    {
+      hook_event_name: "SessionStart",
+      source: "compact",
+      session_id: sessionIdentifier,
+    },
+    { CLAUDE_CONFIG_DIR: handoffHome },
+  );
+
+  check(
+    "a constraint survives capture, compaction and restore",
+    String(restored.reason).includes(constraintText) ? "allow" : "missing",
+    "allow",
+    restored.reason,
+  );
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
+fs.rmSync(handoffHome, { recursive: true, force: true });
 console.log(`\ntemp repo removed; live marker cache untouched`);
 console.log(`\nPASS ${passed}  SKIP ${skipped}  FAIL ${failed}`);
 process.exit(failed === 0 ? 0 : 1);

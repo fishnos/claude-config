@@ -69,6 +69,13 @@ function flagValue(segment, flags) {
   return match[4] !== undefined ? match[4] : null;
 }
 
+// The shell composes this value at runtime (a command substitution or a
+// backtick), so there is nothing of the author's to judge yet: the text this
+// hook sees is the literal `$(cat <<'EOF' ...)` source, not the message that
+// will actually land. Matches the GENERATED_MESSAGE and `-F -` reasoning below:
+// silence beats a false complaint about a parse the hook cannot actually do.
+const SHELL_COMPOSED = /^\$\(|`/;
+
 /**
  * Return the commit message this command would use, or null when there is nothing
  * to check: no message on the command line, a generated message, or a message
@@ -78,7 +85,10 @@ function extract(rawSegment, cwd) {
   if (GENERATED_MESSAGE.test(rawSegment)) return null;
 
   const inline = flagValue(rawSegment, "-m|--message");
-  if (inline !== null) return { text: inline, source: "inline" };
+  if (inline !== null) {
+    if (SHELL_COMPOSED.test(inline)) return null;
+    return { text: inline, source: "inline" };
+  }
 
   const file = flagValue(rawSegment, "-F|--file");
   if (file === null) return null;
@@ -109,14 +119,25 @@ function vagueClause(subject) {
     // The opening verb is the work, never the thing, so it is not an anchor.
     const body = trimmed.slice(trimmed.indexOf(" ") + 1);
     if (CONCRETE_ANCHOR.test(body)) continue;
-    const match = PLACEHOLDER_NOUN.exec(trimmed) || VAGUE_REFERENT.exec(trimmed);
+    const match =
+      PLACEHOLDER_NOUN.exec(trimmed) || VAGUE_REFERENT.exec(trimmed);
     if (match) return match[0];
   }
   return null;
 }
 
-function lint(text) {
-  const problems = [];
+/**
+ * Judge a commit message against the conventions in the git-workflow skill.
+ *
+ * Splits findings into `blocking` (a written-down rule the message actually
+ * breaks) and `advisory` (a judgment call a human should weigh, not a rule to
+ * enforce mechanically): a body long enough to warrant a second look, and a
+ * subject past the 50-character target but still under the 72-character hard
+ * ceiling. Everything else, including a subject over that ceiling, blocks.
+ */
+function classify(text) {
+  const blocking = [];
+  const advisory = [];
   // Comment lines are stripped by git before the message is stored.
   const lines = String(text)
     .replace(/\r\n/g, "\n")
@@ -125,51 +146,61 @@ function lint(text) {
 
   const subject = (lines[0] || "").trim();
   if (subject === "") {
-    problems.push("Commit subject is empty.");
-    return problems;
+    blocking.push("Commit subject is empty.");
+    return { blocking, advisory };
   }
 
-  const subjectProblems = [];
+  const blockingSubjectProblems = [];
+  const advisorySubjectProblems = [];
   if (subject.length > SUBJECT_CEILING) {
-    subjectProblems.push(
+    blockingSubjectProblems.push(
       `${subject.length} chars (target ${SUBJECT_TARGET}, hard ceiling ${SUBJECT_CEILING})`,
     );
   } else if (subject.length > SUBJECT_TARGET) {
-    subjectProblems.push(`${subject.length} chars (target ${SUBJECT_TARGET})`);
+    advisorySubjectProblems.push(
+      `${subject.length} chars (target ${SUBJECT_TARGET})`,
+    );
   }
-  if (subject.endsWith(".")) subjectProblems.push("trailing period");
+  if (subject.endsWith(".")) blockingSubjectProblems.push("trailing period");
   if (NON_IMPERATIVE.test(subject)) {
-    subjectProblems.push('not imperative mood: "Add", not "Added"/"Adds"');
+    blockingSubjectProblems.push(
+      'not imperative mood: "Add", not "Added"/"Adds"',
+    );
   }
   const effectLed = EFFECT_LED.exec(subject);
   if (effectLed) {
     const verb = effectLed[1].toLowerCase();
-    subjectProblems.push(
+    blockingSubjectProblems.push(
       `opens with the effect ("${effectLed[1]}") rather than the change; ` +
         `name what was touched, then the effect ("Modify X to ${verb} Y")`,
     );
   }
   const counted = COUNTED_PLACEHOLDER.exec(subject);
   if (counted) {
-    subjectProblems.push(
+    blockingSubjectProblems.push(
       `counts what it will not name ("${counted[0]}"); say which ones`,
     );
   } else {
     const vague = vagueClause(subject);
     if (vague) {
-      subjectProblems.push(
+      blockingSubjectProblems.push(
         `"${vague}" stands in for the thing; name the symbol, file, ` +
           `component or code the change touched`,
       );
     }
   }
 
-  if (subjectProblems.length > 0) {
-    problems.push(`Commit subject: ${subjectProblems.join("; ")}.`);
+  // Two lists, not one joined string: an advisory target-overrun must never
+  // ride along inside the message a blocking deny shows.
+  if (blockingSubjectProblems.length > 0) {
+    blocking.push(`Commit subject: ${blockingSubjectProblems.join("; ")}.`);
+  }
+  if (advisorySubjectProblems.length > 0) {
+    advisory.push(`Commit subject: ${advisorySubjectProblems.join("; ")}.`);
   }
 
   if (lines.length > 1 && lines[1].trim() !== "") {
-    problems.push(
+    blocking.push(
       "Second line must be blank. Git treats everything up to the first blank " +
         "line as the subject, so without it the whole message becomes one subject.",
     );
@@ -182,7 +213,7 @@ function lint(text) {
     (line) => line.length > BODY_WRAP && /\s/.test(line.trim()),
   );
   if (overWide.length > 0) {
-    problems.push(
+    blocking.push(
       `${overWide.length} body line(s) exceed ${BODY_WRAP} chars. Git indents log ` +
         "output by four spaces, so wrapping keeps it readable in an 80-column terminal.",
     );
@@ -190,7 +221,7 @@ function lint(text) {
 
   const substantive = body.filter((line) => line.trim() !== "").length;
   if (substantive > BODY_LINES_BEFORE_REVIEW) {
-    problems.push(
+    advisory.push(
       `Body is ${substantive} lines. A body earns its length by answering why the ` +
         "change was needed, why this approach over the alternative, and at most one " +
         "sentence on the single thing you did not check. Anything describing how the " +
@@ -199,7 +230,13 @@ function lint(text) {
     );
   }
 
-  return problems;
+  return { blocking, advisory };
 }
 
-module.exports = { extract, lint, BODY_LINES_BEFORE_REVIEW };
+/** Every finding classify() would report, blocking first, kept for existing callers. */
+function lint(text) {
+  const { blocking, advisory } = classify(text);
+  return [...blocking, ...advisory];
+}
+
+module.exports = { extract, lint, classify, BODY_LINES_BEFORE_REVIEW };
