@@ -1208,7 +1208,7 @@ function commandEvidence(argv) {
 
 function commandTest() {
   const suites = [
-    path.join(CONFIG_DIR, "hooks", "test-hooks.js"),
+    path.join(CONFIG_DIR, "tools", "test-hooks.js"),
     path.join(CONFIG_DIR, "tools", "test-ccfg.js"),
     path.join(CONFIG_DIR, "tools", "test-broker.js"),
     path.join(CONFIG_DIR, "tools", "test-modes.js"),

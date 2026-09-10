@@ -1,17 +1,17 @@
 "use strict";
 
-// Regression suite for the three standards hooks.
+// Regression suite for the hooks in ../hooks.
 //
 // Runs on macOS, Linux and Windows: no shell invocations, no POSIX-only paths, and
 // the hooks are spawned with process.execPath rather than a `node` on PATH.
-// Usage: node ~/.claude/hooks/test-hooks.js
+// Usage: node ~/.claude/tools/test-hooks.js
 
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
-const HOOKS = __dirname;
+const HOOKS = path.join(__dirname, "..", "hooks");
 const GUARD = path.join(HOOKS, "git-guard.js");
 const STYLE = path.join(HOOKS, "style-check.js");
 const STOP = path.join(HOOKS, "review-reminder.js");

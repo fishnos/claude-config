@@ -229,11 +229,19 @@ Captured so nothing is silently dropped. Ordered roughly by expected value.
 
 15. Fix or remove the `21st` and `citecheck` MCP servers; both failed to connect
     on 2026-09-09.
-16. Vendor or cache `ccstatusline` — `hooks/statusline.js` spawns
-    `npx -y ccstatusline@2.2.27` every ten seconds, which is latency plus a
-    supply-chain surface on a timer.
-17. Move `hooks/test-hooks.js` (57,039 bytes, 29% of `hooks/`) to `tools/`. It
-    never fires as a hook.
+16. ~~Vendor or cache `ccstatusline`.~~ Measured on 2026-09-10 and dropped.
+    The package resolves entirely from the local npx cache: `npx --offline -y
+    ccstatusline@2.2.27`, fed a real status-line payload on stdin, exits 0 with
+    correct output and empty stderr. So the ten-second refresh makes no registry
+    call, and the supply-chain-on-a-timer claim does not hold. What is real is
+    process overhead: the wrapped command measured 0.46-0.54s and the whole hook
+    0.56-0.66s, in the background, blocking nothing. Vendoring would buy back
+    roughly 0.4s of background latency in exchange for putting `node_modules/`
+    in a public repo. The remaining exposure is first run on a machine whose npm
+    cache is cold or has been cleaned.
+17. Done on 2026-09-10. `test-hooks.js` now sits in `tools/` beside the other
+    four suites, which is where `ccfg test` already looked for it — it was the
+    only suite living anywhere else. It never fired as a hook.
 18. Add `AGENTS.md` to public repos. Now at 60k+ repositories and read by 20+
     agents, stewarded by the Linux Foundation alongside MCP. A sibling to
     `CLAUDE.md`, not a replacement.
@@ -245,7 +253,7 @@ Captured so nothing is silently dropped. Ordered roughly by expected value.
 
 ## Testing
 
-Every hook change gets a case in `hooks/test-hooks.js`, written before the hook
+Every hook change gets a case in `tools/test-hooks.js`, written before the hook
 and watched to fail for the right reason before the implementation exists.
 
 Phase B additionally gets a before-and-after probe run. B3 is the acceptance

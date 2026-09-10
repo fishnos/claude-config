@@ -24,7 +24,7 @@ jobs:
       # falling back to ~/.claude, so the checkout is validated where it landed
       # rather than being copied into the home directory first.
       - name: Hook regression suite
-        run: node hooks/test-hooks.js
+        run: node tools/test-hooks.js
         env:
           CLAUDE_CONFIG_DIR: ${{ github.workspace }}
 
