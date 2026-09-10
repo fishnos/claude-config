@@ -454,7 +454,7 @@ function checkBlocking(rawSegment, cwd, pushAuthorized) {
   }
 }
 
-function checkCommit(rawSegment, cwd, commitAuthorized) {
+function checkCommit(rawSegment, cwd, commitAuthorized, subjectOverride) {
   const segment = gitInvocation(stripQuotes(rawSegment));
   if (segment === null) return;
   if (!/\bgit\s+commit\b/.test(segment)) return;
@@ -544,7 +544,22 @@ function checkCommit(rawSegment, cwd, commitAuthorized) {
   // anything with a body, and used to skip these checks entirely.
   const message = commitMessage.extract(rawSegment, cwd);
   if (message) {
-    for (const problem of commitMessage.lint(message.text)) {
+    const { blocking, advisory } = commitMessage.classify(message.text);
+    // Blocking findings are rule violations: every convention they check is
+    // written down. Advisory findings are judgment calls a human has to weigh
+    // (a long body, a subject past the target but under the hard ceiling), so
+    // they only ever reach the warning notes below, never the deny.
+    if (blocking.length > 0 && !subjectOverride) {
+      io.deny(
+        EVENT,
+        "Blocked: this commit message breaks a convention you wrote down.\n" +
+          blocking.map((problem) => `- ${problem}`).join("\n") +
+          "\n\nRewrite the message. See git-workflow. If the message is right " +
+          "and the check is wrong, prefix this one invocation with:\n" +
+          "  CLAUDE_ALLOW_VAGUE_SUBJECT=1 git commit ...",
+      );
+    }
+    for (const problem of [...blocking, ...advisory]) {
       notes.push(`- ${problem} See git-workflow.`);
     }
   }
@@ -566,6 +581,7 @@ io.run(() => {
   // typed deliberately per invocation and can never be exported to disable the guard.
   const pushAuthorized = command.includes("CLAUDE_ALLOW_PUSH=1");
   const commitAuthorized = command.includes("CLAUDE_ALLOW_COMMIT=1");
+  const subjectOverride = command.includes("CLAUDE_ALLOW_VAGUE_SUBJECT=1");
 
   // Every deny pass runs to completion before anything is allowed to emit, so a
   // warning in one segment can never cut short the scan of a later one.
@@ -577,7 +593,8 @@ io.run(() => {
   const segments = splitCommands(command);
   for (const segment of segments) checkBlocking(segment, cwd, pushAuthorized);
   for (const segment of segments) checkOutward(segment, command);
-  for (const segment of segments) checkCommit(segment, cwd, commitAuthorized);
+  for (const segment of segments)
+    checkCommit(segment, cwd, commitAuthorized, subjectOverride);
 
   const warnings = segments.flatMap(outwardWarnings);
   if (warnings.length > 0)
