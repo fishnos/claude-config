@@ -3,14 +3,14 @@
 Generated. Do not edit by hand. Rerun `node ~/.claude/scripts/build-skill-index.js`,
 or start a session and the SessionStart hook rebuilds it when it goes stale.
 
-Every personal skill on this machine and whether Claude can see it. 70 of these
+Every personal skill on this machine and whether Claude can see it. 74 of these
 are invisible in the session listing but run right now when invoked by name. Only the
 **Disabled** section needs settings.json changed before use.
 
 Read this before concluding that no skill covers a task, and before falling back to
 web search or find-docs for a named framework, language, platform, or SDK.
 
-## Invocable by name only (40)
+## Invocable by name only (74)
 
 Hidden from the session listing by `user-invocable-only`. Invoke with `/name`.
 
@@ -73,6 +73,10 @@ Overrides default LLM truncation behavior. Enforces complete code generation, ba
 ### `/gpt-taste`
 
 Elite UX/UI & Advanced GSAP Motion Engineer. Enforces Python-driven true randomization for layout variance, strict AIDA page structure, wide editorial typography (bans 6-line wraps), gapless bento grids, strict GSAP ScrollTriggers (pinning, stacking, scrubbing), inline micro-images, and massive section spacing.
+
+### `/graphify`
+
+Use for any question about a codebase, its architecture, file relationships, or project content — especially when graphify-out/ exists, where the question should be treated as a graphify query first. Turns any input (code, docs, papers, images, videos) into a persistent knowledge graph with god nodes, community detection, and query/path/explain tools.
 
 ### `/high-end-visual-design`
 
@@ -138,45 +142,17 @@ Tones down visually aggressive or overstimulating designs, reducing intensity wh
 
 Upgrades existing websites and apps to premium quality. Audits current design, identifies generic AI patterns, and applies high-end design standards without breaking functionality. Works with any CSS framework or vanilla CSS.
 
+### `/repo-schedule`
+
+Declare a repository's scheduled cloud agents (Claude Code routines) as committed files under .claude/routines/, then reconcile them against the account so the repo is the source of truth. Use when asked what should run on a schedule for a repo, to add or change a recurring or GitHub-triggered agent for a project, to check whether a repo's declared routines are actually live, or when /repo-setup reports the routines check. For a personal one-off reminder unattached to a repository, use /schedule instead.
+
+### `/repo-setup`
+
+Audit and fix a repository's agent infrastructure — CLAUDE.md presence and whether git actually tracks it, the graphify knowledge graph and its freshness, an origin remote for cloud routines, declared routines and their .mcp.json, and skills the stack needs that nothing can route to automatically. Use when the SessionStart notice says "Repo setup:", when someone asks whether a repo is set up for agents, when onboarding an unfamiliar repo, or when asked to snooze or dismiss one of those notices. Not for writing CLAUDE.md content itself — that is /init — and not for scheduling, which is /repo-schedule.
+
 ### `/roblox-engineer`
 
 [production-grade internal] Builds Roblox experiences — Luau scripting, Roblox Studio tooling, experience design, DataStore persistence, avatar systems, monetization, and moderation. Routed via the production-grade orchestrator (Game Build mode).
-
-### `/sentry-sdk-setup`
-
-Set up Sentry in any language or framework. Detects the user's platform and loads the right SDK skill. Use when asked to add Sentry, install an SDK, or set up error monitoring in a project.
-
-### `/spacetimedb`
-
-Use this skill first for any SpacetimeDB task; it routes to focused skills for modules, tables, reducers, procedures, views, clients, subscriptions, CLI commands, auth, RLS, HTTP APIs, SQL, deployment, serialization, tutorials, quickstarts, and upgrades. Triggers on: spacetime, spacetimedb, SpacetimeDB, stdb, module, reducer, table, procedure, view, subscription, DbConnection, spacetime generate, spacetime publish, spacetime sql, BSATN, SATS, row-level security, RLS, Maincloud, standalone, Unity, Unreal.
-
-### `/stitch-design-taste`
-
-Semantic Design System Skill for Google Stitch. Generates agent-friendly DESIGN.md files that enforce premium, anti-generic UI standards — strict typography, calibrated color, asymmetric layouts, perpetual micro-motion, and hardware-accelerated performance.
-
-### `/stop-slop`
-
-Remove AI writing patterns from prose. Use when drafting, editing, or reviewing text to eliminate predictable AI tells.
-
-### `/typeset`
-
-Improves typography by fixing font choices, hierarchy, sizing, weight, and readability so text feels intentional. Use when the user mentions fonts, type, readability, text hierarchy, sizing looks off, or wants more polished, intentional typography.
-
-### `/ui-ux-pro-max`
-
-UI/UX design intelligence. 67 styles, 96 palettes, 57 font pairings, 25 charts, 13 stacks (React, Next.js, Vue, Svelte, SwiftUI, React Native, Flutter, Tailwind, shadcn/ui). Actions: plan, build, create, design, implement, review, fix, improve, optimize, enhance, refactor, check UI/UX code. Projects: website, landing page, dashboard, admin panel, e-commerce, SaaS, portfolio, blog, mobile app, .html, .tsx, .vue, .svelte. Elements: button, modal, navbar, sidebar, card, table, form, chart. Styles: glassmorphism, claymorphism, minimalism, brutalism, neumorphism, bento grid, dark mode, responsive, skeuomorphism, flat design. Topics: color palette, accessibility, animation, layout, typography, font pairing, spacing, hover, shadow, gradient. Integrations: shadcn/ui MCP for component search and examples.
-
-### `/upstash`
-
-Work with any Upstash TypeScript/JavaScript SDK including Redis, Box, QStash, Workflow, Vector, Search and Ratelimit. Use when the user is working with any Upstash product or SDK.
-
-### `/vapi-design`
-
-Design system skill for vapi. Activate when building UI components, pages, or any visual elements. Provides exact color tokens, typography scale, spacing grid, component patterns, and craft rules. Read references/DESIGN.md before writing any CSS or JSX.
-
-## Hidden children (30)
-
-Their authors set `disable-model-invocation: true`, usually because a router skill picks between them. Never listed, but `/name` works.
 
 ### `/sentry-android-sdk`
 Child of `/sentry-sdk-setup`.
@@ -293,6 +269,10 @@ Child of `/sentry-sdk-setup`.
 
 Full Sentry SDK setup for Ruby. Use when asked to add Sentry to Ruby, install sentry-ruby, setup Sentry in Rails/Sinatra/Rack, or configure error monitoring, tracing, logging, metrics, profiling, or crons for Ruby applications. Also handles migration from AppSignal, Honeybadger, Bugsnag, Rollbar, or Airbrake. Supports Rails, Sinatra, Rack, Sidekiq, and Resque.
 
+### `/sentry-sdk-setup`
+
+Set up Sentry in any language or framework. Detects the user's platform and loads the right SDK skill. Use when asked to add Sentry, install an SDK, or set up error monitoring in a project.
+
 ### `/sentry-sdk-skill-creator`
 
 Create a complete Sentry SDK skill bundle for any platform. Use when asked to "create an SDK skill", "add a new platform skill", "write a Sentry skill for X", or build a new sentry-<platform>-sdk skill bundle with wizard flow and feature reference files.
@@ -326,6 +306,44 @@ Full Sentry SDK setup for Svelte and SvelteKit. Use when asked to "add Sentry to
 Child of `/sentry-sdk-setup`.
 
 Full Sentry SDK setup for TanStack Start React. Use when asked to "add Sentry to TanStack Start", "install @sentry/tanstackstart-react", or configure error monitoring, tracing, session replay, logs, or user feedback in a TanStack Start React app.
+
+### `/shape`
+
+Plan the UX and UI for a feature before writing code. Runs a structured discovery interview, then produces a design brief that guides implementation. Use during the planning phase to establish design direction, constraints, and strategy before any code is written.
+
+### `/spacetimedb`
+
+Use this skill first for any SpacetimeDB task; it routes to focused skills for modules, tables, reducers, procedures, views, clients, subscriptions, CLI commands, auth, RLS, HTTP APIs, SQL, deployment, serialization, tutorials, quickstarts, and upgrades. Triggers on: spacetime, spacetimedb, SpacetimeDB, stdb, module, reducer, table, procedure, view, subscription, DbConnection, spacetime generate, spacetime publish, spacetime sql, BSATN, SATS, row-level security, RLS, Maincloud, standalone, Unity, Unreal.
+
+### `/stitch-design-taste`
+
+Semantic Design System Skill for Google Stitch. Generates agent-friendly DESIGN.md files that enforce premium, anti-generic UI standards — strict typography, calibrated color, asymmetric layouts, perpetual micro-motion, and hardware-accelerated performance.
+
+### `/stop-slop`
+
+Remove AI writing patterns from prose. Use when drafting, editing, or reviewing text to eliminate predictable AI tells.
+
+### `/typeset`
+
+Improves typography by fixing font choices, hierarchy, sizing, weight, and readability so text feels intentional. Use when the user mentions fonts, type, readability, text hierarchy, sizing looks off, or wants more polished, intentional typography.
+
+### `/ui-ux-pro-max`
+
+UI/UX design intelligence. 67 styles, 96 palettes, 57 font pairings, 25 charts, 13 stacks (React, Next.js, Vue, Svelte, SwiftUI, React Native, Flutter, Tailwind, shadcn/ui). Actions: plan, build, create, design, implement, review, fix, improve, optimize, enhance, refactor, check UI/UX code. Projects: website, landing page, dashboard, admin panel, e-commerce, SaaS, portfolio, blog, mobile app, .html, .tsx, .vue, .svelte. Elements: button, modal, navbar, sidebar, card, table, form, chart. Styles: glassmorphism, claymorphism, minimalism, brutalism, neumorphism, bento grid, dark mode, responsive, skeuomorphism, flat design. Topics: color palette, accessibility, animation, layout, typography, font pairing, spacing, hover, shadow, gradient. Integrations: shadcn/ui MCP for component search and examples.
+
+### `/upstash`
+
+Work with any Upstash TypeScript/JavaScript SDK including Redis, Box, QStash, Workflow, Vector, Search and Ratelimit. Use when the user is working with any Upstash product or SDK.
+
+### `/vapi-design`
+
+Design system skill for vapi. Activate when building UI components, pages, or any visual elements. Provides exact color tokens, typography scale, spacing grid, component patterns, and craft rules. Read references/DESIGN.md before writing any CSS or JSX.
+
+## Hidden children (0)
+
+Their authors set `disable-model-invocation: true`, usually because a router skill picks between them. Never listed, but `/name` works.
+
+_none_
 
 ## Path-gated (23)
 
@@ -446,7 +464,7 @@ Activates on: `**/*.urdf,**/*.xacro`
 
 Create robot models using URDF with proper links, joints, visual geometry, collision shapes, and physical properties
 
-## Always listed (16)
+## Always listed (12)
 
 Already in the session listing with descriptions.
 
@@ -490,10 +508,6 @@ Google's language style guides — TypeScript, JavaScript, HTML/CSS, Python, She
 
 Google's testing discipline — test sizes and scopes, the 80/15/5 mix, testing behaviors not methods, DAMP over DRY, preferring real implementations over mocks, and avoiding brittle change-detector tests. Use when writing or reviewing any test, deciding what to test or at what level, choosing between a real object, a fake, and a mock, debugging a flaky or brittle test, or judging whether a change has adequate test coverage. From Software Engineering at Google and Testing on the Toilet.
 
-### `/graphify`
-
-Use for any question about a codebase, its architecture, file relationships, or project content — especially when graphify-out/ exists, where the question should be treated as a graphify query first. Turns any input (code, docs, papers, images, videos) into a persistent knowledge graph with god nodes, community detection, and query/path/explain tools.
-
 ### `/impeccable`
 
 Use when the user wants to design, redesign, shape, critique, audit, polish, clarify, distill, harden, optimize, adapt, animate, colorize, extract, or otherwise improve a frontend interface. Covers websites, landing pages, dashboards, product UI, app shells, components, forms, settings, onboarding, and empty states. Handles UX review, visual hierarchy, information architecture, cognitive load, accessibility, performance, responsive behavior, theming, anti-patterns, typography, fonts, spacing, layout, alignment, color, motion, micro-interactions, UX copy, error states, edge cases, i18n, and reusable design systems or tokens. Also use for bland designs that need to become bolder or more delightful, loud designs that should become quieter, live browser iteration on UI elements, or ambitious visual effects that should feel technically extraordinary. Not for backend-only or non-UI tasks.
@@ -501,18 +515,6 @@ Use when the user wants to design, redesign, shape, critique, audit, polish, cla
 ### `/react-testing`
 
 Testing React with Testing Library the way it's meant to be used — query priority, user-event, integration over unit, testing custom hooks, and mocking the network with MSW instead of fetch. Use when writing or reviewing React/Next.js tests, testing a component, custom hook, form, or async data flow, choosing between unit/integration/E2E for a frontend change, or fixing tests that break on every refactor.
-
-### `/repo-schedule`
-
-Declare a repository's scheduled cloud agents (Claude Code routines) as committed files under .claude/routines/, then reconcile them against the account so the repo is the source of truth. Use when asked what should run on a schedule for a repo, to add or change a recurring or GitHub-triggered agent for a project, to check whether a repo's declared routines are actually live, or when /repo-setup reports the routines check. For a personal one-off reminder unattached to a repository, use /schedule instead.
-
-### `/repo-setup`
-
-Audit and fix a repository's agent infrastructure — CLAUDE.md presence and whether git actually tracks it, the graphify knowledge graph and its freshness, an origin remote for cloud routines, declared routines and their .mcp.json, and skills the stack needs that nothing can route to automatically. Use when the SessionStart notice says "Repo setup:", when someone asks whether a repo is set up for agents, when onboarding an unfamiliar repo, or when asked to snooze or dismiss one of those notices. Not for writing CLAUDE.md content itself — that is /init — and not for scheduling, which is /repo-schedule.
-
-### `/shape`
-
-Plan the UX and UI for a feature before writing code. Runs a structured discovery interview, then produces a design brief that guides implementation. Use during the planning phase to establish design direction, constraints, and strategy before any code is written.
 
 ## Disabled (19)
 
