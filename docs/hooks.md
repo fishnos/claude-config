@@ -70,10 +70,10 @@ Four things make these portable rather than accidentally POSIX:
 
 Requires **Node ≥ 14.14** (`fs.rmSync`), well below the version the rest of this config already needs.
 
-`hooks/test-hooks.js` is the regression suite for all of them, covering 271 cases, including deliberate false-positive tests, bypass tests (`FOO=1 git push` and `git -C /repo push` must both still be denied), Windows-shaped inputs (backslash paths, CRLF, `&` chaining), and a check that the suite itself never mutates live state. It is platform-neutral too: no shell invocation, and the hooks are spawned via `process.execPath`. Run it after any change:
+`tools/test-hooks.js` is the regression suite for all of them, covering 328 cases, including deliberate false-positive tests, bypass tests (`FOO=1 git push` and `git -C /repo push` must both still be denied), Windows-shaped inputs (backslash paths, CRLF, `&` chaining), and a check that the suite itself never mutates live state. It is platform-neutral too: no shell invocation, and the hooks are spawned via `process.execPath`. Run it after any change:
 
 ```sh
-node ~/.claude/hooks/test-hooks.js
+node ~/.claude/tools/test-hooks.js
 ```
 
 `hooks/validate-config.js` checks the config as a whole rather than the hooks alone: every script parses and loads, `settings.json` points only at files that exist, the hooks behave correctly through the real bootstrap, the regression suite passes, the counts and claims in this README match reality, the skills resolve from both `~/.claude/skills` and `~/.agents/skills`, and no tracked file carries a credential. Run it on a new machine, or after changing anything here:

@@ -1,6 +1,6 @@
 # claude-config
 
-A version-controlled `~/.claude`: global instructions, 126 skills, ten hooks that
+A version-controlled `~/.claude`: global instructions, 126 skills, thirteen hooks that
 enforce an engineering standard, and a zero-dependency CLI to set it all up on a
 machine that has nothing installed yet.
 
@@ -19,7 +19,7 @@ adopt-in-place path and the Windows equivalents.
 | Page                                 | What is in it                                                       |
 | ------------------------------------ | ------------------------------------------------------------------- |
 | [Install](docs/install.md)           | New machine, prerequisites, `claude-sol`, avoiding merge conflicts  |
-| [Hooks](docs/hooks.md)               | All ten hooks, what the git guard blocks, portability, the suite    |
+| [Hooks](docs/hooks.md)               | All thirteen hooks, what the git guard blocks, portability, the suite    |
 | [Security](docs/security.md)         | Where keys live, the credential broker, the evidence log            |
 | [ccfg](docs/ccfg.md)                 | Command reference for the config CLI                                |
 | [Skills](docs/skills.md)             | The engineering standards, and sharing skills via `~/.agents`       |
@@ -78,7 +78,7 @@ Everything else is ignored via allowlist `.gitignore` (`*` first, then explicit 
 Two commands, both of which should pass before anything is committed:
 
 ```sh
-node ~/.claude/hooks/test-hooks.js       # 271 cases across the ten hooks
+node ~/.claude/tools/test-hooks.js       # 328 cases across the thirteen hooks
 node ~/.claude/hooks/validate-config.js  # the config as a whole
 ```
 

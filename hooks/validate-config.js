@@ -33,7 +33,7 @@ const jsFiles = [
   "hooks/git-guard.js",
   "hooks/style-check.js",
   "hooks/review-reminder.js",
-  "hooks/test-hooks.js",
+  "tools/test-hooks.js",
   "hooks/lib/hook-io.js",
   "hooks/lib/paths.js",
   "hooks/lib/commit-message.js",
@@ -139,7 +139,7 @@ check("guard stays silent on git status", !allowed.hookSpecificOutput);
 section("Regression suite");
 const suite = spawnSync(
   process.execPath,
-  [path.join(ROOT, "hooks", "test-hooks.js")],
+  [path.join(ROOT, "tools", "test-hooks.js")],
   {
     encoding: "utf8",
     timeout: 300000,
