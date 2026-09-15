@@ -7,6 +7,11 @@
 // 2026-09-11 measurement in docs/superpowers/specs/2026-09-11-context-management-design.md
 // and compare: turns above 200K and compactions per week should both have fallen.
 //
+// Counts only sessions that ran under the home directory. Every figure printed
+// before that filter arrived on 2026-09-15 included probe and test-harness runs,
+// which outnumbered real sessions 3,251 to 89 over the fortnight to that date,
+// so session counts from an earlier run are not comparable with these.
+//
 // Usage: node ~/.claude/tools/context-report.js [--since YYYY-MM-DD]
 
 const fs = require("fs");
@@ -89,6 +94,8 @@ function main() {
   const compactions = [];
   let turnsOver = 0;
   let compactedSessions = 0;
+  let counted = 0;
+  let excluded = 0;
 
   for (const file of files) {
     let text;
@@ -97,10 +104,21 @@ function main() {
     } catch {
       continue;
     }
-    const summary = transcriptTail.summarize(
-      transcriptTail.parseLines(text),
-      OVER_TOKENS,
-    );
+    const entries = transcriptTail.parseLines(text);
+    // Every probe and test harness runs in a temporary directory, and those
+    // sessions outnumbered real work 38 to 1 when this filter was written, so
+    // an unfiltered count describes the harness rather than the operator.
+    if (
+      !transcriptTail.isUnderDirectory(
+        transcriptTail.sessionCwd(entries),
+        os.homedir(),
+      )
+    ) {
+      excluded += 1;
+      continue;
+    }
+    counted += 1;
+    const summary = transcriptTail.summarize(entries, OVER_TOKENS);
     bucketCounts[
       BUCKETS.findIndex((bucket) => summary.peakTokens < bucket.below)
     ] += 1;
@@ -113,7 +131,8 @@ function main() {
   const byTrigger = (trigger) =>
     compactions.filter((compaction) => compaction.trigger === trigger);
   const lines = [
-    `Sessions modified since ${new Date(sinceMs).toISOString().slice(0, 10)}: ${files.length}`,
+    `Sessions modified since ${new Date(sinceMs).toISOString().slice(0, 10)}: ${counted}`,
+    `  ran under ${os.homedir()}; ${excluded} excluded: ran elsewhere, or recorded no directory`,
     "",
     "Largest context a session reached:",
     ...BUCKETS.map(
