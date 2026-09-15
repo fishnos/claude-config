@@ -7,8 +7,11 @@
 // need git or the network; this hook stays filesystem-only so it cannot stall a
 // session start.
 //
-// Speaks at most once per fortnight per repository, and again immediately when
-// the set of problems changes. A notice on every start is a notice nobody reads.
+// Urgent findings (no state file, no ignore line for it, no graph) are shown on
+// every start, as a banner the operator sees, until fixed or dismissed: the
+// context design does not work without them. The rest speak at most once per
+// fortnight per repository, and again as soon as that set changes. A routine
+// notice on every start is a notice nobody reads.
 
 const path = require("path");
 
@@ -28,13 +31,17 @@ io.run(() => {
   // Each of those carries a .git, and reporting on one would describe the
   // harness to someone who opened a project.
   const configRoot = path.resolve(io.configDir());
-  if (root === configRoot || root.startsWith(`${configRoot}${path.sep}`)) return;
+  if (root === configRoot || root.startsWith(`${configRoot}${path.sep}`))
+    return;
 
   const state = repoAudit.readState(io.configDir(), root);
   const findings = repoAudit.activeFindings(repoAudit.audit(root), state);
-  if (findings.length === 0) return;
+  const urgent = findings.filter((finding) => finding.urgent === true);
+  const routine = findings.filter((finding) => finding.urgent !== true);
 
-  const fingerprint = findings
+  // The fingerprint covers routine findings only, so fixing an urgent one does
+  // not re-arm a routine notice shown yesterday.
+  const fingerprint = routine
     .map((finding) => finding.id)
     .sort()
     .join(",");
@@ -42,19 +49,32 @@ io.run(() => {
   const age = state.lastNoticeAt
     ? repoAudit.daysBetween(state.lastNoticeAt, repoAudit.today())
     : Infinity;
-  if (unchanged && age < QUIET_DAYS) return;
+  const routineDue = routine.length > 0 && !(unchanged && age < QUIET_DAYS);
+  if (urgent.length === 0 && !routineDue) return;
 
-  repoAudit.writeState(io.configDir(), root, {
-    ...state,
-    repo: root,
-    lastFingerprint: fingerprint,
-    lastNoticeAt: repoAudit.today(),
-  });
+  if (routineDue) {
+    repoAudit.writeState(io.configDir(), root, {
+      ...state,
+      repo: root,
+      lastFingerprint: fingerprint,
+      lastNoticeAt: repoAudit.today(),
+    });
+  }
 
-  const summary = findings.map((finding) => finding.message).join("; ");
-  io.warn(
-    EVENT,
-    `Repo setup: ${summary}. Run /repo-setup to review or dismiss. ` +
-      `Mention this once, then continue with the task at hand.`,
-  );
+  const shown = [...urgent, ...(routineDue ? routine : [])];
+  const context =
+    `Repo setup: ${shown.map((finding) => finding.message).join("; ")}. ` +
+    `Run /repo-setup to review or dismiss. ` +
+    `Mention this once, then continue with the task at hand.`;
+
+  if (urgent.length === 0) {
+    io.warn(EVENT, context);
+  } else {
+    io.announce(
+      EVENT,
+      context,
+      `Repo setup: ${urgent.map((finding) => finding.message).join("; ")}. ` +
+        `Fix with /repo-setup context, or dismiss.`,
+    );
+  }
 });

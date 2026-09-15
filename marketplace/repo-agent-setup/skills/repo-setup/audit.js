@@ -16,6 +16,10 @@ const configDir =
   process.env.CLAUDE_CONFIG_DIR || path.resolve(__dirname, "..", "..");
 const repoAudit = require(path.join(configDir, "hooks", "lib", "repo-audit"));
 const io = require(path.join(configDir, "hooks", "lib", "hook-io"));
+const stateFile = require(path.join(configDir, "hooks", "lib", "state-file"));
+const { spawnSync } = require("child_process");
+
+const TEMPLATE = path.join(__dirname, "templates", "state.md");
 
 const SNOOZE_DAYS = 14;
 
@@ -32,6 +36,68 @@ function gitIgnores(root, fileName) {
   if (io.git(["check-ignore", "-v", fileName], root) !== "") return true;
   const gitWorks = io.git(["rev-parse", "--git-dir"], root) !== "";
   return gitWorks ? false : repoAudit.isIgnored(root, fileName);
+}
+
+/** Whether git ignores the state file, with the hook's approximation when git cannot run. */
+function stateFileGitIgnored(root) {
+  if (io.git(["check-ignore", "-v", ".claude/state.md"], root) !== "")
+    return true;
+  const gitWorks = io.git(["rev-parse", "--git-dir"], root) !== "";
+  return gitWorks ? false : stateFile.stateFileIgnoreListed(root);
+}
+
+/**
+ * The one-step setup: state file, ignore line, code graph. Never overwrites a
+ * state file, and never starts graphify's document pass, which spends tokens.
+ */
+function runContext(root) {
+  const statePath = stateFile.stateFilePath(root);
+  if (fs.existsSync(statePath)) {
+    console.log("kept      .claude/state.md (already exists)");
+  } else {
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.copyFileSync(TEMPLATE, statePath);
+    console.log("wrote     .claude/state.md from the template");
+  }
+
+  if (stateFileGitIgnored(root)) {
+    console.log("kept      .gitignore (git already ignores .claude/state.md)");
+  } else {
+    const gitignorePath = path.join(root, ".gitignore");
+    const existing = fs.existsSync(gitignorePath)
+      ? fs.readFileSync(gitignorePath, "utf8")
+      : "";
+    const separator = existing === "" || existing.endsWith("\n") ? "" : "\n";
+    fs.writeFileSync(
+      gitignorePath,
+      `${existing}${separator}.claude/state.md\n`,
+    );
+    console.log("appended  .claude/state.md to .gitignore");
+  }
+
+  const graphBuild = spawnSync("graphify", ["update", root], {
+    cwd: root,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (graphBuild.error && graphBuild.error.code === "ENOENT") {
+    console.log(
+      "skipped   graph: graphify is not on PATH; install it and rerun",
+    );
+  } else if (graphBuild.status !== 0) {
+    console.log(`failed    graphify update exited ${graphBuild.status}`);
+    console.log((graphBuild.stderr || "").slice(-2000));
+    process.exitCode = 1;
+  } else {
+    console.log(
+      "built     graphify-out/graph.json (code only, no model calls)",
+    );
+  }
+
+  console.log(
+    "\nNot run: graphify's pass over documents, papers and images spends " +
+      "model tokens. Offer it; start it with /graphify only on a yes.",
+  );
 }
 
 function remoteUrl(root) {
@@ -104,10 +170,32 @@ function deepAudit(root) {
             : "graph current with HEAD",
     fix:
       graph.state === "missing"
-        ? "/graphify builds one"
+        ? "audit.js context builds it (code only)"
         : graph.state === "stale"
           ? "/graphify --update re-extracts changed files"
           : undefined,
+  });
+
+  const statePresent = fs.existsSync(stateFile.stateFilePath(root));
+  rows.push({
+    id: "state-file",
+    status: statePresent ? "ok" : "missing",
+    detail: statePresent
+      ? ".claude/state.md present"
+      : "no .claude/state.md, so nothing carries the work across a /clear",
+    fix: statePresent
+      ? undefined
+      : "audit.js context writes it from the template",
+  });
+
+  const stateIgnored = stateFileGitIgnored(root);
+  rows.push({
+    id: "state-file-tracked",
+    status: stateIgnored ? "ok" : "broken",
+    detail: stateIgnored
+      ? "git ignores .claude/state.md"
+      : "git would track .claude/state.md, a per-worktree working record",
+    fix: stateIgnored ? undefined : "audit.js context appends it to .gitignore",
   });
 
   const remote = remoteUrl(root);
@@ -206,20 +294,30 @@ function main() {
   const args = process.argv.slice(2);
   const asJson = args.includes("--json");
   const positional = args.filter((value) => !value.startsWith("--"));
-  const command = ["snooze", "dismiss", "reset"].includes(positional[0])
+  const command = ["snooze", "dismiss", "reset", "context"].includes(
+    positional[0],
+  )
     ? positional.shift()
     : "report";
 
   // For snooze and dismiss the first positional is the check id, so the path is
   // whatever follows it. Relative paths resolve against the caller's directory
   // rather than being ignored, which would silently audit the wrong repository.
-  const pathArgument = command === "report" ? positional[0] : positional[1];
+  const pathArgument =
+    command === "report" || command === "context"
+      ? positional[0]
+      : positional[1];
   const root = repoAudit.findRepositoryRoot(
     pathArgument ? path.resolve(pathArgument) : process.cwd(),
   );
   if (root === null) {
     console.error("Not inside a git repository.");
     process.exit(1);
+  }
+
+  if (command === "context") {
+    runContext(root);
+    return;
   }
 
   const state = repoAudit.readState(configDir, root);

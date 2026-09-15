@@ -32,7 +32,7 @@ in bounds; dropping "what this thing is" is not.
 
 Twenty-five of the rules that used to sit in this file now live in
 `modes/rules/`, one per file, and are assembled into `rules/_active.md` by
-`ccfg mode`. They moved because their *priority* varies by mode while their text
+`ccfg mode`. They moved because their _priority_ varies by mode while their text
 does not: a spike and a release want the same rules in a different order. What
 stays here is what never varies.
 
@@ -120,20 +120,20 @@ That file is the authority on what exists; the tier-3 table below is only a shor
 
 **Tier 3 table: wait for me to ask.**
 
-| I want | Invoke |
-| :-- | :-- |
-| A named visual direction | `/minimalist-ui`, `/industrial-brutalist-ui`, `/high-end-visual-design`, `/emil-design-eng`, `/design-taste-frontend`, `/gpt-taste`, `/ui-ux-pro-max` |
-| A product's design system | `/notion-design`, `/vapi-design`, `/stitch-design-taste` |
-| The UI louder or calmer | `/bolder`, `/quieter`, `/overdrive`, `/distill`, `/delight` |
-| One dimension adjusted | `/layout`, `/typeset`, `/colorize`, `/adapt`, `/clarify`, `/animate`, `/polish` |
-| Existing work reviewed | `/critique`, `/audit`, `/optimize` |
-| Existing work reworked | `/redesign-existing-projects`, `/image-to-code` |
-| Brand or generated imagery | `/brandkit`, `/imagegen-frontend-web`, `/imagegen-frontend-mobile` |
-| Prose cleaned after drafting | `/stop-slop`, `/humanizer:humanizer` |
-| Roblox, lesson content, full-output mode | `/roblox-engineer`, `/lesson-generator`, `/full-output-enforcement` |
-| A skill I can't remember the name of | `/find-skills` |
+| I want                                   | Invoke                                                                                                                                                |
+| :--------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A named visual direction                 | `/minimalist-ui`, `/industrial-brutalist-ui`, `/high-end-visual-design`, `/emil-design-eng`, `/design-taste-frontend`, `/gpt-taste`, `/ui-ux-pro-max` |
+| A product's design system                | `/notion-design`, `/vapi-design`, `/stitch-design-taste`                                                                                              |
+| The UI louder or calmer                  | `/bolder`, `/quieter`, `/overdrive`, `/distill`, `/delight`                                                                                           |
+| One dimension adjusted                   | `/layout`, `/typeset`, `/colorize`, `/adapt`, `/clarify`, `/animate`, `/polish`                                                                       |
+| Existing work reviewed                   | `/critique`, `/audit`, `/optimize`                                                                                                                    |
+| Existing work reworked                   | `/redesign-existing-projects`, `/image-to-code`                                                                                                       |
+| Brand or generated imagery               | `/brandkit`, `/imagegen-frontend-web`, `/imagegen-frontend-mobile`                                                                                    |
+| Prose cleaned after drafting             | `/stop-slop`, `/humanizer:humanizer`                                                                                                                  |
+| Roblox, lesson content, full-output mode | `/roblox-engineer`, `/lesson-generator`, `/full-output-enforcement`                                                                                   |
+| A skill I can't remember the name of     | `/find-skills`                                                                                                                                        |
 
-**Still by name only, for want of a file signature.** `/spacetimedb`, `/upstash`, `/motion-patterns`, `/motion-advanced`, and `/sentry-sdk-setup` are domain skills that should fire on their own but can't: each is identified by what a manifest *contains* (a dependency on `framer-motion`, a SpacetimeDB module) rather than by any filename `paths:` can match. Invoke them by name when the stack calls for them, or promote them in the repo that needs them.
+**Still by name only, for want of a file signature.** `/spacetimedb`, `/upstash`, `/motion-patterns`, `/motion-advanced`, and `/sentry-sdk-setup` are domain skills that should fire on their own but can't: each is identified by what a manifest _contains_ (a dependency on `framer-motion`, a SpacetimeDB module) rather than by any filename `paths:` can match. Invoke them by name when the stack calls for them, or promote them in the repo that needs them.
 
 A repo can promote any skill into your listing. `skillOverrides` in `<repo>/.claude/settings.local.json` merges with `settings.json` per key and wins on conflict, so `{"skillOverrides": {"clerk-orgs": "on"}}` makes that skill discoverable in that repo and nowhere else. Verified 2026-08-21.
 
@@ -214,5 +214,3 @@ Never put personal or sensitive data in URLs or query strings. Secrets never ent
 
 - **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
   When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
-
-If a project has no `graphify-out/graph.json`, say so once per session (the first time work touches the codebase) and offer to run `/graphify` to build it. One sentence, then continue with the actual task; don't block on the answer and don't ask again if declined.
