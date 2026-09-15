@@ -9,6 +9,10 @@
 //          because a new session may be for different work.
 // resume and fork bring the conversation back with the file already in it, and
 //          loading it again would only say it twice.
+//
+// When a clear or a compaction finds no record, it says which of the three
+// reasons applies rather than staying silent, because silence there reads as
+// "this repository has no earlier work".
 
 const repoAudit = require("./lib/repo-audit");
 const stateFile = require("./lib/state-file");
@@ -24,14 +28,57 @@ const CLEAR_PREAMBLE =
   "--budget 1500`, never through the /graphify skill; then continue from " +
   "the next step under Progress without asking.\n\n";
 
+// Say why nothing loaded, rather than leaving the model to infer that no earlier
+// work exists. Only a clear or a compaction destroys the conversation, so only
+// there does silence mislead; on startup nothing was lost, and repo-setup.js
+// already asks for the setup a project is missing.
+function reportNothingCarried(source, cause) {
+  if (source === "startup") return;
+  const opening =
+    source === "clear"
+      ? "This session started with /clear"
+      : "This session was just compacted";
+  io.warn(
+    EVENT,
+    `${opening}. ${cause} Nothing was carried across: treat what the user ` +
+      "says next as the whole brief, and do not guess at earlier work.",
+  );
+}
+
 io.run(() => {
   const payload = io.readPayload();
   if (!["clear", "compact", "startup"].includes(payload.source)) return;
 
-  const root = repoAudit.findRepositoryRoot(payload.cwd || process.cwd());
-  if (root === null) return;
+  const cwd = payload.cwd || process.cwd();
+  const root = repoAudit.findRepositoryRoot(cwd);
+  if (root === null) {
+    reportNothingCarried(
+      payload.source,
+      `The working directory (${cwd}) is not inside a git repository, so ` +
+        "there is nowhere for a per-repository working record " +
+        "(.claude/state.md) to live.",
+    );
+    return;
+  }
+
+  const file = stateFile.stateFilePath(root);
   const state = stateFile.readStateFile(root);
-  if (state === null || !stateFile.hasContent(state.text)) return;
+  if (state === null) {
+    reportNothingCarried(
+      payload.source,
+      `${file} does not exist, so this repository keeps no working record. ` +
+        "Run `/repo-setup context` to create one.",
+    );
+    return;
+  }
+  if (!stateFile.hasContent(state.text)) {
+    reportNothingCarried(
+      payload.source,
+      `${file} exists but is still the untouched template, so nothing has ` +
+        "ever been written into it.",
+    );
+    return;
+  }
 
   const loaded = stateFile.loadedText(state.text);
   const age = stateFile.formatAge(Date.now() - state.modifiedMs);

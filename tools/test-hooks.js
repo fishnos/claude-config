@@ -3170,19 +3170,95 @@ header(
 
   fs.copyFileSync(template, statePath);
   check(
-    "an untouched template loads nothing",
+    "an untouched template loads nothing on startup",
     JSON.stringify(start("startup")),
     "{}",
     "",
   );
-  fs.rmSync(statePath);
+
+  const templated = contextOf(start("clear"));
   check(
-    "no state file loads nothing",
-    JSON.stringify(start("clear")),
+    "a clear onto an untouched template says the template is untouched",
+    templated.includes("still the untouched template"),
+    true,
+    templated.slice(0, 300),
+  );
+  check(
+    "a clear onto an untouched template names the file it read",
+    templated.includes(statePath),
+    true,
+    templated.slice(0, 300),
+  );
+
+  fs.rmSync(statePath);
+  const missing = contextOf(start("clear"));
+  check(
+    "a clear with no record says nothing was carried across",
+    missing.includes("Nothing was carried across"),
+    true,
+    missing.slice(0, 300),
+  );
+  check(
+    "a clear with no record names the file that would hold one",
+    missing.includes(statePath),
+    true,
+    missing.slice(0, 300),
+  );
+  check(
+    "a clear with no record says how to create one",
+    missing.includes("/repo-setup context"),
+    true,
+    missing.slice(0, 300),
+  );
+  check(
+    "a clear with no record forbids guessing at earlier work",
+    missing.includes("do not guess"),
+    true,
+    missing.slice(0, 300),
+  );
+  check(
+    "a compaction with no record says so too",
+    contextOf(start("compact")).includes("Nothing was carried across"),
+    true,
+    "",
+  );
+  check(
+    "startup with no record stays silent",
+    JSON.stringify(start("startup")),
+    "{}",
+    "",
+  );
+  check(
+    "a missing record shows no banner",
+    start("clear").systemMessage,
+    undefined,
+    JSON.stringify(start("clear")).slice(0, 200),
+  );
+
+  const outsideRepository = fs.mkdtempSync(
+    path.join(os.tmpdir(), "state-restore-bare-"),
+  );
+  const bare = contextOf(start("clear", outsideRepository));
+  check(
+    "a clear outside any repository says there is nowhere to keep a record",
+    bare.includes("not inside a git repository"),
+    true,
+    bare.slice(0, 300),
+  );
+  check(
+    "a clear outside any repository names the directory it looked in",
+    bare.includes(outsideRepository),
+    true,
+    bare.slice(0, 300),
+  );
+  check(
+    "resume outside any repository still loads nothing",
+    JSON.stringify(start("resume", outsideRepository)),
     "{}",
     "",
   );
 
+  fs.rmSync(outsideRepository, { recursive: true, force: true });
   fs.rmSync(restoreRoot, { recursive: true, force: true });
   fs.rmSync(restoreHome, { recursive: true, force: true });
 }
@@ -3865,6 +3941,7 @@ header("SessionStart: graph-refresh rebuilds a stale graph in the background");
   fs.rmSync(worktreeRoot, { recursive: true, force: true });
   fs.rmSync(worktreeGitDirectory, { recursive: true, force: true });
 }
+
 
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(captureHome, { recursive: true, force: true });
