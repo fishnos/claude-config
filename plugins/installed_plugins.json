@@ -1,16 +1,6 @@
 {
   "version": 2,
   "plugins": {
-    "ecc@ecc": [
-      {
-        "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/ecc/ecc/5b173d2e6c11",
-        "version": "2.0.0",
-        "installedAt": "2026-06-12T00:00:00.000Z",
-        "lastUpdated": "2026-06-12T00:00:00.000Z",
-        "gitCommitSha": "5b173d2e6c11b976a0f13b2f59125e08956c1d47"
-      }
-    ],
     "superpowers@claude-plugins-official": [
       {
         "scope": "user",
@@ -34,21 +24,21 @@
     "frontend-design@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/frontend-design/517b2fcd1b60",
-        "version": "517b2fcd1b60",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/frontend-design/da823e86c8fe",
+        "version": "da823e86c8fe",
         "installedAt": "2026-03-05T02:00:37.251Z",
-        "lastUpdated": "2026-09-08T21:48:09.824Z",
-        "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
+        "lastUpdated": "2026-09-14T20:18:48.019Z",
+        "gitCommitSha": "3ea32df27be71d78775e627df2382fc26203577f"
       }
     ],
     "code-review@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/code-review/517b2fcd1b60",
-        "version": "517b2fcd1b60",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/code-review/da823e86c8fe",
+        "version": "da823e86c8fe",
         "installedAt": "2026-04-05T03:18:14.324Z",
-        "lastUpdated": "2026-09-08T21:48:09.824Z",
-        "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
+        "lastUpdated": "2026-09-14T20:18:48.018Z",
+        "gitCommitSha": "3ea32df27be71d78775e627df2382fc26203577f"
       }
     ],
     "code-simplifier@claude-plugins-official": [
@@ -63,11 +53,11 @@
     "skill-creator@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/skill-creator/517b2fcd1b60",
-        "version": "517b2fcd1b60",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/skill-creator/da823e86c8fe",
+        "version": "da823e86c8fe",
         "installedAt": "2026-04-05T03:18:30.867Z",
-        "lastUpdated": "2026-09-08T21:48:09.823Z",
-        "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
+        "lastUpdated": "2026-09-14T20:18:48.022Z",
+        "gitCommitSha": "3ea32df27be71d78775e627df2382fc26203577f"
       }
     ],
     "supabase@claude-plugins-official": [
@@ -82,11 +72,11 @@
     "feature-dev@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/feature-dev/517b2fcd1b60",
-        "version": "517b2fcd1b60",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/feature-dev/da823e86c8fe",
+        "version": "da823e86c8fe",
         "installedAt": "2026-04-05T23:32:32.606Z",
-        "lastUpdated": "2026-09-08T21:48:09.825Z",
-        "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
+        "lastUpdated": "2026-09-14T20:18:48.017Z",
+        "gitCommitSha": "3ea32df27be71d78775e627df2382fc26203577f"
       }
     ],
     "claude-code-setup@claude-plugins-official": [
@@ -101,21 +91,21 @@
     "vercel@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/vercel/0.48.0",
-        "version": "0.48.0",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/vercel/0.49.2",
+        "version": "0.49.2",
         "installedAt": "2026-04-05T23:33:32.920Z",
-        "lastUpdated": "2026-09-02T15:30:13.900Z",
+        "lastUpdated": "2026-09-14T20:18:49.363Z",
         "gitCommitSha": "eb3b6f19e9ca59b23c88d7cc8dfe609388be0fc7"
       }
     ],
     "hookify@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/hookify/517b2fcd1b60",
-        "version": "517b2fcd1b60",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/hookify/da823e86c8fe",
+        "version": "da823e86c8fe",
         "installedAt": "2026-04-05T23:33:44.175Z",
-        "lastUpdated": "2026-09-08T21:48:09.825Z",
-        "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
+        "lastUpdated": "2026-09-14T20:18:48.023Z",
+        "gitCommitSha": "3ea32df27be71d78775e627df2382fc26203577f"
       }
     ],
     "caveman@caveman": [
@@ -151,11 +141,11 @@
     "mcp-server-dev@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/mcp-server-dev/517b2fcd1b60",
-        "version": "517b2fcd1b60",
+        "installPath": "/Users/vtsyp/.claude/plugins/cache/claude-plugins-official/mcp-server-dev/da823e86c8fe",
+        "version": "da823e86c8fe",
         "installedAt": "2026-07-31T23:32:21.578Z",
-        "lastUpdated": "2026-09-08T21:48:09.824Z",
-        "gitCommitSha": "c0a764f286d4bb2cfedae382252c88daa6198308"
+        "lastUpdated": "2026-09-14T20:18:48.021Z",
+        "gitCommitSha": "3ea32df27be71d78775e627df2382fc26203577f"
       }
     ],
     "neon@claude-plugins-official": [
