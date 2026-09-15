@@ -317,7 +317,6 @@
     "refreshInterval": 10
   },
   "enabledPlugins": {
-    "ecc@ecc": false,
     "claude-mem@thedotmack": false,
     "superpowers@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true,
@@ -338,12 +337,6 @@
     "google-engineering@fishnos": true
   },
   "extraKnownMarketplaces": {
-    "ecc": {
-      "source": {
-        "source": "github",
-        "repo": "affaan-m/ECC"
-      }
-    },
     "caveman": {
       "source": {
         "source": "github",
