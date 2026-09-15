@@ -28,6 +28,58 @@ function settingsPath() {
   return path.join(io.configDir(), "settings.json");
 }
 
+function lockfilePath() {
+  return path.join(io.configDir(), "plugins", "installed_plugins.json");
+}
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every skill an installed plugin ships, as {plugin, name, file}.
+ *
+ * Driven by the lockfile (plugins/installed_plugins.json) rather than by walking
+ * plugins/cache, because that cache also holds temporary git clones and
+ * superseded versions: 3,222 SKILL.md files sat under it on this machine when
+ * this was written against 88 belonging to an installed plugin.
+ */
+function pluginSkills() {
+  const lockfile = readJson(lockfilePath());
+  if (lockfile === null) return [];
+  const settings = readJson(settingsPath()) || {};
+  const enabled = settings.enabledPlugins || {};
+
+  const found = [];
+  for (const [key, installs] of Object.entries(lockfile.plugins || {})) {
+    // Only an explicit false hides a plugin. An installed plugin missing from
+    // enabledPlugins is catalogued: for a file read to decide whether anything
+    // covers a task, omitting a skill that does run is the worse mistake.
+    if (enabled[key] === false) continue;
+    const plugin = key.split("@")[0];
+    for (const install of installs || []) {
+      const directory = path.join(install.installPath || "", "skills");
+      let names;
+      try {
+        names = fs.readdirSync(directory).sort();
+      } catch {
+        continue;
+      }
+      for (const name of names)
+        found.push({
+          plugin,
+          name,
+          file: path.join(directory, name, "SKILL.md"),
+        });
+    }
+  }
+  return found;
+}
+
 /**
  * Parse YAML frontmatter well enough for the fields skills actually use.
  *
@@ -47,7 +99,9 @@ function readFrontmatter(file) {
   // frontmatter entirely and fall back to the first paragraph of prose.
   const lines = raw.replace(/^﻿/, "").split("\n");
   if (lines[0].trim() !== "---") return null;
-  const close = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
+  const close = lines.findIndex(
+    (line, index) => index > 0 && line.trim() === "---",
+  );
   if (close < 0) return null;
 
   const fields = {};
@@ -67,40 +121,64 @@ function readFrontmatter(file) {
 }
 
 function readOverrides() {
-  try {
-    return JSON.parse(fs.readFileSync(settingsPath(), "utf8")).skillOverrides || {};
-  } catch {
-    return {};
-  }
+  return (readJson(settingsPath()) || {}).skillOverrides || {};
 }
 
-/** Every personal skill, sorted into the five visibility groups. */
+/**
+ * Every skill on the machine, personal and from installed plugins, sorted into
+ * the five visibility groups.
+ *
+ * A plugin's skill is entered under the name that invokes it, `plugin:skill`,
+ * so the catalog gives the spelling that works rather than the bare directory.
+ */
 function collect() {
   const overrides = readOverrides();
-  const groups = { byName: [], hiddenChild: [], gated: [], listed: [], disabled: [] };
+  const groups = {
+    byName: [],
+    hiddenChild: [],
+    gated: [],
+    listed: [],
+    disabled: [],
+  };
 
-  let names;
+  let personal;
   try {
-    names = fs.readdirSync(skillsDir()).sort();
+    personal = fs.readdirSync(skillsDir()).sort();
   } catch {
-    return groups;
+    personal = [];
   }
 
-  for (const name of names) {
-    const fields = readFrontmatter(path.join(skillsDir(), name, "SKILL.md"));
+  const sources = [
+    ...personal.map((name) => ({
+      name,
+      file: path.join(skillsDir(), name, "SKILL.md"),
+      fromPlugin: false,
+    })),
+    ...pluginSkills().map((skill) => ({
+      name: `${skill.plugin}:${skill.name}`,
+      file: skill.file,
+      fromPlugin: true,
+    })),
+  ];
+
+  for (const source of sources) {
+    const fields = readFrontmatter(source.file);
     if (!fields) continue;
 
     const entry = {
-      name,
+      name: source.name,
+      fromPlugin: source.fromPlugin,
       description: (fields.description || "(no description)").trim(),
       paths: fields.paths ? fields.paths.replace(/^["']|["']$/g, "") : null,
       parent: fields.parent || null,
     };
-    const state = overrides[name] || "on";
+    const state = overrides[source.name] || "on";
 
     if (state === "off") groups.disabled.push(entry);
-    else if (state === "user-invocable-only" || state === "name-only") groups.byName.push(entry);
-    else if (String(fields["disable-model-invocation"]).trim() === "true") groups.hiddenChild.push(entry);
+    else if (state === "user-invocable-only" || state === "name-only")
+      groups.byName.push(entry);
+    else if (String(fields["disable-model-invocation"]).trim() === "true")
+      groups.hiddenChild.push(entry);
     else if (entry.paths) groups.gated.push(entry);
     else groups.listed.push(entry);
   }
@@ -123,13 +201,17 @@ function renderSection(out, title, note, entries) {
 
 function render(groups) {
   const invocable = groups.byName.length + groups.hiddenChild.length;
+  const allSkills = Object.values(groups).flat();
+  const fromPlugins = allSkills.filter((entry) => entry.fromPlugin).length;
   const out = [
     "# Skill index",
     "",
     "Generated. Do not edit by hand. Rerun `node ~/.claude/scripts/build-skill-index.js`,",
     "or start a session and the SessionStart hook rebuilds it when it goes stale.",
     "",
-    `Every personal skill on this machine and whether Claude can see it. ${invocable} of these`,
+    `Every skill on this machine and whether Claude can see it: ${allSkills.length} in all,`,
+    `${fromPlugins} of them from enabled plugins, named the way they are invoked`,
+    `(\`plugin:skill\`). ${invocable} of these`,
     "are invisible in the session listing but run right now when invoked by name. Only the",
     "**Disabled** section needs settings.json changed before use.",
     "",
@@ -138,21 +220,36 @@ function render(groups) {
     "",
   ];
 
-  renderSection(out, "Invocable by name only",
+  renderSection(
+    out,
+    "Invocable by name only",
     "Hidden from the session listing by `user-invocable-only`. Invoke with `/name`.",
-    groups.byName);
-  renderSection(out, "Hidden children",
+    groups.byName,
+  );
+  renderSection(
+    out,
+    "Hidden children",
     "Their authors set `disable-model-invocation: true`, usually because a router skill picks between them. Never listed, but `/name` works.",
-    groups.hiddenChild);
-  renderSection(out, "Path-gated",
+    groups.hiddenChild,
+  );
+  renderSection(
+    out,
+    "Path-gated",
     "Enter the listing on their own once a matching file is read or edited. Nothing to do.",
-    groups.gated);
-  renderSection(out, "Always listed",
+    groups.gated,
+  );
+  renderSection(
+    out,
+    "Always listed",
     "Already in the session listing with descriptions.",
-    groups.listed);
-  renderSection(out, "Disabled",
+    groups.listed,
+  );
+  renderSection(
+    out,
+    "Disabled",
     "Set to `off` in settings.json. NOT invocable until that changes.",
-    groups.disabled);
+    groups.disabled,
+  );
 
   return out.join("\n");
 }
@@ -180,7 +277,8 @@ function isStale() {
     }
   };
 
-  if (newer(settingsPath())) return true;
+  if (newer(settingsPath()) || newer(lockfilePath())) return true;
+  if (pluginSkills().some((skill) => newer(skill.file))) return true;
 
   let names;
   try {

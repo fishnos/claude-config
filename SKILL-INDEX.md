@@ -3,7 +3,9 @@
 Generated. Do not edit by hand. Rerun `node ~/.claude/scripts/build-skill-index.js`,
 or start a session and the SessionStart hook rebuilds it when it goes stale.
 
-Every personal skill on this machine and whether Claude can see it. 74 of these
+Every skill on this machine and whether Claude can see it: 209 in all,
+81 of them from enabled plugins, named the way they are invoked
+(`plugin:skill`). 74 of these
 are invisible in the session listing but run right now when invoked by name. Only the
 **Disabled** section needs settings.json changed before use.
 
@@ -464,7 +466,7 @@ Activates on: `**/*.urdf,**/*.xacro`
 
 Create robot models using URDF with proper links, joints, visual geometry, collision shapes, and physical properties
 
-## Always listed (12)
+## Always listed (93)
 
 Already in the session listing with descriptions.
 
@@ -515,6 +517,330 @@ Use when the user wants to design, redesign, shape, critique, audit, polish, cla
 ### `/react-testing`
 
 Testing React with Testing Library the way it's meant to be used — query priority, user-event, integration over unit, testing custom hooks, and mocking the network with MSW instead of fetch. Use when writing or reviewing React/Next.js tests, testing a component, custom hook, form, or async data flow, choosing between unit/integration/E2E for a frontend change, or fixing tests that break on every refactor.
+
+### `/superpowers:brainstorming`
+
+You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation.
+
+### `/superpowers:dispatching-parallel-agents`
+
+Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies
+
+### `/superpowers:executing-plans`
+
+Use when you have a written implementation plan to execute in a separate session with review checkpoints
+
+### `/superpowers:finishing-a-development-branch`
+
+Use when implementation is complete, all tests pass, and you need to decide how to integrate the work
+
+### `/superpowers:receiving-code-review`
+
+Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation
+
+### `/superpowers:requesting-code-review`
+
+Use when completing tasks, implementing major features, or before merging to verify work meets requirements
+
+### `/superpowers:subagent-driven-development`
+
+Use when executing implementation plans with independent tasks in the current session
+
+### `/superpowers:systematic-debugging`
+
+Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes
+
+### `/superpowers:test-driven-development`
+
+Use when implementing any feature or bugfix, before writing implementation code
+
+### `/superpowers:using-git-worktrees`
+
+Use when starting feature work that needs isolation from current workspace or before executing implementation plans - ensures an isolated workspace exists via native tools or git worktree fallback
+
+### `/superpowers:using-superpowers`
+
+Use when starting any conversation - establishes how to find and use skills, requiring skill invocation before ANY response including clarifying questions
+
+### `/superpowers:verification-before-completion`
+
+Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+
+### `/superpowers:writing-plans`
+
+Use when you have a spec or requirements for a multi-step task, before touching code
+
+### `/superpowers:writing-skills`
+
+Use when creating new skills, editing existing skills, or verifying skills work before deployment
+
+### `/frontend-design:frontend-design`
+
+Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps with aesthetic direction, typography, and making choices that don't read as templated defaults.
+
+### `/skill-creator:skill-creator`
+
+Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit, or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.
+
+### `/supabase:supabase`
+
+Use when doing ANY task involving Supabase. Triggers: Supabase products (Database, Auth, Edge Functions, Realtime, Storage, Vectors, Cron, Queues); client libraries and SSR integrations (supabase-js, @supabase/ssr) in Next.js, React, SvelteKit, Astro, Remix; auth issues (login, logout, sessions, JWT, cookies, getSession, getUser, getClaims, RLS); Supabase CLI or MCP server; schema changes, migrations, declarative schemas, security audits, Postgres extensions (pg_graphql, pg_cron, pg_vector); debugging and troubleshooting errors or unexpected behavior on Supabase projects (HTTP errors, Postgres errors, RLS surprises, permission denied, schema cache issues, timeouts, Edge Function crashes, Realtime drops, Storage failures) and reading or querying logs (Logs Explorer, ClickHouse).
+
+### `/supabase:supabase-postgres-best-practices`
+
+Postgres best practices maintained by Supabase, for Postgres running anywhere. Load this skill BEFORE writing or changing anything that lives in a Postgres database: creating or altering tables and columns (including choosing column types), schema design, migrations and declarative schema files, RLS policies and the tests that verify them, indexes, triggers, database functions, queues and scheduled jobs (pg_cron, pgmq), vector/semantic search (pgvector), and restoring dumps (pg_restore) or importing data. Also load it when diagnosing slow queries, high CPU, timeouts, EXPLAIN plans, connection exhaustion, locking, bloat, or rows visible to the wrong user or tenant. This is not just a performance guide — schema, migration, security, and SQL authoring tasks need these rules too, even for a one-column change or a single query.
+
+### `/claude-code-setup:claude-automation-recommender`
+
+Analyze a codebase and recommend Claude Code automations (hooks, subagents, skills, plugins, MCP servers). Use when user asks for automation recommendations, wants to optimize their Claude Code setup, mentions improving Claude Code workflows, asks how to first set up Claude Code for a project, or wants to know what Claude Code features they should use.
+
+### `/vercel:access-protected-vercel-deployment`
+
+Access and test Vercel deployments protected by Vercel Authentication, SSO, or Deployment Protection. Use when curl, agent-browser, Playwright, or another automated request reaches a Vercel login or protection page; when a protected preview or production URL returns 401 or 403; when TRUSTED_SOURCES_ENVIRONMENT_MISMATCH appears; or when choosing between `vercel curl` and the `x-vercel-trusted-oidc-idp-token` header.
+
+### `/vercel:ai-gateway`
+
+Vercel AI Gateway guidance for setup, model discovery, authentication, routing, fallbacks, BYOK, budgets, spend reporting, observability, compatible APIs, and coding-agent configuration. Use when adding AI Gateway to an app, migrating provider calls, choosing models or providers, debugging gateway requests, or running `vercel ai-gateway` commands.
+
+### `/vercel:ai-sdk`
+
+Vercel AI SDK expert guidance. Use when building AI-powered features — chat interfaces, text generation, structured output, tool calling, agents, MCP integration, streaming, embeddings, reranking, image generation, or working with any LLM provider.
+
+### `/vercel:auth`
+
+Authentication integration guidance — Clerk (native Vercel Marketplace), Descope, and Auth0 setup for Next.js applications. Covers middleware auth patterns, sign-in/sign-up flows, and Marketplace provisioning. Use when implementing user authentication.
+
+### `/vercel:bootstrap`
+
+Project bootstrapping orchestrator for repos that depend on Vercel-linked resources (databases, auth, and managed integrations). Use when setting up or repairing a repository so linking, environment provisioning, env pulls, and first-run db/dev commands happen in the correct safe order.
+
+### `/vercel:build-agents`
+
+Default guidance for building AI agents. Use for generic requests to build, create, scaffold, design, architect, or implement an AI agent, agent app, tool-calling agent, durable agent, multi-agent system, or scheduled agent.
+
+### `/vercel:cdn-caching`
+
+Debug Vercel CDN caching — cache hit rate, stale content, revalidation behavior, ISR + PPR, per-request cache reasons (cacheReason) and PPR state (ppr_state), and costs.
+
+### `/vercel:chat-sdk`
+
+Vercel Chat SDK expert guidance. Use when building multi-platform chat bots — Slack, Telegram, Microsoft Teams, Discord, Google Chat, GitHub, Linear — with a single codebase. Covers the Chat class, adapters, threads, messages, cards, modals, streaming, state management, and webhook setup.
+
+### `/vercel:create-a-backend`
+
+Backend architecture guidance. Use when planning, building, or migrating an API or backend; choosing between Functions, Services, containers, Workflow, Queues, and Marketplace databases; or selecting a supported backend framework or runtime.
+
+### `/vercel:deployments-cicd`
+
+Vercel deployment and CI/CD expert guidance. Use when deploying, promoting, rolling back, inspecting deployments, building with --prebuilt, or configuring CI workflow files for Vercel.
+
+### `/vercel:env-vars`
+
+Vercel environment variable expert guidance. Use when working with .env files, vercel env commands, OIDC tokens, or managing environment-specific configuration.
+
+### `/vercel:eve`
+
+eve framework guidance for durable AI agents and agent-powered applications. Use when creating, editing, or debugging an eve project, when the user explicitly asks for eve, or when the build-agents skill has selected eve as the default framework. Covers eve's filesystem-first runtime, durable sessions, tools, skills, connections, channels, sandboxes, subagents, schedules, evals, frontend clients, and Agent Runs observability. Do not use for incidental agent mentions, generic agent-building prompts, or established non-eve stacks unless the user asks for comparison or migration.
+
+### `/vercel:flags-sdk`
+
+Set up and use feature flags and A/B tests with the Flags SDK (`flags` npm package) and Vercel Flags. Use when installing or configuring the SDK, adding a new or existing flag, wiring `vercelAdapter` (OIDC or SDK keys), declaring flags with `flag()`, using the `vercel flags` CLI (create, inspect, list, enable, disable, set, update, split, rollout, rules, segments, use-targeting, evaluations, versions, open, archive, unarchive, rm, sdk-keys, override, prepare), setting up providers/adapters (Vercel, Statsig, LaunchDarkly, PostHog, GrowthBook, Global Config, OpenFeature, Split, Flagsmith, Reflag, Optimizely, or custom), precompute, `identify`/`dedupe`, Flags Explorer/Toolbar, Next.js or SvelteKit, or encrypting flag values. Triggers: feature flags, feature gates, A/B testing, experimentation, gradual rollout, traffic split, targeting rules, flag overrides, precompute, Flags Explorer, Vercel Flags, vercel flags CLI, `flags/next`, `flags/sveltekit`, `flags/react`, `@flags-sdk/*`.
+
+### `/vercel:knowledge-update`
+
+Corrects outdated LLM knowledge about the Vercel platform and introduces new products. Injected at session start.
+
+### `/vercel:marketplace`
+
+Vercel Marketplace expert guidance — discovering, installing, and managing third-party integrations via the `vercel integration` CLI. Use when building any app that needs an external capability without a dedicated skill — commerce (stores, storefronts, selling products), payments (checkout, subscriptions, billing), observability/monitoring, messaging/email, search, or CMS — or when discovering, installing, or managing integrations.
+
+### `/vercel:microfrontends`
+
+Guide for building, configuring, and deploying microfrontends on Vercel. Use this skill when the user mentions microfrontends, multi-zones, splitting an app across teams, independent deployments, cross-app routing, incremental migration, composing multiple frontends under one domain, microfrontends.json, @vercel/microfrontends, the microfrontends local proxy, or path-based routing between Vercel projects. Also use when the user asks about shared layouts across projects, navigation between microfrontends, fallback environments, asset prefixes, or feature flag controlled routing.
+
+### `/vercel:next-cache-components`
+
+Next.js 16 Cache Components guidance — PPR, use cache directive, cacheLife, cacheTag, updateTag, and migration from unstable_cache. Use when implementing partial prerendering, caching strategies, or migrating from older Next.js cache patterns.
+
+### `/vercel:next-forge`
+
+next-forge expert guidance — production-grade Turborepo monorepo SaaS starter by Vercel. Use when working in a next-forge project, scaffolding with `npx next-forge init`, or editing @repo/* workspace packages.
+
+### `/vercel:next-upgrade`
+
+Upgrade Next.js to the latest version following official migration guides and codemods. Use when upgrading Next.js versions, running codemods, or migrating between major releases.
+
+### `/vercel:nextjs`
+
+Next.js App Router expert guidance. Use when building, debugging, or architecting Next.js applications — routing, Server Components, Server Actions, Cache Components, layouts, middleware/proxy, data fetching, rendering strategies, and deployment on Vercel.
+
+### `/vercel:react-best-practices`
+
+React best-practices reviewer for TSX files. Triggers after editing multiple TSX components to run a condensed quality checklist covering component structure, hooks usage, accessibility, performance, and TypeScript patterns.
+
+### `/vercel:routing-middleware`
+
+Vercel Routing Middleware guidance — request interception before cache, rewrites, redirects, personalization. Works with any framework. Supports Edge, Node.js, and Bun runtimes. Use when intercepting requests at the platform level.
+
+### `/vercel:runtime-cache`
+
+Vercel Runtime Cache API guidance — ephemeral per-region key-value cache with tag-based invalidation. Shared across Functions, Routing Middleware, and Builds. Use when implementing caching strategies beyond framework-level caching.
+
+### `/vercel:shadcn`
+
+shadcn/ui expert guidance — CLI, component installation, composition patterns, custom registries, theming, Tailwind CSS integration, and high-quality interface design. Use when initializing shadcn, adding components, composing product UI, building custom registries, configuring themes, or troubleshooting component issues.
+
+### `/vercel:turbopack`
+
+Turbopack expert guidance. Use when configuring the Next.js bundler, optimizing HMR, debugging build issues, or understanding the Turbopack vs Webpack differences.
+
+### `/vercel:vercel-agent`
+
+Vercel Agent guidance — AI-powered code review, incident investigation, and SDK installation. Automates PR analysis and anomaly debugging. Use when configuring or understanding Vercel's AI development tools.
+
+### `/vercel:vercel-cli`
+
+Vercel CLI expert guidance. Use when deploying, managing environment variables, linking projects, viewing logs, querying metrics, managing domains, managing feature flags with vercel flags, or interacting with the Vercel platform from the command line.
+
+### `/vercel:vercel-connect`
+
+Vercel Connect expert guidance — securely obtain scoped OAuth tokens for third-party services (Slack, GitHub, MCP servers, OAuth, Snowflake) on behalf of apps or users via Vercel OIDC. Use when wiring up third-party API access, connecting to MCP servers, sending Slack messages, accessing GitHub APIs, receiving webhook events from Slack/Linear/GitHub and forwarding them to your agents and apps, or building eve agent connections.
+
+### `/vercel:vercel-firewall`
+
+Vercel Firewall expert guidance — automatic DDoS mitigation, the Vercel WAF (custom rules, IP blocking, managed rulesets, rate limiting), Attack Mode, system bypass, bot management, and the `vercel firewall` CLI. Use when configuring platform-level security, responding to attacks, or staging firewall rules.
+
+### `/vercel:vercel-functions`
+
+Vercel Functions expert guidance — Node.js/Bun/Python runtimes, Fluid Compute, long-duration (30 min) functions, large functions (5 GB bundles), Docker/OCI container images, plan limits, streaming, WebSockets, and Cron Jobs. Use when configuring, debugging, or optimizing server-side code running on Vercel.
+
+### `/vercel:vercel-sandbox`
+
+Vercel Sandbox guidance — ephemeral Firecracker microVMs for running untrusted code safely. Supports AI agents, code generation, and experimentation. Use when executing user-generated or AI-generated code in isolation.
+
+### `/vercel:vercel-services`
+
+Configure and troubleshoot Vercel Services for multiple frontends and backends in one project. Use when composing a polyglot or multi-service application on one Vercel deployment; defining the `services` key, service-targeted rewrites, or service bindings in `vercel.json`; or running all services with `vercel dev`.
+
+### `/vercel:vercel-storage`
+
+Vercel storage expert guidance — Blob, Global Config (formerly Edge Config), and Marketplace storage (Neon Postgres, Upstash Redis). Use when choosing, configuring, or using data storage with Vercel applications.
+
+### `/vercel:verification`
+
+Full-story verification — infers what the user is building, then verifies the complete flow end-to-end: browser → API → data → response. Triggers on dev server start and 'why isn't this working' signals.
+
+### `/vercel:workflow`
+
+Vercel Workflow SDK expert guidance. Use when building durable workflows, long-running tasks, API routes or agents that need pause/resume, retries, step-based execution, or crash-safe orchestration with Vercel Workflow.
+
+### `/hookify:writing-rules`
+
+This skill should be used when the user asks to "create a hookify rule", "write a hook rule", "configure hookify", "add a hookify rule", or needs guidance on hookify rule syntax and patterns.
+
+### `/caveman:caveman`
+
+Ultra-compressed communication mode. Cuts token usage ~75% by speaking like caveman while keeping full technical accuracy. Supports intensity levels: lite, full (default), ultra. Use when user says "caveman mode", "talk like caveman", "use caveman", "less tokens", "be brief", or invokes /caveman. Also auto-triggers when token efficiency is requested.
+
+### `/skills:agent-context-audit`
+
+Audit a repo's agent context — CLAUDE.md files, codebase docs, skills, and tool/MCP designs — against Anthropic's Claude 5 context-engineering guidance ("unhobbling": Anthropic cut ~80% of Claude Code's system prompt with no eval loss). Finds overconstraint, conflicting instructions, redundancy, stale facts, and missing "unknown knowns"; produces a scored findings report with concrete rewrites, then applies approved fixes. Use when someone says "audit my CLAUDE.md", "context audit", "unhobble this repo", "review our agent docs/skills/tools", or after upgrading to Claude 5-generation models.
+
+### `/skills:crabbox-setup`
+
+Scaffold an isolated CLOUD dev box per agent (via crabbox + Daytona) for any codebase — the parallel-safe counterpart to dev-local-setup. Each agent gets its own full stack (own DB + dev server) and an in-box browser for e2e, so concurrent loops never collide on ports/state. Sets up the snapshot image, .crabbox.yaml, an idempotent setup.sh (also boots the stack locally), and a cbx.sh wrapper. Use when the user says "set up crabbox", "give each agent its own box", "add cloud testing", "make this repo testable in the cloud / on Daytona", "parallel-test this", or when setup-codebase-harness needs true per-agent isolation.
+
+### `/skills:dev-local-setup`
+
+Scaffold a one-command `dev-local` launcher for ANY codebase. Investigates the repo to find its services, ports, and infra dependencies, then generates a single `scripts/dev-local.sh` (up/down/status/logs/restart) that runs every dev server in one tmux session, plus a short skill doc describing it. Use when someone says "set up dev-local", "make a one-command dev launcher", "I want one script to start this repo", "scaffold dev-local for this project".
+
+### `/skills:e2e-setup`
+
+Set up an end-to-end test suite in any repo, following practices that make e2e a reliable per-PR gate: real flows over bypass, layered assertions, a reusable auth/session helper, video+trace evidence, and a compounding suite. Use when a repo has no e2e (or weak e2e) and you want system-level tests — "set up e2e", "add end-to-end tests", "scaffold a test gate".
+
+### `/skills:new-loop`
+
+Spin up a new loop (domain) in a file-based knowledge base — bootstrap the substrate if it's missing, gather the loop's charter, scaffold domains/<loop>/README.md, then do ONE real test run and record it in the loop's Timeline and LOG.md. Use when the user says "set up a new loop", "create a domain", "start a new beat/workstream", or names a recurring job they want the agent to own.
+
+### `/skills:open-agent-teams`
+
+Delegate tasks to ANY CLI agent (claude, codex, aider, ...) running in a detached tmux session, with a race-safe done-signal protocol and multi-turn iteration. Use when delegating work to a non-Claude CLI agent, when the user says "tmux delegate", "run agent in tmux", "delegate to codex/aider", or when executor work should run in an observable background terminal instead of the Agent tool.
+
+### `/skills:seo-growth`
+
+Use when deciding WHERE to point SEO effort, not how to write a page. Triggers: a new site or brand with no rankings and no authority ("cold start", "starting from zero", "nobody knows us"), deciding what to double down on, a page or cluster that ranks but earns nothing, hunting emerging or newly-coined keywords before competitors arrive, "should we build a cluster or one page", "what do we write next", "we get impressions but no clicks", "our traffic plateaued despite publishing", whether to chase a head term at all, or turning any of it into recurring automation. Also use when asked why an SEO effort stalled despite consistent output. NOT for writing an article, keyword expansion mechanics, or auditing a single tactic for penalty risk.
+
+### `/skills:setup-codebase-harness`
+
+Master skill — set up the full agent harness for any repo so an agent can work it reliably: legible (map-not-manual docs + custom lints), executable (one-command dev stack), verifiable (e2e gate + a verify-before-ship loop), plus commit hygiene and entropy control. Use when onboarding a new/unfamiliar codebase to agent-driven development — "set up the harness", "make this repo agent-ready", "harness this codebase".
+
+### `/skills:verifier-setup`
+
+Set a repo up to prove engineering-task work actually works before it ships. Investigates the repo, ensures a one-command dev stack (`dev-local`) exists, asks whether verification runs locally or in a sandbox (crabbox), confirms/installs the driver (the `playwright-cli` skill for web by default). Outputs three artifacts: a committed `/verify` skill (per-task verification SOP — spawn a verifier sub-agent → drive the app → screenshot/video proof → open a PR with the proof embedded), the `/dev-local` skill + script, and the installed driver skill. Use when someone says "set up verification", "make this repo verifiable", "scaffold a verify skill", "set up the verifier".
+
+### `/skills:visual-flow-gif`
+
+Create animated flow diagrams from articles, workflow notes, architecture sketches, or process descriptions using a JSON specification and a local Python/Pillow renderer. Use when the user wants to turn source material into a static PNG + animated GIF diagram.
+
+### `/mcp-server-dev:build-mcp-app`
+
+This skill should be used when the user wants to build an "MCP app", add "interactive UI" or "widgets" to an MCP server, "render components in chat", build "MCP UI resources", make a tool that shows a "form", "picker", "dashboard" or "confirmation dialog" inline in the conversation, or mentions "apps SDK" in the context of MCP. Use AFTER the build-mcp-server skill has settled the deployment model, or when the user already knows they want UI widgets.
+
+### `/mcp-server-dev:build-mcp-server`
+
+This skill should be used when the user asks to "build an MCP server", "create an MCP", "make an MCP integration", "wrap an API for Claude", "expose tools to Claude", "make an MCP app", or discusses building something with the Model Context Protocol. It is the entry point for MCP server development — it interrogates the user about their use case, determines the right deployment model (remote HTTP, MCPB, local stdio), picks a tool-design pattern, and hands off to specialized skills.
+
+### `/mcp-server-dev:build-mcpb`
+
+This skill should be used when the user wants to "package an MCP server", "bundle an MCP", "make an MCPB", "ship a local MCP server", "distribute a local MCP", discusses ".mcpb files", mentions bundling a Node or Python runtime with their MCP server, or needs an MCP server that interacts with the local filesystem, desktop apps, or OS and must be installable without the user having Node/Python set up.
+
+### `/neon:neon`
+
+Overview of Neon, a complete set of cloud backend primitives for apps and agents, spanning Lakebase Postgres, Auth, the Data API, Object Storage, Compute Functions, and the AI Gateway. Start here to route to the right Neon skill, set up the CLI or MCP server, and follow the branch-first workflow. Use when "Neon" or "Lakebase Postgres" is mentioned, or when any of its individual capabilities are the trigger: "object storage" or "S3", "buckets", "serverless functions", "AI gateway", "call an LLM", "logs", "branch logs", "query logs", "log export", "Loki", "Grafana", "observability", "telemetry", "postgres", "database", or "backend". Also use when there is no Neon account yet, the user cannot sign in or provide an API key right now and needs a project they can claim later, or the user asks for a throwaway DATABASE_URL, Claimable Neon, Claimable Postgres, neon.new, claimable.neon.tech, instant Postgres, a no-signup database, temporary postgres, quick postgres, a no credit card database, or npx neon-new.
+
+### `/neon:neon-ai-gateway`
+
+One API and one credential for frontier and open-source LLMs, built into your Neon branch and powered by Databricks. Use when a user wants to call an LLM, add AI/chat/an agent to their app, route between model providers (OpenAI, Anthropic, Google/Gemini, Meta, Alibaba, and more), or avoid juggling separate provider API keys and accounts — especially when they already use Neon and want AI requests to branch with their project. Works with the OpenAI SDK, Anthropic SDK, google-genai, the Vercel AI SDK, and Mastra by changing only the base URL. Triggers include "call an LLM", "add AI to my app", "chat completion", "model routing", "LLM proxy/gateway", "one API for all models", "use Claude/GPT/Gemini", "AI SDK", "Mastra agent", "Neon AI Gateway", and "log/rate-limit AI calls".
+
+### `/neon:neon-functions`
+
+Long-running, serverless Node.js HTTP functions deployed onto your Neon branch, with DATABASE_URL injected automatically and compute that runs next to your data. Use when a user wants to host an API, an AI agent with long streaming responses, a WebSocket or server-sent-events (SSE) server, a webhook handler, a Discord bot, an MCP server, or any request/response workload that risks timing out on short, lambda-style serverless functions — and wants it to branch with their database. Triggers include "serverless function", "deploy an API", "long-running function", "streaming agent", "SSE server", "WebSocket server", "webhook handler", "MCP server", "run code next to my database", "function that won't time out", "function logs", "Neon Functions", and "Neon Compute".
+
+### `/neon:neon-object-storage`
+
+S3-compatible object storage that branches with your Neon project, so files and the database stay in sync across every branch. Use when a user wants object storage, a bucket, blob/file storage, or somewhere to put uploads, images, documents, avatars, or user-generated files for their app or agent — especially when they already use (or are setting up) Lakebase Postgres and don't want to add a separate storage provider like AWS S3, Cloudflare R2, or Supabase Storage. Triggers include "object storage", "bucket", "blob storage", "file storage", "store uploads/images/files", "S3-compatible storage", "presigned URL", "where do I put files", "storage logs", "bucket logs", "CDN in front of object storage", "Neon Object Storage", "Neon Storage", and "storage that branches with my database".
+
+### `/neon:neon-postgres`
+
+Guides and best practices for working with Lakebase Postgres, the database behind Neon. Covers setup, connection methods and drivers, pooled vs direct connections, branching, schema migrations, autoscaling, scale-to-zero, instant restore, read replicas, connection pooling, IP allow lists, and logical replication. Also covers Lakebase Search: semantic vector search, full-text search with BM25 ranking, and hybrid search. Use when users ask about "Lakebase Postgres", "Neon setup", "connect to Neon", "Neon project", "DATABASE_URL", "serverless Postgres", "Neon CLI", "neon", "Neon MCP", "Neon Auth", "@neondatabase/serverless", "@neondatabase/neon-js", "scale to zero", "Neon autoscaling", "Neon read replica", "Neon connection pooling", "schema migrations", "semantic search", "vector search", "full-text search", "BM25", or "hybrid search".
+
+### `/neon:neon-postgres-branches`
+
+Choose and create the right Neon branch type for testing and development. Use when users ask about Neon branching, migration testing with real data, isolated test environments, schema-only branch workflows for sensitive data, resetting a branch from its parent, branch expiration and CI/CD branch lifecycles, or branch creation via Neon CLI or Neon MCP. Triggers include "Neon branch", "test migrations safely", "branch production data", "schema-only branch", "reset branch", "branch per PR" and "sensitive data testing".
+
+### `/neon:neon-postgres-egress-optimizer`
+
+Diagnose and fix excessive Postgres egress (network data transfer) in a codebase. Use when a user mentions high database bills, unexpected data transfer costs, network transfer charges, egress spikes, "why is my Neon bill so high", "database costs jumped", SELECT * optimization, query overfetching, reduce Neon costs, optimize database usage, or wants to reduce data sent from their database to their application. Also use when reviewing query patterns for cost efficiency, even if the user doesn't explicitly mention egress or data transfer.
+
+### `/google-engineering:git-workflow`
+
+Industry-standard version control — atomic commits, commit message anatomy, Conventional Commits, git trailers, branching models, rebase vs merge, PR hygiene, SemVer, changelogs, tags, signing, and history-recovery. Use before writing any commit message, when splitting work into commits, when choosing a branch strategy or merge method, when versioning or releasing, when a rebase/merge/force-push decision comes up, or when history needs repairing. Carries the Conventional Commits, SemVer, and Keep a Changelog specs in references/.
+
+### `/google-engineering:google-cl-author`
+
+Author changes the way Google expects them — one self-contained change per commit/PR, tests in the same change, a description that says what and why, and collaborative responses to review feedback. Use when planning how to split work into commits or PRs, writing a commit message or PR description, deciding whether a change is too big, or responding to review comments. Encodes google/eng-practices CL author guide.
+
+### `/google-engineering:google-code-review`
+
+Review code the way Google reviews a CL — design first, then functionality, complexity, tests, naming, comments, style, consistency, documentation, every line. Use whenever reviewing a diff, PR, branch, or file someone (including you) just wrote; whenever asked to "review", "check", "look over", "critique", or "audit" code; and as a self-review pass before reporting any implementation as done. Encodes google/eng-practices reviewer guide.
+
+### `/google-engineering:google-style`
+
+Google's language style guides — TypeScript, JavaScript, HTML/CSS, Python, Shell, Go, Java, C++, C#, Objective-C — as the authority on formatting, naming, comments, and language-feature use. Use before writing or editing code in any of these languages, when reviewing style in a diff, when naming things, when deciding whether a language feature is allowed, or when a style disagreement needs an authority. Carries the full text of each guide in references/.
+
+### `/google-engineering:google-testing`
+
+Google's testing discipline — test sizes and scopes, the 80/15/5 mix, testing behaviors not methods, DAMP over DRY, preferring real implementations over mocks, and avoiding brittle change-detector tests. Use when writing or reviewing any test, deciding what to test or at what level, choosing between a real object, a fake, and a mock, debugging a flaky or brittle test, or judging whether a change has adequate test coverage. From Software Engineering at Google and Testing on the Toilet.
 
 ## Disabled (19)
 

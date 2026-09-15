@@ -4063,6 +4063,173 @@ header("context-report counts the operator's work, not the probe harness");
   fs.rmSync(reportConfig, { recursive: true, force: true });
 }
 
+header("SKILL-INDEX.md catalogs plugin skills, not only personal ones");
+{
+  const skillIndex = require(path.join(HOOKS, "lib", "skill-index.js"));
+  const indexHome = fs.mkdtempSync(path.join(os.tmpdir(), "skill-index-"));
+  const writeSkill = (directory, name, frontmatter) => {
+    const target = path.join(directory, name);
+    fs.mkdirSync(target, { recursive: true });
+    fs.writeFileSync(
+      path.join(target, "SKILL.md"),
+      `---\n${frontmatter}\n---\n\nbody\n`,
+    );
+  };
+
+  writeSkill(
+    path.join(indexHome, "skills"),
+    "alpha",
+    "name: alpha\ndescription: A personal skill.",
+  );
+  const demoInstall = path.join(indexHome, "cache", "demo", "1.0.0");
+  const routerInstall = path.join(indexHome, "cache", "router", "2.0.0");
+  const offInstall = path.join(indexHome, "cache", "off-plugin", "1.0.0");
+  writeSkill(
+    path.join(demoInstall, "skills"),
+    "one",
+    "name: one\ndescription: The first plugin skill.",
+  );
+  writeSkill(
+    path.join(demoInstall, "skills"),
+    "two",
+    "name: two\ndescription: The second plugin skill.",
+  );
+  writeSkill(
+    path.join(routerInstall, "skills"),
+    "child",
+    "name: child\ndescription: Picked by a router.\ndisable-model-invocation: true",
+  );
+  writeSkill(
+    path.join(offInstall, "skills"),
+    "three",
+    "name: three\ndescription: Should not appear.",
+  );
+
+  fs.mkdirSync(path.join(indexHome, "plugins"), { recursive: true });
+  fs.writeFileSync(
+    path.join(indexHome, "plugins", "installed_plugins.json"),
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        "demo@market": [{ scope: "user", installPath: demoInstall }],
+        "router@market": [{ scope: "user", installPath: routerInstall }],
+        "off-plugin@market": [{ scope: "user", installPath: offInstall }],
+        "vanished@market": [
+          { scope: "user", installPath: path.join(indexHome, "cache", "gone") },
+        ],
+      },
+    }),
+  );
+  fs.writeFileSync(
+    path.join(indexHome, "settings.json"),
+    JSON.stringify({
+      enabledPlugins: { "demo@market": true, "off-plugin@market": false },
+    }),
+  );
+
+  const previousConfigDir = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = indexHome;
+  let counts;
+  try {
+    counts = skillIndex.build();
+  } catch (error) {
+    counts = { error: String(error && error.message) };
+  }
+  const indexText = readTextOrEmpty(path.join(indexHome, "SKILL-INDEX.md"));
+
+  check(
+    "an enabled plugin's skill is listed under its invocation name",
+    indexText.includes("### `/demo:one`"),
+    true,
+    counts.error || indexText.slice(0, 200),
+  );
+  check(
+    "a plugin skill carries its description",
+    indexText.includes("The first plugin skill."),
+    true,
+    "",
+  );
+  check(
+    "a disabled plugin contributes nothing",
+    indexText.includes("off-plugin:three"),
+    false,
+    "",
+  );
+  // Sliced with a leading newline, because splitting on "## " would also split
+  // at every "### " entry heading and cut the section off before its entries.
+  const sectionOf = (title) => {
+    const rest = indexText.slice(indexText.indexOf(`## ${title}`) + 3);
+    const end = rest.search(/\n## /);
+    return end === -1 ? rest : rest.slice(0, end);
+  };
+  check(
+    "a plugin skill hidden by its author lands in hidden children",
+    sectionOf("Hidden children").includes("/router:child"),
+    true,
+    sectionOf("Hidden children").slice(0, 300),
+  );
+  check(
+    "a personal skill is still listed",
+    indexText.includes("### `/alpha`"),
+    true,
+    "",
+  );
+  check(
+    "the intro says how many came from plugins",
+    indexText.includes("3 of them from enabled plugins"),
+    true,
+    indexText.slice(0, 700),
+  );
+  check(
+    "a plugin whose install path is gone does not stop the build",
+    counts.error,
+    undefined,
+    counts.error,
+  );
+  check("a fresh index is not stale", skillIndex.isStale(), false, "");
+
+  // collect() used to abandon the whole catalog when this directory was missing.
+  fs.renameSync(
+    path.join(indexHome, "skills"),
+    path.join(indexHome, "skills-aside"),
+  );
+  skillIndex.build();
+  check(
+    "no personal skills directory still catalogs the plugins",
+    readTextOrEmpty(path.join(indexHome, "SKILL-INDEX.md")).includes(
+      "### `/demo:one`",
+    ),
+    true,
+    "",
+  );
+  fs.renameSync(
+    path.join(indexHome, "skills-aside"),
+    path.join(indexHome, "skills"),
+  );
+  skillIndex.build();
+
+  const later = new Date(Date.now() + 2000);
+  writeSkill(
+    path.join(demoInstall, "skills"),
+    "four",
+    "name: four\ndescription: Added after the build.",
+  );
+  fs.utimesSync(
+    path.join(demoInstall, "skills", "four", "SKILL.md"),
+    later,
+    later,
+  );
+  check(
+    "a new plugin skill makes the index stale",
+    skillIndex.isStale(),
+    true,
+    "",
+  );
+
+  if (previousConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+  else process.env.CLAUDE_CONFIG_DIR = previousConfigDir;
+  fs.rmSync(indexHome, { recursive: true, force: true });
+}
 
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(captureHome, { recursive: true, force: true });
