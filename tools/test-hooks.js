@@ -3942,6 +3942,127 @@ header("SessionStart: graph-refresh rebuilds a stale graph in the background");
   fs.rmSync(worktreeGitDirectory, { recursive: true, force: true });
 }
 
+header("context-report counts the operator's work, not the probe harness");
+{
+  const tail = require(path.join(HOOKS, "lib", "transcript-tail.js"));
+
+  const entriesWithCwd = tail.parseLines(
+    [
+      JSON.stringify({ type: "summary", summary: "no cwd on this one" }),
+      JSON.stringify({ type: "user", cwd: "/Users/someone/project" }),
+      JSON.stringify({ type: "user", cwd: "/elsewhere" }),
+    ].join("\n"),
+  );
+  check(
+    "sessionCwd takes the first working directory a transcript records",
+    tail.sessionCwd(entriesWithCwd),
+    "/Users/someone/project",
+    "",
+  );
+  check(
+    "sessionCwd is null when no entry records one",
+    tail.sessionCwd(tail.parseLines(JSON.stringify({ type: "summary" }))),
+    null,
+    "",
+  );
+
+  const under = (child, parent) => tail.isUnderDirectory(child, parent);
+  check(
+    "a subdirectory counts as under the directory",
+    under("/Users/someone/project", "/Users/someone"),
+    true,
+    "",
+  );
+  check(
+    "the directory itself counts as under it",
+    under("/Users/someone", "/Users/someone"),
+    true,
+    "",
+  );
+  check(
+    "a sibling sharing the opening characters does not count",
+    under("/Users/someone-else/project", "/Users/someone"),
+    false,
+    "",
+  );
+  check(
+    "a temporary folder does not count",
+    under("/private/tmp/claude-501/scratchpad", "/Users/someone"),
+    false,
+    "",
+  );
+  check(
+    "a missing working directory does not count",
+    under(null, "/Users/someone"),
+    false,
+    "",
+  );
+
+  // End to end, to prove the tool applies the filter rather than only owning it.
+  const reportHome = fs.mkdtempSync(path.join(os.tmpdir(), "report-home-"));
+  const reportConfig = fs.mkdtempSync(path.join(os.tmpdir(), "report-config-"));
+  const turn = (tokens) =>
+    JSON.stringify({
+      type: "assistant",
+      requestId: `r${tokens}`,
+      message: { usage: { input_tokens: tokens } },
+    });
+  const writeTranscript = (project, cwd, tokens) => {
+    const directory = path.join(reportConfig, "projects", project);
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(
+      path.join(directory, "session.jsonl"),
+      [JSON.stringify({ type: "user", cwd }), turn(tokens)].join("\n") + "\n",
+    );
+  };
+  writeTranscript("real", path.join(reportHome, "Desktop", "project"), 250000);
+  writeTranscript("probe", "/private/tmp/claude-501/scratchpad", 90000);
+
+  const report = spawnSync(
+    process.execPath,
+    [path.join(__dirname, "context-report.js"), "--since", "2000-01-01"],
+    {
+      encoding: "utf8",
+      timeout: 30000,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        CLAUDE_CONFIG_DIR: reportConfig,
+        HOME: reportHome,
+        USERPROFILE: reportHome,
+      },
+    },
+  );
+  const reportText = String(report.stdout || "");
+  check(
+    "the report counts only the session that ran under the home directory",
+    /Sessions modified since [\d-]+: 1\b/.test(reportText),
+    true,
+    reportText.slice(0, 300),
+  );
+  check(
+    "the report says how many it left out",
+    reportText.includes("1 excluded: ran elsewhere"),
+    true,
+    reportText.slice(0, 300),
+  );
+  check(
+    "the excluded session does not reach the buckets",
+    /under 100K\s+0\b/.test(reportText),
+    true,
+    reportText.slice(0, 400),
+  );
+  check(
+    "the kept session does reach its bucket",
+    /200K to 400K\s+1\b/.test(reportText),
+    true,
+    reportText.slice(0, 400),
+  );
+
+  fs.rmSync(reportHome, { recursive: true, force: true });
+  fs.rmSync(reportConfig, { recursive: true, force: true });
+}
+
 
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(captureHome, { recursive: true, force: true });

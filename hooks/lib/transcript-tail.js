@@ -7,6 +7,7 @@
 // tuned from the report would not describe what the gauge measures.
 
 const fs = require("fs");
+const path = require("path");
 
 // A whole transcript passes 10 MB, and the gauge runs in front of every prompt.
 const TAIL_BYTES = 256 * 1024;
@@ -124,6 +125,29 @@ function latestAssistantText(transcriptPath, byteCount = TAIL_BYTES) {
   return "";
 }
 
+/**
+ * The working directory a transcript was recorded in, or null.
+ *
+ * Read from the entries rather than decoded from the project folder's name:
+ * Claude Code flattens a path into that name by replacing every separator and
+ * dot with a hyphen, which is not reversible.
+ */
+function sessionCwd(entries) {
+  for (const entry of entries) {
+    if (entry && typeof entry.cwd === "string" && entry.cwd !== "")
+      return entry.cwd;
+  }
+  return null;
+}
+
+/** True when child is parent or sits inside it, by path segment, not prefix. */
+function isUnderDirectory(child, parent) {
+  if (typeof child !== "string" || child === "") return false;
+  const inside = path.resolve(child);
+  const outer = path.resolve(parent);
+  return inside === outer || inside.startsWith(outer + path.sep);
+}
+
 module.exports = {
   TAIL_BYTES,
   parseLines,
@@ -131,4 +155,6 @@ module.exports = {
   latestContextTokens,
   summarize,
   latestAssistantText,
+  sessionCwd,
+  isUnderDirectory,
 };
