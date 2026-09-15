@@ -1,8 +1,7 @@
 "use strict";
 
-// One place to build the `<configDir>/cache/<kind>/<session-id>.md` path that
-// pre-compact.js, handoff-restore.js and constraint-capture.js all use, so the
-// four call sites that used to build this string by hand cannot drift apart.
+// One place to build the <configDir>/cache/<kind>/<session-id>.md path, so a
+// session id carrying a path separator cannot escape the cache directory.
 
 const fs = require("fs");
 const path = require("path");
@@ -24,8 +23,8 @@ function sanitizeSessionIdentifier(sessionIdentifier) {
 /**
  * Build the cache file path for one session under `<configDir>/cache/<kind>/`.
  *
- * `create` defaults to false so a reader (handoff-restore.js) never creates the
- * directory it is only trying to read from; a writer passes `create: true`.
+ * `create` defaults to false so a reader never creates the directory it is
+ * only trying to read from; a writer passes `create: true`.
  */
 function cachePath(kind, sessionIdentifier, { create = false } = {}) {
   const directory = path.join(io.configDir(), "cache", kind);
@@ -36,4 +35,4 @@ function cachePath(kind, sessionIdentifier, { create = false } = {}) {
   );
 }
 
-module.exports = { cachePath };
+module.exports = { cachePath, sanitizeSessionIdentifier };

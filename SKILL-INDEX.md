@@ -148,7 +148,7 @@ Declare a repository's scheduled cloud agents (Claude Code routines) as committe
 
 ### `/repo-setup`
 
-Audit and fix a repository's agent infrastructure — CLAUDE.md presence and whether git actually tracks it, the graphify knowledge graph and its freshness, an origin remote for cloud routines, declared routines and their .mcp.json, and skills the stack needs that nothing can route to automatically. Use when the SessionStart notice says "Repo setup:", when someone asks whether a repo is set up for agents, when onboarding an unfamiliar repo, or when asked to snooze or dismiss one of those notices. Not for writing CLAUDE.md content itself — that is /init — and not for scheduling, which is /repo-schedule.
+Audit and fix a repository's agent infrastructure — CLAUDE.md presence and whether git actually tracks it, the .claude/state.md working record and its ignore line, the graphify knowledge graph and its freshness, an origin remote for cloud routines, declared routines and their .mcp.json, and skills the stack needs that nothing can route to automatically. Use when the SessionStart notice says "Repo setup:", when someone asks whether a repo is set up for agents, when onboarding an unfamiliar repo, or when asked to snooze or dismiss one of those notices, or to set a repo up for early clears (the context action). Not for writing CLAUDE.md content itself — that is /init — and not for scheduling, which is /repo-schedule.
 
 ### `/roblox-engineer`
 

@@ -247,6 +247,10 @@
           {
             "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','review-reminder.js'))\""
+          },
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','clear-gate.js'))\""
           }
         ]
       }
@@ -269,11 +273,15 @@
           },
           {
             "type": "command",
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','graph-refresh.js'))\""
+          },
+          {
+            "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','mode-session.js'))\""
           },
           {
             "type": "command",
-            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','handoff-restore.js'))\""
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','state-restore.js'))\""
           }
         ]
       }
@@ -293,17 +301,10 @@
           {
             "type": "command",
             "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','constraint-capture.js'))\""
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": "*",
-        "hooks": [
+          },
           {
             "type": "command",
-            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','pre-compact.js'))\""
+            "command": "node -e \"const p=require('path'),d=process.env.CLAUDE_CONFIG_DIR||p.join(require('os').homedir(),'.claude');require(p.join(d,'hooks','context-gauge.js'))\""
           }
         ]
       }
@@ -375,7 +376,7 @@
     }
   },
   "effortLevel": "xhigh",
-  "autoCompactWindow": 400000,
+  "autoCompactWindow": 220000,
   "tui": "fullscreen",
   "theme": "custom:sugarplum",
   "agentPushNotifEnabled": true,

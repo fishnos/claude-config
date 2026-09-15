@@ -68,6 +68,42 @@ function git(args, cwd) {
   spawnSync("git", args, { cwd, encoding: "utf8", windowsHide: true });
 }
 
+// run() collapses a reply to one verdict; a banner test needs the raw fields,
+// because systemMessage and additionalContext travel side by side.
+function runJson(script, payload, env) {
+  const result = spawnSync(process.execPath, [script], {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    timeout: 30000,
+    env: { ...process.env, ...(env || {}) },
+    windowsHide: true,
+  });
+  try {
+    return JSON.parse((result.stdout || "").trim());
+  } catch {
+    return {};
+  }
+}
+
+function readTextOrEmpty(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function makeRepository(prefix) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  git(["init", "-q", "."], root);
+  return root;
+}
+
+// The config repository may hold a real working record. Captured here and
+// compared at the end, so no case can write into it unnoticed.
+const configRepositoryState = path.join(__dirname, "..", ".claude", "state.md");
+const configRepositoryStateBefore = readTextOrEmpty(configRepositoryState);
+
 function bash(command, cwd) {
   return { tool_name: "Bash", cwd, tool_input: { command } };
 }
@@ -2018,27 +2054,27 @@ header("lib/session-cache: one path builder for all four call sites");
     }
   };
 
-  const traversal = withEnv(() => cachePath("handoff", "../../etc/passwd"));
+  const traversal = withEnv(() => cachePath("constraints", "../../etc/passwd"));
   check(
     "a session id containing ../ resolves inside the cache directory",
-    traversal.startsWith(path.join(cacheHome, "cache", "handoff"))
+    traversal.startsWith(path.join(cacheHome, "cache", "constraints"))
       ? "allow"
       : "escaped",
     "allow",
     traversal,
   );
 
-  const slashed = withEnv(() => cachePath("handoff", "a/b/c"));
+  const slashed = withEnv(() => cachePath("constraints", "a/b/c"));
   check(
     "a session id containing / resolves inside the cache directory, not a subdirectory",
-    path.dirname(slashed) === path.join(cacheHome, "cache", "handoff")
+    path.dirname(slashed) === path.join(cacheHome, "cache", "constraints")
       ? "allow"
       : "escaped",
     "allow",
     slashed,
   );
 
-  const empty = withEnv(() => cachePath("handoff", ""));
+  const empty = withEnv(() => cachePath("constraints", ""));
   check(
     "an empty session id resolves to unknown.md",
     path.basename(empty),
@@ -2046,7 +2082,7 @@ header("lib/session-cache: one path builder for all four call sites");
     empty,
   );
 
-  const dotdot = withEnv(() => cachePath("handoff", ".."));
+  const dotdot = withEnv(() => cachePath("constraints", ".."));
   check(
     "a bare .. session id resolves to unknown.md",
     path.basename(dotdot),
@@ -2054,11 +2090,9 @@ header("lib/session-cache: one path builder for all four call sites");
     dotdot,
   );
 
-  const writerPath = withEnv(() =>
-    cachePath("handoff", "agree-1", { create: true }),
-  );
-  const readerPath = withEnv(() => cachePath("handoff", "agree-1"));
-  check("writer and reader agree on the same path", readerPath, writerPath, "");
+  // Checked before the create:true call below touches the kind's directory,
+  // since both now share the "constraints" kind and a shared directory would
+  // otherwise already exist by the time this runs.
   check(
     "create: false never makes the directory",
     fs.existsSync(
@@ -2068,189 +2102,48 @@ header("lib/session-cache: one path builder for all four call sites");
     "",
   );
 
+  const writerPath = withEnv(() =>
+    cachePath("constraints", "agree-1", { create: true }),
+  );
+  const readerPath = withEnv(() => cachePath("constraints", "agree-1"));
+  check("writer and reader agree on the same path", readerPath, writerPath, "");
+
   fs.rmSync(cacheHome, { recursive: true, force: true });
 }
 
-header("PreCompact: writes a handoff file");
-
-const PRECOMPACT = path.join(HOOKS, "pre-compact.js");
-const handoffHome = fs.mkdtempSync(path.join(os.tmpdir(), "handoff-"));
-
-{
-  const payload = {
-    hook_event_name: "PreCompact",
-    session_id: "test-session-1",
-    trigger: "auto",
-    cwd: repo,
-  };
-  run(PRECOMPACT, payload, { CLAUDE_CONFIG_DIR: handoffHome });
-  const written = path.join(
-    handoffHome,
-    "cache",
-    "handoff",
-    "test-session-1.md",
-  );
-  const exists = fs.existsSync(written);
-  check("handoff file created", exists ? "allow" : "missing", "allow", written);
-  if (exists) {
-    const text = fs.readFileSync(written, "utf8");
-    for (const heading of [
-      "## Mode",
-      "## Decisions",
-      "## Open threads",
-      "## Possible standing constraints, captured by keyword",
-    ]) {
-      check(
-        "handoff has " + heading,
-        text.includes(heading) ? "allow" : "missing",
-        "allow",
-        text.slice(0, 200),
-      );
-    }
-  }
-}
-
-{
-  // A dial whose value is an object (rather than the usual string or number)
-  // must be skipped, not rendered as the useless "[object Object]".
-  const modeHome = fs.mkdtempSync(path.join(os.tmpdir(), "mode-lock-"));
-  fs.writeFileSync(
-    path.join(modeHome, "mode.lock"),
-    JSON.stringify({
-      mode: "build",
-      codename: "RUNNER",
-      settings: { voice: "terse", nested: { deep: true } },
-    }),
-    "utf8",
-  );
-  run(
-    PRECOMPACT,
-    {
-      hook_event_name: "PreCompact",
-      session_id: "mode-object-1",
-      trigger: "auto",
-    },
-    { CLAUDE_CONFIG_DIR: modeHome },
-  );
-  const text = fs.readFileSync(
-    path.join(modeHome, "cache", "handoff", "mode-object-1.md"),
-    "utf8",
-  );
-  check(
-    "a nested-object dial never renders as [object Object]",
-    text.includes("[object Object]") ? "leaked" : "clean",
-    "clean",
-    text,
-  );
-  check(
-    "a primitive dial sitting beside it still renders",
-    text.includes("voice: terse") ? "allow" : "missing",
-    "allow",
-    text,
-  );
-  fs.rmSync(modeHome, { recursive: true, force: true });
-}
-
-header("SessionStart: restores the handoff after compaction");
-
-const RESTORE = path.join(HOOKS, "handoff-restore.js");
-
-{
-  const directory = path.join(handoffHome, "cache", "handoff");
-  fs.mkdirSync(directory, { recursive: true });
-  fs.writeFileSync(
-    path.join(directory, "test-session-2.md"),
-    "# Handoff across compaction\n\n## Mode\n\nbuild / RUNNER\n",
-    "utf8",
-  );
-
-  const compacted = {
-    hook_event_name: "SessionStart",
-    source: "compact",
-    session_id: "test-session-2",
-  };
-  const restored = run(RESTORE, compacted, { CLAUDE_CONFIG_DIR: handoffHome });
-  check("restores on compact", restored.verdict, "warn", restored.reason);
-  check(
-    "carries the mode",
-    String(restored.reason).includes("RUNNER") ? "allow" : "missing",
-    "allow",
-    restored.reason,
-  );
-
-  const fresh = {
-    hook_event_name: "SessionStart",
-    source: "startup",
-    session_id: "test-session-2",
-  };
-  const quiet = run(RESTORE, fresh, { CLAUDE_CONFIG_DIR: handoffHome });
-  check("silent on a fresh start", quiet.verdict, "allow", quiet.reason);
-
-  const missing = {
-    hook_event_name: "SessionStart",
-    source: "compact",
-    session_id: "no-such-session",
-  };
-  const absent = run(RESTORE, missing, { CLAUDE_CONFIG_DIR: handoffHome });
-  check(
-    "silent when no handoff exists",
-    absent.verdict,
-    "allow",
-    absent.reason,
-  );
-}
-
-{
-  // The reader must stay bounded on its own, not because pre-compact.js's own
-  // MAX_SECTION happens to cap what it wrote.
-  const directory = path.join(handoffHome, "cache", "handoff");
-  fs.writeFileSync(
-    path.join(directory, "oversized-1.md"),
-    "START_MARKER" + "x".repeat(8990) + "END_MARKER",
-    "utf8",
-  );
-  const restored = run(
-    RESTORE,
-    {
-      hook_event_name: "SessionStart",
-      source: "compact",
-      session_id: "oversized-1",
-    },
-    { CLAUDE_CONFIG_DIR: handoffHome },
-  );
-  check(
-    "an oversized handoff is capped at 8000 characters",
-    String(restored.reason).includes("START_MARKER") &&
-      !String(restored.reason).includes("END_MARKER")
-      ? "allow"
-      : "uncapped",
-    "allow",
-    restored.reason.length,
-  );
-}
+const captureHome = fs.mkdtempSync(path.join(os.tmpdir(), "capture-"));
 
 header("UserPromptSubmit: captures standing constraints");
 
 const CAPTURE = path.join(HOOKS, "constraint-capture.js");
 
-function capture(prompt, sessionIdentifier) {
+// Captures land in the repository's working record, so these cases need a
+// repository holding one. Each call starts from the scaffolded template unless
+// the case is about what accumulates across turns.
+const stateFileLibrary = require(path.join(HOOKS, "lib", "state-file.js"));
+const captureRepository = makeRepository("capture-repo-");
+const captureStatePath = path.join(captureRepository, ".claude", "state.md");
+const captureTemplate = readTextOrEmpty(
+  path.join(__dirname, "..", "skills", "repo-setup", "templates", "state.md"),
+);
+fs.mkdirSync(path.join(captureRepository, ".claude"));
+
+function capture(prompt, sessionIdentifier, { fresh = true } = {}) {
+  if (fresh) fs.writeFileSync(captureStatePath, captureTemplate);
   run(
     CAPTURE,
     {
       hook_event_name: "UserPromptSubmit",
       session_id: sessionIdentifier,
       prompt,
+      cwd: captureRepository,
     },
-    { CLAUDE_CONFIG_DIR: handoffHome },
+    { CLAUDE_CONFIG_DIR: captureHome },
   );
-  try {
-    return fs.readFileSync(
-      path.join(handoffHome, "cache", "constraints", sessionIdentifier + ".md"),
-      "utf8",
-    );
-  } catch {
-    return "";
-  }
+  return stateFileLibrary.sectionBody(
+    readTextOrEmpty(captureStatePath),
+    "Unconfirmed",
+  );
 }
 
 for (const [label, prompt] of [
@@ -2278,7 +2171,9 @@ for (const [label, prompt] of [
 
 {
   const first = capture("Never edit files under vendor/", "accumulate-1");
-  const second = capture("From now on use pnpm", "accumulate-1");
+  const second = capture("From now on use pnpm", "accumulate-1", {
+    fresh: false,
+  });
   const bullets = second.split("\n").filter((line) => line.startsWith("- "));
   check(
     "accumulates across turns",
@@ -2299,7 +2194,9 @@ for (const [label, prompt] of [
     "Never edit files under vendor/ or build/",
     "substring-1",
   );
-  const short = capture("Never edit files under vendor/", "substring-1");
+  const short = capture("Never edit files under vendor/", "substring-1", {
+    fresh: false,
+  });
   const bullets = short.split("\n").filter((line) => line.startsWith("- "));
   check(
     "captures a constraint that is a substring of an existing one",
@@ -2366,133 +2263,1612 @@ for (const [label, prompt] of [
 }
 
 {
-  // Fill the file past MAX_FILE (4000) with near-MAX_LINE (400) entries the
-  // pattern still matches, then confirm the newest survives and the oldest
-  // was dropped rather than the newest capture being silently refused.
-  const sessionIdentifier = "over-cap-1";
-  for (let index = 0; index < 11; index += 1) {
-    capture(
-      `Never touch fixture ${index} ` + "x".repeat(380),
-      sessionIdentifier,
-    );
-  }
-  const text = capture("Never touch the final fixture", sessionIdentifier);
-  check(
-    "over-cap file keeps the newest line",
-    text.includes("Never touch the final fixture") ? "allow" : "missing",
-    "allow",
-    text.slice(0, 200),
+  // The working record is the only reader, so a repository without one is left
+  // untouched rather than falling back to a file nothing reads.
+  const noRecordRepository = makeRepository("capture-no-record-");
+  const noRecordHome = fs.mkdtempSync(
+    path.join(os.tmpdir(), "capture-no-record-home-"),
   );
-  check(
-    "over-cap file drops the oldest line",
-    text.includes("fixture 0 ") ? "kept" : "dropped",
-    "dropped",
-    text.slice(0, 200),
-  );
-}
-
-header("PreCompact carries constraints verbatim");
-
-{
-  const sessionIdentifier = "carry-1";
-  const directory = path.join(handoffHome, "cache", "constraints");
-  fs.mkdirSync(directory, { recursive: true });
-  fs.writeFileSync(
-    path.join(directory, sessionIdentifier + ".md"),
-    "- Never edit files under vendor/\n- From now on use pnpm\n",
-    "utf8",
-  );
-
-  run(
-    PRECOMPACT,
-    {
-      hook_event_name: "PreCompact",
-      session_id: sessionIdentifier,
-      trigger: "auto",
-    },
-    { CLAUDE_CONFIG_DIR: handoffHome },
-  );
-
-  const text = fs.readFileSync(
-    path.join(handoffHome, "cache", "handoff", sessionIdentifier + ".md"),
-    "utf8",
-  );
-  check(
-    "handoff carries the first constraint",
-    text.includes("Never edit files under vendor/") ? "allow" : "missing",
-    "allow",
-    text,
-  );
-  check(
-    "handoff carries the second constraint",
-    text.includes("From now on use pnpm") ? "allow" : "missing",
-    "allow",
-    text,
-  );
-  const headingIndex = text.indexOf(
-    "## Possible standing constraints, captured by keyword",
-  );
-  check(
-    "constraints sit under their heading",
-    headingIndex !== -1 && headingIndex < text.indexOf("Never edit files")
-      ? "allow"
-      : "misplaced",
-    "allow",
-    text,
-  );
-}
-
-header("Round trip: a constraint survives capture, compaction and restore");
-
-{
-  // Every other test in this file builds its own fixture for the stage under
-  // test. None of them run capture, then pre-compact, then restore, against
-  // the same session id through the real files each hook reads and writes --
-  // so a future path mismatch between any two of the three could stay green
-  // here while doing nothing in production.
-  const sessionIdentifier = "roundtrip-1";
-  const constraintText = "From now on never touch the vendor directory";
-
-  run(
+  const reply = run(
     CAPTURE,
     {
       hook_event_name: "UserPromptSubmit",
-      session_id: sessionIdentifier,
-      prompt: constraintText,
+      session_id: "no-record-1",
+      prompt: "From now on use pnpm, never npm",
+      cwd: noRecordRepository,
     },
-    { CLAUDE_CONFIG_DIR: handoffHome },
+    { CLAUDE_CONFIG_DIR: noRecordHome },
+  );
+  check(
+    "without a working record the hook stays silent",
+    reply.verdict,
+    "allow",
+    reply.reason,
+  );
+  check(
+    "without a working record no state file is created",
+    fs.existsSync(path.join(noRecordRepository, ".claude", "state.md")),
+    false,
+    "",
+  );
+  check(
+    "without a working record no constraints cache is created",
+    fs.existsSync(path.join(noRecordHome, "cache", "constraints")),
+    false,
+    "",
+  );
+  fs.rmSync(noRecordRepository, { recursive: true, force: true });
+  fs.rmSync(noRecordHome, { recursive: true, force: true });
+}
+
+header(
+  "UserPromptSubmit: capture writes into Unconfirmed when a state file exists",
+);
+{
+  const captureHook = path.join(HOOKS, "constraint-capture.js");
+  const stateFile = require(path.join(HOOKS, "lib", "state-file.js"));
+  const carryover = require(
+    path.join(__dirname, "..", "probes", "state-carryover.js"),
+  );
+  const template = path.join(
+    __dirname,
+    "..",
+    "skills",
+    "repo-setup",
+    "templates",
+    "state.md",
+  );
+  const captureRoot = makeRepository("capture-state-");
+  const captureStateHome = fs.mkdtempSync(
+    path.join(os.tmpdir(), "capture-state-home-"),
+  );
+  fs.mkdirSync(path.join(captureRoot, ".claude"));
+  const statePath = path.join(captureRoot, ".claude", "state.md");
+  fs.writeFileSync(statePath, carryover.STATE_FILE);
+  const submit = (prompt) =>
+    run(
+      captureHook,
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: "capture-state-1",
+        prompt,
+        cwd: captureRoot,
+      },
+      { CLAUDE_CONFIG_DIR: captureStateHome },
+    );
+  const unconfirmed = () =>
+    stateFile.sectionBody(readTextOrEmpty(statePath), "Unconfirmed");
+
+  submit("From now on use pnpm, never npm");
+  check(
+    "the captured sentence lands under Unconfirmed",
+    unconfirmed(),
+    "- From now on use pnpm, never npm",
+    readTextOrEmpty(statePath),
+  );
+  check(
+    "every other section is left byte for byte",
+    stateFile.stateDigest(readTextOrEmpty(statePath)),
+    stateFile.stateDigest(carryover.STATE_FILE),
+    "",
+  );
+  check(
+    "nothing is written to cache/constraints",
+    fs.existsSync(path.join(captureStateHome, "cache", "constraints")),
+    false,
+    "",
   );
 
-  run(
-    PRECOMPACT,
-    {
-      hook_event_name: "PreCompact",
-      session_id: sessionIdentifier,
-      trigger: "auto",
-    },
-    { CLAUDE_CONFIG_DIR: handoffHome },
+  submit("From now on use pnpm, never npm");
+  check(
+    "the same sentence is not added twice",
+    unconfirmed(),
+    "- From now on use pnpm, never npm",
+    unconfirmed(),
+  );
+  submit("Never edit files under vendor/");
+  check(
+    "a second instruction joins the first",
+    unconfirmed(),
+    "- From now on use pnpm, never npm\n- Never edit files under vendor/",
+    unconfirmed(),
   );
 
-  const restored = run(
-    RESTORE,
-    {
-      hook_event_name: "SessionStart",
-      source: "compact",
-      session_id: sessionIdentifier,
-    },
-    { CLAUDE_CONFIG_DIR: handoffHome },
+  // Compared as a boolean, not as two texts: a whole state file in the report
+  // line puts arbitrary file content into this suite's stdout, which other tools
+  // parse. It cost the validator its case count once already.
+  const beforePlainRequest = readTextOrEmpty(statePath);
+  submit("Add a test for the parser");
+  check(
+    "a plain request leaves the file alone",
+    readTextOrEmpty(statePath) === beforePlainRequest,
+    true,
+    "",
+  );
+
+  fs.copyFileSync(template, statePath);
+  submit("Never touch the lockfile");
+  check(
+    "under the template's comment the section reads as one bullet",
+    unconfirmed(),
+    "- Never touch the lockfile",
+    readTextOrEmpty(statePath),
   );
 
   check(
-    "a constraint survives capture, compaction and restore",
-    String(restored.reason).includes(constraintText) ? "allow" : "missing",
-    "allow",
-    restored.reason,
+    "no case wrote the config repository's state file",
+    readTextOrEmpty(configRepositoryState) === configRepositoryStateBefore,
+    true,
+    "",
   );
+
+  fs.rmSync(captureRoot, { recursive: true, force: true });
+  fs.rmSync(captureStateHome, { recursive: true, force: true });
+}
+
+header(
+  "UserPromptSubmit: capture ignores what the harness wrote, not the user",
+);
+{
+  // Background task notifications, slash-command echoes and bash blocks all
+  // arrive in the user-message position, so the hook sees them as prompts. Their
+  // prose is somebody else's — a subagent's report, a command's output — and
+  // storing it under Unconfirmed files it as an instruction the operator gave.
+  const captureHook = path.join(HOOKS, "constraint-capture.js");
+  const restoreHook = path.join(HOOKS, "state-restore.js");
+  const stateFile = require(path.join(HOOKS, "lib", "state-file.js"));
+  const template = path.join(
+    __dirname,
+    "..",
+    "skills",
+    "repo-setup",
+    "templates",
+    "state.md",
+  );
+  const harnessRoot = makeRepository("capture-harness-");
+  const harnessHome = fs.mkdtempSync(
+    path.join(os.tmpdir(), "capture-harness-home-"),
+  );
+  fs.mkdirSync(path.join(harnessRoot, ".claude"));
+  const statePath = path.join(harnessRoot, ".claude", "state.md");
+  const submit = (prompt, sessionIdentifier) =>
+    run(
+      captureHook,
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionIdentifier,
+        prompt,
+        cwd: harnessRoot,
+      },
+      { CLAUDE_CONFIG_DIR: harnessHome },
+    );
+  const unconfirmed = () =>
+    stateFile.sectionBody(readTextOrEmpty(statePath), "Unconfirmed");
+
+  // Shaped from the live reproduction, and deliberately awkward: the first
+  // sentence carries no keyword, so before the fix the capture began mid-result
+  // and carried the closing tag onto the stored line.
+  const TASK_NOTIFICATION =
+    "<task-notification>\n<task-id>afa397717a7cb37ab</task-id>\n" +
+    "<status>completed</status>\n" +
+    '<summary>Agent "Review the upload client" finished</summary>\n' +
+    "<result>Two findings. Report: the reviewer found that the client never " +
+    "retries a failed upload, and always logs the raw token.</result>\n" +
+    "</task-notification>";
+
+  fs.copyFileSync(template, statePath);
+  submit(TASK_NOTIFICATION, "harness-notification-1");
+  check(
+    "a subagent's report is not filed as an instruction",
+    unconfirmed(),
+    "",
+    readTextOrEmpty(statePath),
+  );
+
+  // Deviation 8's guard: an untouched template says nothing on startup. A single
+  // captured line used to defeat it, so every later session opened on a banner
+  // reading "(no goal recorded)" — built from prose the operator never wrote.
+  check(
+    "the notification leaves the template untouched",
+    readTextOrEmpty(statePath) === readTextOrEmpty(template),
+    true,
+    "",
+  );
+  check(
+    "the template still loads nothing at startup after a notification",
+    JSON.stringify(
+      runJson(
+        restoreHook,
+        {
+          hook_event_name: "SessionStart",
+          source: "startup",
+          session_id: "harness-restore-1",
+          cwd: harnessRoot,
+        },
+        { CLAUDE_CONFIG_DIR: harnessHome },
+      ),
+    ),
+    "{}",
+    "",
+  );
+
+  for (const [label, prompt] of [
+    [
+      "a bash block",
+      "<bash-input>rm -rf build</bash-input>\n" +
+        "<bash-stdout>Never removed: build is missing.</bash-stdout>",
+    ],
+    [
+      "a slash-command echo",
+      "<command-name>/mode</command-name>\n" +
+        "<command-message>Never switch modes mid-session.</command-message>",
+    ],
+  ]) {
+    fs.copyFileSync(template, statePath);
+    submit(prompt, "harness-" + label.replace(/\s+/g, "-"));
+    check("ignores " + label, unconfirmed(), "", readTextOrEmpty(statePath));
+  }
+
+  // The counterweight: the harness puts its own blocks around a real prompt, so
+  // skipping the whole message whenever one appears would lose the instruction
+  // the operator typed directly after a slash command.
+  fs.copyFileSync(template, statePath);
+  submit(
+    "<command-name>/clear</command-name>\n<command-args></command-args>\n" +
+      "From now on use pnpm, never npm",
+    "harness-mixed-1",
+  );
+  check(
+    "an instruction typed beside a command block is still captured",
+    unconfirmed(),
+    "- From now on use pnpm, never npm",
+    readTextOrEmpty(statePath),
+  );
+
+  fs.rmSync(harnessRoot, { recursive: true, force: true });
+  fs.rmSync(harnessHome, { recursive: true, force: true });
+}
+
+header("lib/transcript-tail: context size from the end of a transcript");
+{
+  const transcriptTail = require(path.join(HOOKS, "lib", "transcript-tail.js"));
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "transcript-tail-"));
+  const assistantEntry = (tokens, extra = {}) => ({
+    type: "assistant",
+    isSidechain: false,
+    requestId: "request-" + tokens,
+    message: {
+      role: "assistant",
+      content: [{ type: "text", text: "ok" }],
+      usage: {
+        input_tokens: 2,
+        cache_read_input_tokens: tokens - 1002,
+        cache_creation_input_tokens: 1000,
+        output_tokens: 50,
+      },
+    },
+    ...extra,
+  });
+  const boundary = {
+    type: "system",
+    subtype: "compact_boundary",
+    compactMetadata: { trigger: "auto", preTokens: 368000 },
+  };
+  const writeTranscript = (name, entries, prefix = "") => {
+    const file = path.join(scratch, name);
+    fs.writeFileSync(
+      file,
+      prefix + entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n",
+    );
+    return file;
+  };
+  const latest = (file) => transcriptTail.latestContextTokens(file);
+
+  check(
+    "sums input, cache-read and cache-creation tokens",
+    latest(writeTranscript("sum.jsonl", [assistantEntry(150000)])),
+    150000,
+    "",
+  );
+  check(
+    "the latest main-thread turn wins",
+    latest(
+      writeTranscript("latest.jsonl", [
+        assistantEntry(90000),
+        assistantEntry(130000),
+      ]),
+    ),
+    130000,
+    "",
+  );
+  check(
+    "a subagent turn is not the main thread",
+    latest(
+      writeTranscript("sidechain.jsonl", [
+        assistantEntry(60000),
+        assistantEntry(250000, { isSidechain: true }),
+      ]),
+    ),
+    60000,
+    "",
+  );
+  check(
+    "a compaction after the last turn reads as 0",
+    latest(
+      writeTranscript("compacted.jsonl", [assistantEntry(368000), boundary]),
+    ),
+    0,
+    "",
+  );
+  const filler =
+    JSON.stringify({
+      type: "user",
+      message: { role: "user", content: "x".repeat(300 * 1024) },
+    }) + "\n";
+  check(
+    "finds the turn when earlier history exceeds the tail",
+    latest(
+      writeTranscript("long-history.jsonl", [assistantEntry(140000)], filler),
+    ),
+    140000,
+    "",
+  );
+  check(
+    "a transcript with no assistant turn reads as 0",
+    latest(
+      writeTranscript("no-turn.jsonl", [
+        { type: "user", message: { role: "user", content: "hi" } },
+      ]),
+    ),
+    0,
+    "",
+  );
+  check(
+    "a missing transcript reads as 0",
+    latest(path.join(scratch, "absent.jsonl")),
+    0,
+    "",
+  );
+
+  const summary = transcriptTail.summarize(
+    [
+      assistantEntry(250000, { requestId: "a" }),
+      assistantEntry(250000, { requestId: "a" }),
+      assistantEntry(210000, { requestId: "b" }),
+      assistantEntry(90000, { requestId: "c" }),
+      boundary,
+    ],
+    200000,
+  );
+  check("summary keeps the peak", summary.peakTokens, 250000, "");
+  check(
+    "summary counts each request over the threshold once",
+    summary.turnsOver,
+    2,
+    "",
+  );
+  check(
+    "summary records the compaction trigger and size",
+    summary.compactions
+      .map((compaction) => `${compaction.trigger}:${compaction.preTokens}`)
+      .join(","),
+    "auto:368000",
+    "",
+  );
+
+  const latestText = (file) => transcriptTail.latestAssistantText(file);
+  check(
+    "joins multiple text blocks in one reply",
+    latestText(
+      writeTranscript("multi-block.jsonl", [
+        {
+          type: "assistant",
+          isSidechain: false,
+          requestId: "request-multi",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "text", text: "First paragraph." },
+              { type: "tool_use", name: "Bash", input: {} },
+              { type: "text", text: "Second paragraph." },
+            ],
+          },
+        },
+      ]),
+    ),
+    "First paragraph.\nSecond paragraph.",
+    "",
+  );
+  check(
+    "a reply with no text content reads as empty",
+    latestText(
+      writeTranscript("tool-only.jsonl", [
+        {
+          type: "assistant",
+          isSidechain: false,
+          requestId: "request-tool-only",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "tool_use", name: "Bash", input: { command: "ls" } },
+            ],
+          },
+        },
+      ]),
+    ),
+    "",
+    "",
+  );
+  check(
+    "a trailing subagent reply is ignored in favor of the last main-thread text",
+    latestText(
+      writeTranscript("sidechain-text.jsonl", [
+        {
+          type: "assistant",
+          isSidechain: false,
+          requestId: "request-main",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "Main thread reply." }],
+          },
+        },
+        {
+          type: "assistant",
+          isSidechain: true,
+          requestId: "request-side",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "Subagent reply." }],
+          },
+        },
+      ]),
+    ),
+    "Main thread reply.",
+    "",
+  );
+  check(
+    "an empty transcript reads as empty",
+    latestText(writeTranscript("empty-text.jsonl", [])),
+    "",
+    "",
+  );
+  check(
+    "a missing transcript reads as empty",
+    latestText(path.join(scratch, "absent-text.jsonl")),
+    "",
+    "",
+  );
+  // Some entries carry message.content as a plain string rather than a list of
+  // blocks; the reader must step past one to the last reply it can read.
+  check(
+    "an assistant entry whose content is not a list is skipped",
+    latestText(
+      writeTranscript("string-content.jsonl", [
+        {
+          type: "assistant",
+          isSidechain: false,
+          requestId: "request-blocks",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "The last readable reply." }],
+          },
+        },
+        {
+          type: "assistant",
+          isSidechain: false,
+          requestId: "request-string",
+          message: { role: "assistant", content: "Plain string content." },
+        },
+      ]),
+    ),
+    "The last readable reply.",
+    "",
+  );
+  check(
+    "finds the reply when the tail begins mid-record",
+    latestText(
+      writeTranscript(
+        "truncated-head.jsonl",
+        [
+          {
+            type: "assistant",
+            isSidechain: false,
+            requestId: "request-truncated",
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: "Reply after a cut fragment." }],
+            },
+          },
+        ],
+        filler,
+      ),
+    ),
+    "Reply after a cut fragment.",
+    "",
+  );
+
+  fs.rmSync(scratch, { recursive: true, force: true });
+}
+
+header("Repo setup: state file and graph findings");
+{
+  const repoAudit = require(path.join(HOOKS, "lib", "repo-audit.js"));
+  const findingIds = (root) =>
+    repoAudit.audit(root).map((finding) => finding.id);
+
+  const bare = makeRepository("audit-bare-");
+  check(
+    "no state file raises state-file",
+    findingIds(bare).includes("state-file"),
+    true,
+    findingIds(bare),
+  );
+  check(
+    "no .gitignore line raises state-file-tracked",
+    findingIds(bare).includes("state-file-tracked"),
+    true,
+    findingIds(bare),
+  );
+  check(
+    "state-file, state-file-tracked and graph are the urgent findings",
+    repoAudit
+      .audit(bare)
+      .filter((finding) => finding.urgent === true)
+      .map((finding) => finding.id)
+      .sort()
+      .join(","),
+    "graph,state-file,state-file-tracked",
+    findingIds(bare),
+  );
+
+  const covered = makeRepository("audit-covered-");
+  fs.mkdirSync(path.join(covered, ".claude"));
+  fs.writeFileSync(
+    path.join(covered, ".claude", "state.md"),
+    "# Working state\n",
+  );
+  fs.writeFileSync(
+    path.join(covered, ".gitignore"),
+    "node_modules/\n/.claude/\n",
+  );
+  check(
+    "a present state file clears state-file",
+    findingIds(covered).includes("state-file"),
+    false,
+    findingIds(covered),
+  );
+  check(
+    "a /.claude/ line clears state-file-tracked",
+    findingIds(covered).includes("state-file-tracked"),
+    false,
+    findingIds(covered),
+  );
+  fs.writeFileSync(path.join(covered, ".gitignore"), ".claude/state.md\n");
+  check(
+    "the exact path clears state-file-tracked",
+    findingIds(covered).includes("state-file-tracked"),
+    false,
+    findingIds(covered),
+  );
+  fs.writeFileSync(
+    path.join(covered, ".gitignore"),
+    ".claude/settings.local.json\n",
+  );
+  check(
+    "an unrelated .claude line leaves state-file-tracked",
+    findingIds(covered).includes("state-file-tracked"),
+    true,
+    findingIds(covered),
+  );
+
+  const setupHome = fs.mkdtempSync(path.join(os.tmpdir(), "repo-setup-home-"));
+  const sessionStart = (root) =>
+    runJson(
+      path.join(HOOKS, "repo-setup.js"),
+      { hook_event_name: "SessionStart", source: "startup", cwd: root },
+      { CLAUDE_CONFIG_DIR: setupHome },
+    );
+  const firstStart = sessionStart(bare);
+  const secondStart = sessionStart(bare);
+  check(
+    "urgent findings show a banner",
+    String(firstStart.systemMessage).includes("state.md"),
+    true,
+    JSON.stringify(firstStart),
+  );
+  check(
+    "the banner shows again on the next start",
+    String(secondStart.systemMessage).includes("state.md"),
+    true,
+    JSON.stringify(secondStart),
+  );
+  check(
+    "Claude gets the urgent findings as context",
+    String((firstStart.hookSpecificOutput || {}).additionalContext).includes(
+      "no .claude/state.md",
+    ),
+    true,
+    JSON.stringify(firstStart),
+  );
+
+  repoAudit.writeState(setupHome, bare, {
+    repo: bare,
+    dismissed: ["graph", "state-file", "state-file-tracked"],
+  });
+  const afterDismissal = sessionStart(bare);
+  check(
+    "dismissed urgent findings raise no banner",
+    afterDismissal.systemMessage,
+    undefined,
+    JSON.stringify(afterDismissal),
+  );
+  check(
+    "a routine finding still reaches Claude once",
+    String(
+      (afterDismissal.hookSpecificOutput || {}).additionalContext,
+    ).includes("no CLAUDE.md"),
+    true,
+    JSON.stringify(afterDismissal),
+  );
+  check(
+    "the routine finding is not repeated inside the fortnight",
+    JSON.stringify(sessionStart(bare)),
+    "{}",
+    "",
+  );
+
+  fs.rmSync(setupHome, { recursive: true, force: true });
+  fs.rmSync(covered, { recursive: true, force: true });
+  fs.rmSync(bare, { recursive: true, force: true });
+}
+
+header("/repo-setup context: one-step state file, ignore line and graph");
+{
+  const auditScript = path.join(
+    __dirname,
+    "..",
+    "skills",
+    "repo-setup",
+    "audit.js",
+  );
+  const template = path.join(
+    __dirname,
+    "..",
+    "skills",
+    "repo-setup",
+    "templates",
+    "state.md",
+  );
+  const contextCases = [
+    "context writes the state file from the template",
+    "context builds the graph with graphify update <root>",
+    "context never overwrites an existing state file",
+    "context appends the .gitignore line exactly once",
+    "the deep audit sees the ignore line through git",
+    "context without graphify still exits 0",
+    "context without graphify says so",
+  ];
+  if (process.platform === "win32") {
+    for (const label of contextCases)
+      skip(label, "the fake graphify is a POSIX shebang script");
+  } else {
+    const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), "fake-graphify-"));
+    const fakeLog = path.join(fakeBin, "calls.jsonl");
+    fs.writeFileSync(
+      path.join(fakeBin, "graphify"),
+      `#!${process.execPath}\nrequire("fs").appendFileSync(process.env.FAKE_GRAPHIFY_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");\n`,
+      { mode: 0o755 },
+    );
+    const pathWithoutGraphify = String(process.env.PATH)
+      .split(path.delimiter)
+      .filter((directory) => !fs.existsSync(path.join(directory, "graphify")))
+      .join(path.delimiter);
+    const runContext = (root, withGraphify) =>
+      spawnSync(process.execPath, [auditScript, "context", root], {
+        encoding: "utf8",
+        windowsHide: true,
+        env: {
+          ...process.env,
+          FAKE_GRAPHIFY_LOG: fakeLog,
+          PATH: withGraphify
+            ? fakeBin + path.delimiter + pathWithoutGraphify
+            : pathWithoutGraphify,
+        },
+      });
+
+    const fresh = makeRepository("context-action-");
+    const firstRun = runContext(fresh, true);
+    check(
+      contextCases[0],
+      readTextOrEmpty(path.join(fresh, ".claude", "state.md")),
+      readTextOrEmpty(template),
+      firstRun.stdout + firstRun.stderr,
+    );
+    check(
+      contextCases[1],
+      readTextOrEmpty(fakeLog).trim(),
+      JSON.stringify(["update", fresh]),
+      firstRun.stdout,
+    );
+
+    fs.writeFileSync(
+      path.join(fresh, ".claude", "state.md"),
+      "# Working state\n\n## Goal\n\nkeep me\n",
+    );
+    runContext(fresh, true);
+    check(
+      contextCases[2],
+      readTextOrEmpty(path.join(fresh, ".claude", "state.md")).includes(
+        "keep me",
+      ),
+      true,
+      "",
+    );
+    check(
+      contextCases[3],
+      readTextOrEmpty(path.join(fresh, ".gitignore"))
+        .split("\n")
+        .filter((line) => line === ".claude/state.md").length,
+      1,
+      readTextOrEmpty(path.join(fresh, ".gitignore")),
+    );
+    const deepReport = spawnSync(
+      process.execPath,
+      [auditScript, "--json", fresh],
+      { encoding: "utf8", windowsHide: true },
+    );
+    let trackedStatus = "unparsed";
+    try {
+      trackedStatus = JSON.parse(deepReport.stdout).checks.find(
+        (row) => row.id === "state-file-tracked",
+      ).status;
+    } catch {
+      // Left as "unparsed" so the check below reports it.
+    }
+    check(
+      contextCases[4],
+      trackedStatus,
+      "ok",
+      deepReport.stdout.slice(0, 200),
+    );
+
+    const noGraphifyRoot = makeRepository("context-no-graphify-");
+    const withoutGraphify = runContext(noGraphifyRoot, false);
+    check(contextCases[5], withoutGraphify.status, 0, withoutGraphify.stderr);
+    check(
+      contextCases[6],
+      withoutGraphify.stdout.includes("graphify is not on PATH"),
+      true,
+      withoutGraphify.stdout,
+    );
+
+    for (const directory of [fakeBin, fresh, noGraphifyRoot])
+      fs.rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+header(
+  "SessionStart: state-restore loads .claude/state.md by how the session started",
+);
+{
+  const restoreHook = path.join(HOOKS, "state-restore.js");
+  const carryover = require(
+    path.join(__dirname, "..", "probes", "state-carryover.js"),
+  );
+  const template = path.join(
+    __dirname,
+    "..",
+    "skills",
+    "repo-setup",
+    "templates",
+    "state.md",
+  );
+  const restoreRoot = makeRepository("state-restore-");
+  const restoreHome = fs.mkdtempSync(
+    path.join(os.tmpdir(), "state-restore-home-"),
+  );
+  fs.mkdirSync(path.join(restoreRoot, ".claude"));
+  const statePath = path.join(restoreRoot, ".claude", "state.md");
+  fs.writeFileSync(statePath, carryover.STATE_FILE);
+  const start = (source, cwd = restoreRoot) =>
+    runJson(
+      restoreHook,
+      { hook_event_name: "SessionStart", source, session_id: "restore-1", cwd },
+      { CLAUDE_CONFIG_DIR: restoreHome },
+    );
+  const contextOf = (reply) =>
+    String((reply.hookSpecificOutput || {}).additionalContext || "");
+
+  const cleared = start("clear");
+  check(
+    "clear loads the file",
+    contextOf(cleared).includes("worker_threads pool for row formatting"),
+    true,
+    contextOf(cleared).slice(0, 200),
+  );
+  check(
+    "clear opens with the preamble the probe measured",
+    contextOf(cleared).startsWith(carryover.CLEAR_PREAMBLE),
+    true,
+    contextOf(cleared).slice(0, 200),
+  );
+  check(
+    "clear shows no banner",
+    cleared.systemMessage,
+    undefined,
+    JSON.stringify(cleared).slice(0, 200),
+  );
+
+  const halfHourAgo = new Date(Date.now() - 30 * 60000);
+  fs.utimesSync(statePath, halfHourAgo, halfHourAgo);
+  const compacted = contextOf(start("compact"));
+  check(
+    "compact says the file wins over the summary",
+    compacted.includes("the file wins"),
+    true,
+    compacted.slice(0, 300),
+  );
+  check(
+    "compact says how stale the file was",
+    compacted.includes("30 minutes before the compaction"),
+    true,
+    compacted.slice(0, 300),
+  );
+
+  const started = start("startup");
+  const banner = String(started.systemMessage);
+  check(
+    "startup banner names the goal",
+    banner.startsWith("Resuming: Streaming CSV export for ledger-export"),
+    true,
+    banner,
+  );
+  check(
+    "startup banner names the next step",
+    banner.includes("Next: backpressure in writeExport"),
+    true,
+    banner,
+  );
+  check(
+    "startup banner gives the age",
+    banner.includes("(updated 30 minutes ago)"),
+    true,
+    banner,
+  );
+  check(
+    "startup asks Claude to confirm before continuing",
+    contextOf(started).includes("confirm with the user"),
+    true,
+    contextOf(started).slice(0, 300),
+  );
+
+  check("resume loads nothing", JSON.stringify(start("resume")), "{}", "");
+  check("fork loads nothing", JSON.stringify(start("fork")), "{}", "");
+  check(
+    "a subdirectory of the repository finds the file",
+    contextOf(start("clear", path.join(restoreRoot, ".claude"))).includes(
+      "worker_threads",
+    ),
+    true,
+    "",
+  );
+
+  fs.writeFileSync(statePath, "START_MARKER" + "x".repeat(8990) + "END_MARKER");
+  const oversized = contextOf(start("clear"));
+  check(
+    "an oversized file is capped at 8,000 characters",
+    oversized.includes("START_MARKER") && !oversized.includes("END_MARKER"),
+    true,
+    oversized.length,
+  );
+  check(
+    "the cap leaves a visible note",
+    oversized.includes("[truncated at 8,000 characters"),
+    true,
+    oversized.slice(-200),
+  );
+
+  fs.copyFileSync(template, statePath);
+  check(
+    "an untouched template loads nothing",
+    JSON.stringify(start("startup")),
+    "{}",
+    "",
+  );
+  fs.rmSync(statePath);
+  check(
+    "no state file loads nothing",
+    JSON.stringify(start("clear")),
+    "{}",
+    "",
+  );
+
+  fs.rmSync(restoreRoot, { recursive: true, force: true });
+  fs.rmSync(restoreHome, { recursive: true, force: true });
+}
+
+header("UserPromptSubmit: context-gauge zones and staleness");
+{
+  const gaugeHook = path.join(HOOKS, "context-gauge.js");
+  const carryover = require(
+    path.join(__dirname, "..", "probes", "state-carryover.js"),
+  );
+  const gaugeRoot = makeRepository("context-gauge-");
+  const emptyRoot = makeRepository("context-gauge-empty-");
+  const gaugeHome = fs.mkdtempSync(
+    path.join(os.tmpdir(), "context-gauge-home-"),
+  );
+  fs.mkdirSync(path.join(gaugeRoot, ".claude"));
+  const statePath = path.join(gaugeRoot, ".claude", "state.md");
+  fs.writeFileSync(statePath, carryover.STATE_FILE);
+
+  let transcriptCount = 0;
+  const transcriptAt = (tokens) => {
+    transcriptCount += 1;
+    const file = path.join(gaugeHome, `transcript-${transcriptCount}.jsonl`);
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        type: "assistant",
+        isSidechain: false,
+        requestId: `request-${transcriptCount}`,
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "ok" }],
+          usage: {
+            input_tokens: 2,
+            cache_read_input_tokens: tokens - 2,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      }) + "\n",
+    );
+    return file;
+  };
+  const prompt = (sessionIdentifier, tokens, cwd = gaugeRoot) =>
+    run(
+      gaugeHook,
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionIdentifier,
+        transcript_path: transcriptAt(tokens),
+        cwd,
+        prompt: "next",
+      },
+      { CLAUDE_CONFIG_DIR: gaugeHome },
+    );
+
+  check(
+    "green zone at 50K is silent",
+    prompt("zone-green", 50000).verdict,
+    "allow",
+    "",
+  );
+  const amber = prompt("zone-amber", 150000);
+  check("amber zone at 150K warns", amber.verdict, "warn", amber.reason);
+  check(
+    "the amber line gives the size and zone",
+    String(amber.reason).includes("150K tokens (amber zone"),
+    true,
+    amber.reason,
+  );
+  check(
+    "the amber line asks for the clear suggestion at a stopping point",
+    String(amber.reason).includes("good point to clear"),
+    true,
+    amber.reason,
+  );
+  const red = prompt("zone-red", 250000);
+  check(
+    "red zone at 250K says compaction is near",
+    String(red.reason).includes("red zone, automatic compaction is near"),
+    true,
+    red.reason,
+  );
+
+  const staleReplies = Array.from({ length: 9 }, () =>
+    prompt("stale-1", 50000),
+  );
+  check(
+    "no staleness line after 7 unchanged turns",
+    staleReplies[7].verdict,
+    "allow",
+    staleReplies[7].reason,
+  );
+  check(
+    "the staleness line comes after 8 unchanged turns",
+    String(staleReplies[8].reason).includes("has not changed in 8 turns"),
+    true,
+    staleReplies[8].reason,
+  );
+  fs.appendFileSync(statePath, "\n- Recorded mid-test.\n");
+  check(
+    "editing the file resets the count",
+    prompt("stale-1", 50000).verdict,
+    "allow",
+    "",
+  );
+  fs.writeFileSync(statePath, carryover.STATE_FILE);
+
+  check(
+    "silent with no state file, even at 150K",
+    prompt("no-state", 150000, emptyRoot).verdict,
+    "allow",
+    "",
+  );
+
+  const stateFile = require(path.join(HOOKS, "lib", "state-file.js"));
+  const zones = require(path.join(HOOKS, "lib", "context-zones.js"));
+  check(
+    "the gauge records the digest the gate compares",
+    (zones.readGaugeState(gaugeHome, "zone-amber") || {}).stateDigest,
+    stateFile.stateDigest(carryover.STATE_FILE),
+    "",
+  );
+  const withCapture = carryover.STATE_FILE.replace(
+    "## Unconfirmed\n",
+    "## Unconfirmed\n\n- From now on use pnpm\n",
+  );
+  check(
+    "the digest ignores what sits under Unconfirmed",
+    stateFile.stateDigest(withCapture),
+    stateFile.stateDigest(carryover.STATE_FILE),
+    "",
+  );
+  check(
+    "the digest sees a change anywhere else",
+    stateFile.stateDigest(
+      carryover.STATE_FILE.replace(
+        "- In progress: nothing.",
+        "- In progress: the writer.",
+      ),
+    ) === stateFile.stateDigest(carryover.STATE_FILE),
+    false,
+    "",
+  );
+
+  for (const directory of [gaugeRoot, emptyRoot, gaugeHome])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
+header(
+  "Stop: clear-gate holds a clear suggestion until the state file changes",
+);
+{
+  const gaugeHook = path.join(HOOKS, "context-gauge.js");
+  const gateHook = path.join(HOOKS, "clear-gate.js");
+  const carryover = require(
+    path.join(__dirname, "..", "probes", "state-carryover.js"),
+  );
+  const zones = require(path.join(HOOKS, "lib", "context-zones.js"));
+  const gateRoot = makeRepository("clear-gate-");
+  const noStateRoot = makeRepository("clear-gate-empty-");
+  const gateHome = fs.mkdtempSync(path.join(os.tmpdir(), "clear-gate-home-"));
+  const environment = { CLAUDE_CONFIG_DIR: gateHome };
+  fs.mkdirSync(path.join(gateRoot, ".claude"));
+  const statePath = path.join(gateRoot, ".claude", "state.md");
+  fs.writeFileSync(statePath, carryover.STATE_FILE);
+  const suggestion = "Tests pass. good point to clear: `/clear`, then `go`";
+
+  let transcriptCount = 0;
+  const transcriptAt = (tokens, text = "ok") => {
+    transcriptCount += 1;
+    const file = path.join(gateHome, `transcript-${transcriptCount}.jsonl`);
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        type: "assistant",
+        isSidechain: false,
+        requestId: `request-${transcriptCount}`,
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text }],
+          usage: {
+            input_tokens: 2,
+            cache_read_input_tokens: tokens - 2,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      }) + "\n",
+    );
+    return file;
+  };
+  const startTurn = (sessionIdentifier, tokens) =>
+    run(
+      gaugeHook,
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionIdentifier,
+        transcript_path: transcriptAt(tokens),
+        cwd: gateRoot,
+        prompt: "next",
+      },
+      environment,
+    );
+  const stop = (sessionIdentifier, tokens, overrides = {}) =>
+    run(
+      gateHook,
+      {
+        hook_event_name: "Stop",
+        session_id: sessionIdentifier,
+        transcript_path: transcriptAt(tokens),
+        cwd: gateRoot,
+        stop_hook_active: false,
+        last_assistant_message: suggestion,
+        ...overrides,
+      },
+      environment,
+    );
+
+  startTurn("gate-unchanged", 150000);
+  const held = stop("gate-unchanged", 150000);
+  check(
+    "holds a clear suggestion when the file did not change this turn",
+    held.verdict,
+    "BLOCK",
+    held.reason,
+  );
+  check(
+    "the hold says what to do",
+    String(held.reason).includes(
+      "update .claude/state.md before suggesting a clear",
+    ),
+    true,
+    held.reason,
+  );
+  check(
+    "never blocks twice in a row",
+    stop("gate-unchanged", 150000, { stop_hook_active: true }).verdict,
+    "allow",
+    "",
+  );
+
+  // The harness is expected to set stop_hook_active on the retry, but the gauge's
+  // own per-turn record is the second, independent guard: a Stop that omits the
+  // flag entirely must still not hold twice for the same turn.
+  startTurn("gate-loop-guard", 150000);
+  const loopGuardPayload = () => ({
+    hook_event_name: "Stop",
+    session_id: "gate-loop-guard",
+    transcript_path: transcriptAt(150000),
+    cwd: gateRoot,
+    last_assistant_message: suggestion,
+  });
+  const firstLoopGuardStop = run(gateHook, loopGuardPayload(), environment);
+  check(
+    "holds on the first stop of a turn",
+    firstLoopGuardStop.verdict,
+    "BLOCK",
+    firstLoopGuardStop.reason,
+  );
+  const secondLoopGuardStop = run(gateHook, loopGuardPayload(), environment);
+  check(
+    "a second stop in the same turn is allowed even without stop_hook_active",
+    secondLoopGuardStop.verdict,
+    "allow",
+    secondLoopGuardStop.reason,
+  );
+
+  startTurn("gate-updated", 150000);
+  fs.appendFileSync(statePath, "\n- Recorded before the clear.\n");
+  check(
+    "lets it through when the file changed this turn",
+    stop("gate-updated", 150000).verdict,
+    "allow",
+    "",
+  );
+
+  startTurn("gate-green", 50000);
+  check(
+    "ignores a suggestion in the green zone",
+    stop("gate-green", 50000).verdict,
+    "allow",
+    "",
+  );
+
+  startTurn("gate-plain-reply", 150000);
+  check(
+    "ignores a reply that suggests no clear",
+    stop("gate-plain-reply", 150000, { last_assistant_message: "Tests pass." })
+      .verdict,
+    "allow",
+    "",
+  );
+
+  startTurn("gate-fallback", 150000);
+  const fromTranscript = run(
+    gateHook,
+    {
+      hook_event_name: "Stop",
+      session_id: "gate-fallback",
+      transcript_path: transcriptAt(150000, suggestion),
+      cwd: gateRoot,
+    },
+    environment,
+  );
+  check(
+    "reads the suggestion from the transcript when the payload lacks it",
+    fromTranscript.verdict,
+    "BLOCK",
+    fromTranscript.reason,
+  );
+
+  // \b alone matched "/clear" inside an ordinary path (hooks/clear-gate.js),
+  // because the boundary it checks sits after "clear", not before the slash.
+  startTurn("gate-path-mention-1", 150000);
+  check(
+    "a file path containing /clear is not a suggestion",
+    stop("gate-path-mention-1", 150000, {
+      last_assistant_message:
+        "I finished hooks/clear-gate.js and the tests pass.",
+    }).verdict,
+    "allow",
+    "",
+  );
+  startTurn("gate-path-mention-2", 150000);
+  check(
+    "a doc path containing /clear is not a suggestion",
+    stop("gate-path-mention-2", 150000, {
+      last_assistant_message: "See docs/clear-gate.md for details.",
+    }).verdict,
+    "allow",
+    "",
+  );
+
+  // The earlier two cases are caught by what precedes the slash. These are not:
+  // /clear-gate and /clear/x begin exactly the way a bare command does, so only
+  // what follows the command separates them. The hook's own name leads because
+  // the session most likely to write it is the one editing this file.
+  startTurn("gate-hook-name", 150000);
+  check(
+    "the hook's own command spelling is not a suggestion",
+    stop("gate-hook-name", 150000, {
+      last_assistant_message: "The /clear-gate hook now holds the stop.",
+    }).verdict,
+    "allow",
+    "",
+  );
+  startTurn("gate-hook-doc", 150000);
+  check(
+    "a doc path starting with a slash is not a suggestion",
+    stop("gate-hook-doc", 150000, {
+      last_assistant_message: "See /clear-gate.md for details.",
+    }).verdict,
+    "allow",
+    "",
+  );
+  startTurn("gate-rooted-path", 150000);
+  check(
+    "a directory path starting with slash-clear is not a suggestion",
+    stop("gate-rooted-path", 150000, {
+      last_assistant_message: "Read /clear/notes.md before continuing.",
+    }).verdict,
+    "allow",
+    "",
+  );
+
+  // The counterweight to those three: a full stop straight after the command is
+  // sentence punctuation, not a file extension, and must still fire.
+  startTurn("gate-sentence-final", 150000);
+  check(
+    "a suggestion ending the sentence still fires",
+    stop("gate-sentence-final", 150000, {
+      last_assistant_message: "Record the state, then run /clear.",
+    }).verdict,
+    "BLOCK",
+    "",
+  );
+
+  startTurn("gate-real-suggestion-1", 150000);
+  check(
+    "the gauge's own suggested wording still fires",
+    stop("gate-real-suggestion-1", 150000, {
+      last_assistant_message: suggestion,
+    }).verdict,
+    "BLOCK",
+    "",
+  );
+  startTurn("gate-real-suggestion-2", 150000);
+  check(
+    "a bare slash-command suggestion still fires",
+    stop("gate-real-suggestion-2", 150000, {
+      last_assistant_message: "Run /clear now.",
+    }).verdict,
+    "BLOCK",
+    "",
+  );
+
+  // Emphasis marks around the command are not path characters, so a suggestion
+  // wearing them is a real suggestion.
+  startTurn("gate-emphasised", 150000);
+  check(
+    "an emphasised /clear is still a suggestion",
+    stop("gate-emphasised", 150000, {
+      last_assistant_message: "Consider _/clear_ to reset.",
+    }).verdict,
+    "BLOCK",
+    "",
+  );
+
+  // A config directory that is really a file: mkdirSync under it fails with
+  // ENOTDIR, which is the cheapest way to make the write fail on every platform.
+  const notADirectory = path.join(gateHome, "not-a-directory");
+  fs.writeFileSync(notADirectory, "");
+  check(
+    "writeGaugeState reports a write that could not land",
+    zones.writeGaugeState(notADirectory, "blocked-session", { turn: 1 }),
+    false,
+    "",
+  );
+  check(
+    "writeGaugeState reports a write that landed",
+    zones.writeGaugeState(gateHome, "write-probe", { turn: 1 }),
+    true,
+    "",
+  );
+
+  // The hold is only safe to make once the held-turn marker is on disk: without
+  // it the gate has no memory of holding and would hold again on the next stop.
+  const degradeCase = "an unrecordable hold degrades to letting it through";
+  if (process.platform === "win32") {
+    skip(degradeCase, "chmod does not make a file unwritable on Windows");
+  } else if (process.getuid && process.getuid() === 0) {
+    skip(degradeCase, "root ignores the read-only bit");
+  } else {
+    startTurn("gate-unrecordable", 150000);
+    const recordPath = path.join(
+      gateHome,
+      "cache",
+      "context-gauge",
+      "gate-unrecordable.json",
+    );
+    fs.chmodSync(recordPath, 0o444);
+    const degraded = stop("gate-unrecordable", 150000);
+    fs.chmodSync(recordPath, 0o644);
+    check(degradeCase, degraded.verdict, "allow", degraded.reason);
+  }
+
+  check(
+    "lets it through where there is no state file",
+    stop("gate-unchanged", 150000, { cwd: noStateRoot }).verdict,
+    "allow",
+    "",
+  );
+  check(
+    "lets it through when the gauge never saw the turn start",
+    stop("gate-never-started", 150000).verdict,
+    "allow",
+    "",
+  );
+
+  for (const directory of [gateRoot, noStateRoot, gateHome])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
+header("SessionStart: graph-refresh rebuilds a stale graph in the background");
+{
+  const refreshHook = path.join(HOOKS, "graph-refresh.js");
+  const refreshCases = [
+    "a stale graph starts graphify update <root>",
+    "the rebuild writes one log per repository",
+    "a current graph starts nothing",
+    "a missing graph starts nothing",
+    "without graphify on PATH the hook stays silent",
+    "without graphify on PATH no log is written",
+    "the clear gate lets an updated suggestion through",
+    "the clear gate starts a refresh when it does",
+  ];
+  if (process.platform === "win32") {
+    for (const label of refreshCases)
+      skip(label, "the fake graphify is a POSIX shebang script");
+  } else {
+    const fakeBin = fs.mkdtempSync(
+      path.join(os.tmpdir(), "refresh-fake-graphify-"),
+    );
+    const fakeLog = path.join(fakeBin, "calls.jsonl");
+    fs.writeFileSync(
+      path.join(fakeBin, "graphify"),
+      `#!${process.execPath}\nrequire("fs").appendFileSync(process.env.FAKE_GRAPHIFY_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");\n`,
+      { mode: 0o755 },
+    );
+    const refreshHome = fs.mkdtempSync(
+      path.join(os.tmpdir(), "graph-refresh-home-"),
+    );
+    const pathWithoutGraphify = String(process.env.PATH)
+      .split(path.delimiter)
+      .filter((directory) => !fs.existsSync(path.join(directory, "graphify")))
+      .join(path.delimiter);
+    const environmentFor = (withGraphify) => ({
+      ...process.env,
+      CLAUDE_CONFIG_DIR: refreshHome,
+      CLAUDE_GRAPH_REFRESH_FOREGROUND: "1",
+      FAKE_GRAPHIFY_LOG: fakeLog,
+      PATH: withGraphify
+        ? fakeBin + path.delimiter + pathWithoutGraphify
+        : pathWithoutGraphify,
+    });
+    const recordedCalls = () =>
+      readTextOrEmpty(fakeLog).split("\n").filter(Boolean);
+    const committedRepository = (prefix) => {
+      const root = makeRepository(prefix);
+      git(
+        [
+          "-c",
+          "user.email=t@t.t",
+          "-c",
+          "user.name=T",
+          "commit",
+          "--allow-empty",
+          "-q",
+          "-m",
+          "init",
+        ],
+        root,
+      );
+      return root;
+    };
+    const writeGraph = (root, offsetMs) => {
+      const graph = path.join(root, "graphify-out", "graph.json");
+      fs.mkdirSync(path.dirname(graph), { recursive: true });
+      fs.writeFileSync(graph, "{}");
+      const when = new Date(Date.now() + offsetMs);
+      fs.utimesSync(graph, when, when);
+    };
+    const startSession = (root, withGraphify) =>
+      spawnSync(process.execPath, [refreshHook], {
+        input: JSON.stringify({
+          hook_event_name: "SessionStart",
+          source: "startup",
+          cwd: root,
+        }),
+        encoding: "utf8",
+        env: environmentFor(withGraphify),
+        windowsHide: true,
+      });
+    const logExists = (root) => {
+      const digest = require("crypto")
+        .createHash("sha1")
+        .update(root)
+        .digest("hex")
+        .slice(0, 12);
+      return fs.existsSync(
+        path.join(
+          refreshHome,
+          "cache",
+          "graph-refresh",
+          `${path.basename(root)}-${digest}.log`,
+        ),
+      );
+    };
+
+    const stale = committedRepository("refresh-stale-");
+    writeGraph(stale, -3600000);
+    startSession(stale, true);
+    check(
+      refreshCases[0],
+      recordedCalls().join("|"),
+      JSON.stringify(["update", stale]),
+      recordedCalls(),
+    );
+    check(refreshCases[1], logExists(stale), true, "");
+
+    fs.rmSync(fakeLog, { force: true });
+    const current = committedRepository("refresh-current-");
+    writeGraph(current, 3600000);
+    startSession(current, true);
+    check(refreshCases[2], recordedCalls().length, 0, recordedCalls());
+    const missing = committedRepository("refresh-missing-");
+    startSession(missing, true);
+    check(refreshCases[3], recordedCalls().length, 0, recordedCalls());
+
+    const noGraphify = committedRepository("refresh-no-graphify-");
+    writeGraph(noGraphify, -3600000);
+    const silent = startSession(noGraphify, false);
+    check(refreshCases[4], silent.stdout.trim(), "", silent.stdout);
+    check(refreshCases[5], logExists(noGraphify), false, "");
+
+    // The gate refreshes whenever a graph exists: this session's edits are
+    // uncommitted, so HEAD's log has not moved and a staleness test would skip.
+    const carryover = require(
+      path.join(__dirname, "..", "probes", "state-carryover.js"),
+    );
+    const gateRoot = committedRepository("refresh-gate-");
+    writeGraph(gateRoot, 3600000);
+    fs.mkdirSync(path.join(gateRoot, ".claude"));
+    fs.writeFileSync(
+      path.join(gateRoot, ".claude", "state.md"),
+      carryover.STATE_FILE,
+    );
+    const transcript = path.join(refreshHome, "gate-transcript.jsonl");
+    fs.writeFileSync(
+      transcript,
+      JSON.stringify({
+        type: "assistant",
+        isSidechain: false,
+        requestId: "request-gate",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "ok" }],
+          usage: {
+            input_tokens: 2,
+            cache_read_input_tokens: 149998,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      }) + "\n",
+    );
+    const hookPayload = (extra) =>
+      JSON.stringify({
+        session_id: "refresh-gate-1",
+        transcript_path: transcript,
+        cwd: gateRoot,
+        ...extra,
+      });
+    spawnSync(process.execPath, [path.join(HOOKS, "context-gauge.js")], {
+      input: hookPayload({ prompt: "next" }),
+      encoding: "utf8",
+      env: environmentFor(true),
+    });
+    fs.appendFileSync(
+      path.join(gateRoot, ".claude", "state.md"),
+      "\n- Recorded before the clear.\n",
+    );
+    const gateReply = spawnSync(
+      process.execPath,
+      [path.join(HOOKS, "clear-gate.js")],
+      {
+        input: hookPayload({
+          stop_hook_active: false,
+          last_assistant_message: "good point to clear: `/clear`, then `go`",
+        }),
+        encoding: "utf8",
+        env: environmentFor(true),
+      },
+    );
+    check(refreshCases[6], gateReply.stdout.trim(), "", gateReply.stdout);
+    check(
+      refreshCases[7],
+      recordedCalls().join("|"),
+      JSON.stringify(["update", gateRoot]),
+      recordedCalls(),
+    );
+
+    for (const directory of [
+      fakeBin,
+      refreshHome,
+      stale,
+      current,
+      missing,
+      noGraphify,
+      gateRoot,
+    ])
+      fs.rmSync(directory, { recursive: true, force: true });
+  }
+
+  const worktreeRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "refresh-worktree-"),
+  );
+  const worktreeGitDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "refresh-worktree-gitdir-"),
+  );
+  fs.writeFileSync(
+    path.join(worktreeRoot, ".git"),
+    `gitdir: ${worktreeGitDirectory}\n`,
+  );
+  const graphRefresh = require(path.join(HOOKS, "lib", "graph-refresh.js"));
+  check(
+    "a worktree's .git file is followed to its HEAD log",
+    graphRefresh.headLogPath(worktreeRoot),
+    path.join(worktreeGitDirectory, "logs", "HEAD"),
+    "",
+  );
+  fs.rmSync(worktreeRoot, { recursive: true, force: true });
+  fs.rmSync(worktreeGitDirectory, { recursive: true, force: true });
 }
 
 fs.rmSync(repo, { recursive: true, force: true });
-fs.rmSync(handoffHome, { recursive: true, force: true });
+fs.rmSync(captureHome, { recursive: true, force: true });
+fs.rmSync(captureRepository, { recursive: true, force: true });
 console.log(`\ntemp repo removed; live marker cache untouched`);
 console.log(`\nPASS ${passed}  SKIP ${skipped}  FAIL ${failed}`);
 process.exit(failed === 0 ? 0 : 1);

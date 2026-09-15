@@ -11,7 +11,8 @@ const { spawnSync } = require("child_process");
 
 // Same resolution order as the hook bootstrap, so a CI checkout that is not at
 // ~/.claude validates the tree it actually checked out.
-const ROOT = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+const ROOT =
+  process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
 let failures = 0;
 
 function check(label, ok, detail) {
@@ -148,7 +149,13 @@ const suite = spawnSync(
 // A skipped case is one the platform cannot run, not one that disappeared, so
 // it still counts toward the total the docs state. Otherwise the documented
 // figure would only ever be right on the machine it was written on.
-const summary = /PASS (\d+)\s+SKIP (\d+)\s+FAIL (\d+)/.exec(suite.stdout || "");
+// The last match, not the first: a case that prints a file can put an older
+// summary in the output ahead of the real one, and a working record quoting its
+// own suite count did exactly that. The suite prints its summary last.
+const summaries = [
+  ...(suite.stdout || "").matchAll(/PASS (\d+)\s+SKIP (\d+)\s+FAIL (\d+)/g),
+];
+const summary = summaries.length > 0 ? summaries[summaries.length - 1] : null;
 check(
   "suite exits zero",
   suite.status === 0,
@@ -160,7 +167,9 @@ check(
   summary ? summary[0] : "no summary",
 );
 const suiteCount = summary ? Number(summary[1]) + Number(summary[2]) : 0;
-console.log(`         ${suiteCount} cases (${summary ? summary[2] : "?"} skipped here)`);
+console.log(
+  `         ${suiteCount} cases (${summary ? summary[2] : "?"} skipped here)`,
+);
 
 section("Docs match reality");
 // README is the landing page; the detail lives in docs/. A claim is checked
@@ -175,7 +184,11 @@ const docPages = fs.existsSync(docsDir)
   : [];
 const pages = ["README.md", ...docPages];
 const prose = pages.map(read).join("\n");
-check("docs/ carries the pages README links to", docPages.length >= 5, `found ${docPages.length}`);
+check(
+  "docs/ carries the pages README links to",
+  docPages.length >= 5,
+  `found ${docPages.length}`,
+);
 const claimed = /covering (\d+) cases/.exec(prose);
 check(
   "documented case count matches the suite",
@@ -199,7 +212,10 @@ const linked = new Set(
   ),
 );
 for (const target of [...linked].sort()) {
-  check(`README link ${target} resolves`, fs.existsSync(path.join(ROOT, target)));
+  check(
+    `README link ${target} resolves`,
+    fs.existsSync(path.join(ROOT, target)),
+  );
 }
 const claudeMd = read("CLAUDE.md");
 check(
@@ -242,7 +258,9 @@ for (const skill of skills) {
   // The shared path is a convenience for other agents on this machine, not a
   // property of the repository. A CI runner has no ~/.agents, and failing there
   // would say the config is broken when only the symlinks are missing.
-  const sharedRoot = fs.existsSync(path.join(os.homedir(), ".agents", "skills"));
+  const sharedRoot = fs.existsSync(
+    path.join(os.homedir(), ".agents", "skills"),
+  );
   check(
     sharedRoot
       ? `${skill}: real dir in repo + reachable via ~/.agents`

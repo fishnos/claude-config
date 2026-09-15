@@ -1,13 +1,13 @@
 ---
 name: repo-setup
-description: Audit and fix a repository's agent infrastructure — CLAUDE.md presence and whether git actually tracks it, the graphify knowledge graph and its freshness, an origin remote for cloud routines, declared routines and their .mcp.json, and skills the stack needs that nothing can route to automatically. Use when the SessionStart notice says "Repo setup:", when someone asks whether a repo is set up for agents, when onboarding an unfamiliar repo, or when asked to snooze or dismiss one of those notices. Not for writing CLAUDE.md content itself — that is /init — and not for scheduling, which is /repo-schedule.
+description: Audit and fix a repository's agent infrastructure — CLAUDE.md presence and whether git actually tracks it, the .claude/state.md working record and its ignore line, the graphify knowledge graph and its freshness, an origin remote for cloud routines, declared routines and their .mcp.json, and skills the stack needs that nothing can route to automatically. Use when the SessionStart notice says "Repo setup:", when someone asks whether a repo is set up for agents, when onboarding an unfamiliar repo, or when asked to snooze or dismiss one of those notices, or to set a repo up for early clears (the context action). Not for writing CLAUDE.md content itself — that is /init — and not for scheduling, which is /repo-schedule.
 ---
 
 # Repo setup
 
 Reports what a repository is missing for agent work, then hands each fix to the
-skill that owns it. This skill diagnoses and delegates. It writes nothing to the
-repository itself.
+skill that owns it. This skill diagnoses and delegates. Only the context action
+writes to the repository, and only when the reader asks for it.
 
 ## Run the audit
 
@@ -22,15 +22,17 @@ they act on.
 
 ## What each finding means, and who fixes it
 
-| Check | Meaning | Hand off to |
-|---|---|---|
-| `instructions` | No `CLAUDE.md` or `AGENTS.md` at the root | `/init` |
-| `instructions-ignored` | The file exists but git ignores it | see below — fix here |
-| `graph` | No `graphify-out/graph.json`, or it predates the newest commit | `/graphify`, or `/graphify --update` when stale |
-| `remote` | No `origin`, so no cloud routine can clone the repo | the reader adds a remote |
-| `routines` | What `.claude/routines/` declares | `/repo-schedule` |
-| `routine-mcp` | Routines declared with no `.mcp.json` | `/repo-schedule` |
-| `skill-overrides` | The stack needs a skill no `paths:` rule can reach | see below — fix here |
+| Check                  | Meaning                                                              | Hand off to                                            |
+| ---------------------- | -------------------------------------------------------------------- | ------------------------------------------------------ |
+| `instructions`         | No `CLAUDE.md` or `AGENTS.md` at the root                            | `/init`                                                |
+| `instructions-ignored` | The file exists but git ignores it                                   | see below — fix here                                   |
+| `graph`                | No `graphify-out/graph.json`, or it predates the newest commit       | `audit.js context`, or `/graphify --update` when stale |
+| `state-file`           | No `.claude/state.md`, so nothing carries the work across a `/clear` | `audit.js context`                                     |
+| `state-file-tracked`   | Git would track `.claude/state.md`                                   | `audit.js context`                                     |
+| `remote`               | No `origin`, so no cloud routine can clone the repo                  | the reader adds a remote                               |
+| `routines`             | What `.claude/routines/` declares                                    | `/repo-schedule`                                       |
+| `routine-mcp`          | Routines declared with no `.mcp.json`                                | `/repo-schedule`                                       |
+| `skill-overrides`      | The stack needs a skill no `paths:` rule can reach                   | see below — fix here                                   |
 
 Two findings are resolved here because no other skill owns them.
 
@@ -47,6 +49,21 @@ file dark.
 carries no `paths:` frontmatter, so nothing routes to it automatically. The fix
 is a `skillOverrides` entry in `.claude/settings.local.json`, which promotes the
 skill in that repository and nowhere else. The audit prints the exact object.
+
+## The context action
+
+    node ~/.claude/skills/repo-setup/audit.js context [<repo-path>]
+
+Sets a repository up for early clears in one step: writes `.claude/state.md`
+from `templates/state.md` (never over an existing one), appends
+`.claude/state.md` to `.gitignore` unless git already ignores it, and builds the
+code graph with `graphify update`, which reads code only and makes no model
+calls. It does not start graphify's pass over documents, papers and images,
+which spends model tokens: offer that, and run `/graphify` only on a yes.
+
+The SessionStart banner raises `graph`, `state-file` and `state-file-tracked` on
+every start until they are fixed or dismissed, because without them a `/clear`
+loses the work.
 
 ## Silencing a finding
 

@@ -14,6 +14,10 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
+// Named workingStateFile, not stateFile, because this file already has a
+// stateFile() below for a different thing: the audit dismiss/snooze cache path.
+const workingStateFile = require("./state-file");
+
 /** Repository root holding `cwd`, or null when the path is not inside a repo. */
 function findRepositoryRoot(cwd) {
   let directory = path.resolve(cwd || process.cwd());
@@ -162,11 +166,32 @@ function audit(root) {
     });
   }
 
+  // These three are urgent: without them a /clear loses the work outright, or
+  // the restart has no graph to pull from, so they are shown on every start.
   if (!exists(root, path.join("graphify-out", "graph.json"))) {
     findings.push({
       id: "graph",
       message: "no knowledge graph",
-      fix: "/graphify",
+      fix: "/repo-setup context",
+      urgent: true,
+    });
+  }
+
+  if (!fs.existsSync(workingStateFile.stateFilePath(root))) {
+    findings.push({
+      id: "state-file",
+      message: "no .claude/state.md",
+      fix: "/repo-setup context",
+      urgent: true,
+    });
+  }
+
+  if (!workingStateFile.stateFileIgnoreListed(root)) {
+    findings.push({
+      id: "state-file-tracked",
+      message: ".gitignore does not cover .claude/state.md",
+      fix: "/repo-setup context",
+      urgent: true,
     });
   }
 
