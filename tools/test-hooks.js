@@ -3257,7 +3257,70 @@ header(
     "{}",
     "",
   );
+  check(
+    "with no configuration record there is nowhere to point",
+    bare.includes("restart there"),
+    false,
+    bare.slice(0, 400),
+  );
 
+  fs.mkdirSync(path.join(restoreHome, ".claude"), { recursive: true });
+  const configRecord = path.join(restoreHome, ".claude", "state.md");
+  fs.writeFileSync(configRecord, carryover.STATE_FILE);
+  const pointed = contextOf(start("clear", outsideRepository));
+  check(
+    "a clear outside any repository names the configuration record that does exist",
+    pointed.includes(restoreHome),
+    true,
+    pointed.slice(0, 400),
+  );
+  check(
+    "the pointer says to restart there rather than loading the record",
+    pointed.includes("restart there"),
+    true,
+    pointed.slice(0, 400),
+  );
+  check(
+    "the pointer carries none of the record's contents",
+    pointed.includes("worker_threads pool for row formatting"),
+    false,
+    pointed.slice(0, 400),
+  );
+  check(
+    "the pointer still says nothing was carried across",
+    pointed.includes("Nothing was carried across"),
+    true,
+    pointed.slice(0, 400),
+  );
+
+  check(
+    "a session already in the configuration directory is not told to restart there",
+    contextOf(start("clear", restoreHome)).includes("restart there"),
+    false,
+    contextOf(start("clear", restoreHome)).slice(0, 400),
+  );
+
+  // The pointer answers "you are nowhere" and not "you are somewhere without a
+  // record". A repository that simply keeps none is a different problem, and the
+  // configuration directory's record is not its answer.
+  const otherRepository = makeRepository("state-restore-other-");
+  check(
+    "a repository keeping no record is not pointed at the configuration one",
+    contextOf(start("clear", otherRepository)).includes("restart there"),
+    false,
+    contextOf(start("clear", otherRepository)).slice(0, 400),
+  );
+  fs.rmSync(otherRepository, { recursive: true, force: true });
+
+  fs.writeFileSync(configRecord, fs.readFileSync(template, "utf8"));
+  check(
+    "an untouched configuration template is not offered as a record",
+    contextOf(start("clear", outsideRepository)).includes("restart there"),
+    false,
+    contextOf(start("clear", outsideRepository)).slice(0, 400),
+  );
+
+  fs.rmSync(configRecord);
   fs.rmSync(outsideRepository, { recursive: true, force: true });
   fs.rmSync(restoreRoot, { recursive: true, force: true });
   fs.rmSync(restoreHome, { recursive: true, force: true });
