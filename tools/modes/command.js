@@ -19,6 +19,8 @@ const banner = require("./banner.js");
 const apply = require("./apply.js");
 const glitch = require("./glitch.js");
 const ink = require("./ink.js");
+const roles = require("./roles.js");
+const crew = require("./crew.js");
 
 const LOCK_NAME = "mode.lock";
 const CODENAME_COLUMN = 11;
@@ -26,6 +28,7 @@ const NAME_COLUMN = 12;
 const DIAL_COLUMN = 11;
 const GAUGE_COLUMN = 7;
 const VALUE_COLUMN = 11;
+const ROLE_COLUMN = 14;
 
 /**
  * Whether to strip colour, answered the same way for every mode surface.
@@ -538,8 +541,71 @@ function commandRevert(io) {
   io.ok(`reverted ${lock.mode}; settings restored and rules re-rendered`);
 }
 
+/**
+ * `ccfg crew`: each worker the mode in force puts to work, the tools its agent
+ * file allows and the gates its finish must pass.
+ *
+ * Read-only, like `ccfg mode` with no argument. It is how the operator checks
+ * the crew without dispatching a worker, so it reports what is actually on disk:
+ * a role the switch has not rendered yet says so rather than looking ready.
+ */
+function commandCrew(argv, io) {
+  const plain = isPlain(argv);
+  const lock = apply.readLock(io.CONFIG_DIR);
+  const chrome = ink.painter(plain, lock === null ? null : lock.color);
+  const corpus = roles.loadRoles(path.join(modesDir(io.CONFIG_DIR), "roles"));
+  const deniedTools = lock === null ? [] : lock.deniedTools || [];
+  const roster = crew.crewRoster(
+    corpus.roles,
+    lock === null ? null : lock.subagents,
+  );
+
+  console.log("");
+  console.log(
+    ink.frame({
+      title: "CREW",
+      rows: [
+        {
+          left: `${corpus.roles.length} ROLES`,
+          right:
+            lock === null
+              ? chrome.dim("NO MODE LOADED")
+              : chrome.accent(`${lock.icon} ${lock.codename} LOADED`),
+        },
+      ],
+      ink: chrome,
+    }),
+  );
+  console.log("");
+
+  for (const role of corpus.roles) {
+    const tools = crew.allowedTools(role, deniedTools);
+    const file = path.join(io.CONFIG_DIR, "agents", `${role.id}.md`);
+    let state = "";
+    if (fs.existsSync(file) && !crew.isGenerated(file))
+      state = chrome.yellow(`agents/${role.id}.md is your own file, left alone`);
+    else if (lock === null) state = chrome.dim("not rendered: no mode applied");
+    else if (!roster.includes(role))
+      state = chrome.dim("not rendered: this mode runs alone");
+    else if (tools.length === 0)
+      state = chrome.dim("withheld: this mode denies every tool it uses");
+    else if (!fs.existsSync(file))
+      state = chrome.yellow("not rendered yet: switch to the mode again");
+
+    const indent = " ".repeat(ROLE_COLUMN);
+    console.log(`  ${chrome.bold(role.id.padEnd(ROLE_COLUMN))}${state}`);
+    console.log(`  ${indent}${chrome.dim("tools")}  ${tools.join(", ") || "none"}`);
+    console.log(
+      `  ${indent}${chrome.dim("gates")}  ${role.gates.join(", ") || "none"}`,
+    );
+  }
+  for (const problem of corpus.errors) console.log(`  ${chrome.yellow(problem)}`);
+  console.log("");
+}
+
 module.exports = {
   commandMode,
+  commandCrew,
   activeMode,
   activeLook,
   gatesOf,
