@@ -9,6 +9,11 @@
 // 12. A size that changes every turn is new information.
 //
 // Silent in a repository with no state file, where the setup banner speaks.
+//
+// The clear suggestion names the repository it read, because a session's working
+// directory can move during the session while /clear returns it to wherever the
+// session was launched. A suggestion that says only "/clear" promises a handoff
+// from one directory that the restart then looks for in another.
 
 const repoAudit = require("./lib/repo-audit");
 const stateFile = require("./lib/state-file");
@@ -47,7 +52,9 @@ io.run(() => {
         (zone === "red" ? ", automatic compaction is near" : "") +
         "). At your next natural stopping point, never mid-task: bring " +
         ".claude/state.md up to date, then end the reply with " +
-        '"good point to clear: `/clear`, then `go`".',
+        '"good point to clear: run `/clear` from `' +
+        root +
+        '`, then `go`".',
     );
     return;
   }

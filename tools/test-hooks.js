@@ -3334,6 +3334,12 @@ header("UserPromptSubmit: context-gauge zones and staleness");
     true,
     amber.reason,
   );
+  check(
+    "the amber line names the directory the clear must run from",
+    String(amber.reason).includes(gaugeRoot),
+    true,
+    amber.reason,
+  );
   const red = prompt("zone-red", 250000);
   check(
     "red zone at 250K says compaction is near",
@@ -3497,6 +3503,29 @@ header(
     stop("gate-unchanged", 150000, { stop_hook_active: true }).verdict,
     "allow",
     "",
+  );
+
+  // context-gauge.js writes the suggestion and this gate recognises it, and
+  // nothing else holds those two wordings together. Take the gauge's own line
+  // rather than a copy of it, so that changing either side without the other
+  // fails here instead of silently retiring the gate.
+  const gaugeLine = String(startTurn("gate-gauge-wording", 150000).reason);
+  const quotedSuggestion = (gaugeLine.match(/"(good point to clear[^"]*)"/) ||
+    [])[1];
+  check(
+    "the amber line carries a suggestion the gate can be given",
+    typeof quotedSuggestion === "string" && quotedSuggestion.length > 0,
+    true,
+    gaugeLine,
+  );
+  const heldOnGaugeWording = stop("gate-gauge-wording", 150000, {
+    last_assistant_message: quotedSuggestion,
+  });
+  check(
+    "the gate holds the exact suggestion the gauge asks for",
+    heldOnGaugeWording.verdict,
+    "BLOCK",
+    heldOnGaugeWording.reason,
   );
 
   // The harness is expected to set stop_hook_active on the retry, but the gauge's
