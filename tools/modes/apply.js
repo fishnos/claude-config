@@ -17,6 +17,8 @@ const modes = require("./modes.js");
 const render = require("./render.js");
 const glitch = require("./glitch.js");
 const modeCommands = require("./commands.js");
+const roles = require("./roles.js");
+const crew = require("./crew.js");
 
 const LOCK_NAME = "mode.lock";
 const ACTIVE_RULES = path.join("rules", "_active.md");
@@ -178,6 +180,14 @@ function renderTo(configDir, corpusRules, resolvedSettings, modeName) {
 }
 
 /**
+ * The roles that load. A malformed role is skipped here rather than failing
+ * the switch; `ccfg crew` is where its error is shown.
+ */
+function loadRoleCorpus(configDir) {
+  return roles.loadRoles(path.join(configDir, "modes", "roles")).roles;
+}
+
+/**
  * Put a mode into force.
  *
  * Throws before writing anything if the mode tries to disable a protected hook,
@@ -218,6 +228,13 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
 
   const disabledHooks = mode.disableHooks || [];
   const layer = mode.glitch || glitch.parseGlitch(undefined, mode.name);
+  crew.writeCrew(
+    configDir,
+    crew.crewRoster(loadRoleCorpus(configDir), layer.subagents),
+    resolved.settings,
+    layer.tools,
+    "",
+  );
   let skillsHidden = 0;
   let baseSkillOverrides = {};
 
@@ -350,6 +367,8 @@ function revert(configDir) {
     fs.copyFileSync(lock.settingsBackup, settingsPath(configDir));
 
   modeCommands.remove(configDir, lock.installedCommands);
+  // An empty crew removes every file the renderer wrote and nothing else.
+  crew.writeCrew(configDir, [], {}, [], "");
 
   fs.rmSync(lockPath(configDir), { force: true });
 

@@ -1345,6 +1345,7 @@ const COMMANDS = {
   test: commandTest,
   probe: (argv) => require("./probe/command.js").commandProbe(argv, IO),
   mode: (argv) => require("./modes/command.js").commandMode(argv, IO),
+  crew: (argv) => require("./modes/command.js").commandCrew(argv, IO),
   validate: commandValidate,
   backup: commandBackup,
   install: commandInstall,
@@ -1370,6 +1371,7 @@ ${bold("ccfg")}: manage this Claude Code configuration
   ${bold("mode list")}           every mode with its codename and what it gates
   ${bold("mode")} NAME           switch to it: rules and tools change now, skills
                       and model at the next session (diff A B | revert)
+  ${bold("crew")}                each worker the mode in force renders: tools and gates
   ${bold("install")}             put ccfg on PATH and wire your shell (--no-shell to skip)
   ${bold("keys list")}           show every managed secret and where its value comes from
   ${bold("keys set")} VAR        store a secret in the keychain (macOS) or secrets.env

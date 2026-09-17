@@ -2860,6 +2860,242 @@ const ENVIRONMENT = process.env;
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+// A role file declares one worker type. The crew renderer reads every one on
+// each mode switch, so a malformed role has to come back as an error to report,
+// not as a throw that leaves the operator with no workers.
+{
+  const roles = require("./modes/roles.js");
+
+  const ROLE_FILE = [
+    "---",
+    "id: implementer",
+    "description: Writes code against a written brief.",
+    "tools: Read, Grep, Glob, Edit, Write, Bash, TodoWrite",
+    "skills: superpowers:test-driven-development",
+    "gates: finish-shape, scope, evidence",
+    "---",
+    "",
+    "Work only inside the declared scope.",
+  ].join("\n");
+
+  const parsed = roles.parseRole(ROLE_FILE, "implementer.md");
+  check("a role parses its id", parsed.id, "implementer");
+  check("a role splits its tools", parsed.tools.length, 7);
+  check("a role keeps Bash in its tools", parsed.tools.includes("Bash"), true);
+  check(
+    "a role splits its gates",
+    parsed.gates.join(","),
+    "finish-shape,scope,evidence",
+  );
+  check(
+    "a role keeps its body",
+    parsed.body,
+    "Work only inside the declared scope.",
+  );
+
+  const noId = roles.parseRole(
+    "---\ndescription: x\ntools: Read\n---\nbody",
+    "x.md",
+  );
+  check("a role with no id is an error", typeof noId.error, "string");
+  const noTools = roles.parseRole(
+    "---\nid: x\ndescription: y\n---\nbody",
+    "x.md",
+  );
+  check("a role with no tools is an error", typeof noTools.error, "string");
+  const noHeader = roles.parseRole("just a body", "x.md");
+  check("a role with no header is an error", typeof noHeader.error, "string");
+  const emptySkills = roles.parseRole(
+    "---\nid: x\ndescription: y\ntools: Read\n---\nbody",
+    "x.md",
+  );
+  check("skills defaults to empty", emptySkills.skills.length, 0);
+  check("gates defaults to empty", emptySkills.gates.length, 0);
+}
+
+// The crew renderer turns a role into an agent definition shaped by the mode.
+// A role left with no tools renders nothing, because an agent that can be
+// dispatched and can do nothing reads as a broken crew.
+{
+  const crew = require("./modes/crew.js");
+
+  const role = {
+    id: "implementer",
+    description: "Writes code.",
+    tools: ["Read", "Edit", "Write", "Bash"],
+    skills: ["superpowers:test-driven-development"],
+    gates: ["finish-shape", "scope"],
+    body: "Work inside the scope.",
+  };
+  const shipSettings = { verify: "proven", claims: "sourced", code: "polished" };
+
+  const rendered = crew.renderAgent(role, shipSettings, ["Bash"], "RULE ONE");
+  check(
+    "a rendered agent names itself",
+    /^name: implementer$/m.test(rendered),
+    true,
+  );
+  check(
+    "a rendered agent drops a denied tool",
+    /^tools: Read, Edit, Write$/m.test(rendered),
+    true,
+  );
+  check(
+    "a rendered agent keeps its skills",
+    /^skills: superpowers/m.test(rendered),
+    true,
+  );
+  check(
+    "a rendered agent carries the brief band",
+    rendered.includes("RULE ONE"),
+    true,
+  );
+  check(
+    "a rendered agent carries its body",
+    rendered.includes("Work inside the scope."),
+    true,
+  );
+  check(
+    "a rendered agent says it is generated",
+    rendered.includes("ccfg mode"),
+    true,
+  );
+
+  const noSkills = crew.renderAgent(
+    { ...role, skills: [] },
+    shipSettings,
+    [],
+    "",
+  );
+  check("no skills means no skills line", /^skills:/m.test(noSkills), false);
+
+  const capped = crew.renderAgent(
+    { ...role, skills: ["a", "b", "c"] },
+    shipSettings,
+    [],
+    "",
+  );
+  check("skills are capped at two", /^skills: a, b$/m.test(capped), true);
+
+  const allDenied = crew.renderAgent(
+    role,
+    shipSettings,
+    ["Read", "Edit", "Write", "Bash"],
+    "",
+  );
+  check("a role with every tool denied renders nothing", allDenied, null);
+}
+
+// Writing the crew removes only what an earlier switch generated. A file the
+// renderer did not write is the operator's own, whatever it happens to be
+// called, and is never removed or overwritten.
+{
+  const crew = require("./modes/crew.js");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-crew-"));
+  const agents = path.join(root, "agents");
+  const implementer = {
+    id: "implementer",
+    description: "Writes code.",
+    tools: ["Read"],
+    skills: [],
+    gates: [],
+    body: "Body.",
+  };
+  const investigator = { ...implementer, id: "investigator" };
+
+  crew.writeCrew(root, [implementer, investigator], {}, [], "");
+  crew.writeCrew(root, [implementer], {}, [], "");
+  check(
+    "a role dropped from the crew loses its generated file",
+    fs.existsSync(path.join(agents, "investigator.md")),
+    false,
+  );
+
+  fs.writeFileSync(
+    path.join(agents, "mine.md"),
+    "---\nname: mine\n---\nThe operator's own.\n",
+  );
+  crew.writeCrew(root, [], {}, [], "");
+  check(
+    "the operator's own agent file is left alone",
+    fs.existsSync(path.join(agents, "mine.md")),
+    true,
+  );
+
+  fs.writeFileSync(
+    path.join(agents, "implementer.md"),
+    "The operator's own implementer.\n",
+  );
+  crew.writeCrew(root, [implementer], {}, [], "");
+  check(
+    "the operator's own file under a role's name is not overwritten",
+    fs.readFileSync(path.join(agents, "implementer.md"), "utf8"),
+    "The operator's own implementer.\n",
+  );
+
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// A mode switch renders the crew beside the rules file. A mode that runs alone
+// renders none: hooks/mode-guard.js already refuses every dispatch there, so
+// agent files would describe workers nothing can start.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-crewswitch-"));
+  fs.mkdirSync(path.join(root, "modes", "roles"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "modes", "roles", "implementer.md"),
+    [
+      "---",
+      "id: implementer",
+      "description: Writes code.",
+      "tools: Read, Edit",
+      "---",
+      "",
+      "Body.",
+    ].join("\n"),
+  );
+  const implementerFile = path.join(root, "agents", "implementer.md");
+  const team = modes.parseMode({ name: "team", settings: {} }, "team.json");
+  const solo = modes.parseMode(
+    { name: "solo", settings: {}, glitch: { subagents: "none" } },
+    "solo.json",
+  );
+
+  apply.applyMode(root, team, CORPUS, {});
+  check("a mode switch writes an agent file", fs.existsSync(implementerFile), true);
+
+  apply.applyMode(root, solo, CORPUS, {});
+  check(
+    "a mode that runs alone writes no crew",
+    fs.existsSync(implementerFile),
+    false,
+  );
+
+  apply.applyMode(root, team, CORPUS, {});
+  apply.revert(root);
+  check(
+    "revert removes the crew a mode wrote",
+    fs.existsSync(implementerFile),
+    false,
+  );
+
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// `ccfg crew` is the operator's window onto the workers without dispatching
+// one, so it runs through the real binary against the real configuration.
+{
+  const listing = runCcfg(["crew"]);
+  check("crew exits clean", listing.status, 0);
+  check(
+    "crew names every role in the corpus",
+    ["implementer", "investigator", "reviewer"].every((id) =>
+      listing.stdout.includes(id),
+    ),
+    true,
+  );
+}
+
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 
 console.log(`\nPASS ${passed}  FAIL ${failed}`);
