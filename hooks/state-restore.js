@@ -12,7 +12,11 @@
 //
 // When a clear or a compaction finds no record, it says which of the three
 // reasons applies rather than staying silent, because silence there reads as
-// "this repository has no earlier work".
+// "this repository has no earlier work". Outside any repository it also names
+// the record this configuration directory keeps, without reading it, because
+// that is the case where the session was started in the wrong place.
+
+const path = require("path");
 
 const repoAudit = require("./lib/repo-audit");
 const stateFile = require("./lib/state-file");
@@ -32,7 +36,7 @@ const CLEAR_PREAMBLE =
 // work exists. Only a clear or a compaction destroys the conversation, so only
 // there does silence mislead; on startup nothing was lost, and repo-setup.js
 // already asks for the setup a project is missing.
-function reportNothingCarried(source, cause) {
+function reportNothingCarried(source, cause, pointerSentence = "") {
   if (source === "startup") return;
   const opening =
     source === "clear"
@@ -41,7 +45,33 @@ function reportNothingCarried(source, cause) {
   io.warn(
     EVENT,
     `${opening}. ${cause} Nothing was carried across: treat what the user ` +
-      "says next as the whole brief, and do not guess at earlier work.",
+      "says next as the whole brief, and do not guess at earlier work." +
+      pointerSentence,
+  );
+}
+
+// Launching outside any repository is the one failure with an obvious answer:
+// this configuration directory keeps a record of its own, and a session meant
+// for that work was started in the wrong place. Name it and say how to reach it.
+//
+// Naming a record is not loading one, which is the line this hook holds
+// everywhere else: nothing is read into the session, so no other repository's
+// work can be mistaken for this directory's. The user is told where their record
+// is and decides whether to restart there.
+//
+// Deliberately narrow. Only a working directory outside every repository gets
+// this. Inside some other repository that simply keeps no record, the
+// configuration directory's record is not the answer and saying so would be noise.
+function configurationRecordPointer(cwd) {
+  const configDir = io.configDir();
+  if (path.resolve(cwd) === path.resolve(configDir)) return "";
+  const state = stateFile.readStateFile(configDir);
+  if (state === null || !stateFile.hasContent(state.text)) return "";
+  const age = stateFile.formatAge(Date.now() - state.modifiedMs);
+  return (
+    " A working record does exist for the configuration repository at " +
+    `${configDir}, last updated ${age} ago. If this session was meant to ` +
+    `continue that work, restart there: \`cd ${configDir} && claude\`.`
   );
 }
 
@@ -57,6 +87,7 @@ io.run(() => {
       `The working directory (${cwd}) is not inside a git repository, so ` +
         "there is nowhere for a per-repository working record " +
         "(.claude/state.md) to live.",
+      configurationRecordPointer(cwd),
     );
     return;
   }
