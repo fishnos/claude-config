@@ -19,10 +19,12 @@
 // and the `evidence` gate judges claims, which are checked against a log no
 // worker may write. Never the other way round.
 //
-// `minimumVerify: "proven"`, so it binds under FIXER (the release posture) and
-// nowhere else. No role names it in its `gates:` list today, so nothing runs it
-// yet; the role that names it and the dispatch that produces a verdict are the
-// wiring task.
+// This is not a gate. A gate checks a worker's report as it hands it back, and
+// no reviewer can have run by then. The review is dispatched afterwards by the
+// main session (hooks/agent-dispatch.js builds its prompt), its verdict is
+// written into the run record (hooks/subagent-gate.js), and the main session's
+// turn is held until the verdict is clean or answered (hooks/review-hold.js).
+// It binds wherever the mode sets `verify: proven`.
 
 // Severities a reviewer may label a finding with that leave the change
 // shippable, spelled as the reviewer role file spells them and matched without
@@ -31,6 +33,20 @@
 // recognise as harmless is a gate that stops working the moment the reviewer's
 // vocabulary grows.
 const ADVISORY = ["Nit", "Optional", "FYI"];
+
+// Every label a finding line may open with. Blocking is the only one that stops
+// a change, and it is spelled out rather than implied, so a reviewer never has
+// to guess how to say "this cannot ship".
+const LABELS = ["Blocking", ...ADVISORY];
+
+// A finding sits on its own line with its label first. Matching at the start of
+// a line is what keeps "I would call this Blocking: maybe" in a sentence from
+// being read as a verdict.
+const FINDING_LINE = new RegExp(
+  `^[ \\t]*(${LABELS.join("|")}):[ \\t]*(.*)$`,
+  "gim",
+);
+const CLEAN_LINE = /^[ \t]*Findings:[ \t]*none\b/im;
 
 // How many blocking findings a refusal spells out before it counts the rest.
 // The reason is written into a worker's context, so its length is bounded here
@@ -55,9 +71,10 @@ function buildPrompt({ diff } = {}) {
     "whether it is perfect. Design first, then correctness, complexity, tests,",
     "naming, comments, style.",
     "",
-    `Label each finding with a severity. Use ${ADVISORY.join(", ")} for anything`,
-    "the change can ship with, and Blocking for anything it cannot. Say what is",
-    "good, not only what is wrong, and name any area you did not cover.",
+    "Put each finding on its own line, opening with its label: `Blocking:` for",
+    `anything the change cannot ship with, or ${ADVISORY.map((label) => `\`${label}:\``).join(", ")}`,
+    "for anything it can. If you found nothing, write the line `Findings: none`.",
+    "Say what is good, not only what is wrong, and name any area you did not cover.",
     "",
     "Do not judge whether a command was really run or a claim is true. You",
     "cannot see that, and another gate checks it against a record.",
@@ -75,6 +92,26 @@ function isAdvisory(finding) {
     .replace(/:$/, "")
     .toLowerCase();
   return ADVISORY.some((label) => label.toLowerCase() === severity);
+}
+
+/**
+ * A reviewer's report as a list of findings.
+ *
+ * An empty list means the reviewer said `Findings: none`; null means it said
+ * neither that nor any labelled line, and `interpret` reads null as a failure.
+ * Finding lines win over a clean line, so a stray `none` can never hide a
+ * `Blocking:` line written beside it.
+ */
+function parseFindings(report) {
+  const text = typeof report === "string" ? report : "";
+  const findings = [...text.matchAll(FINDING_LINE)].map((found) => ({
+    severity: LABELS.find(
+      (label) => label.toLowerCase() === found[1].toLowerCase(),
+    ),
+    text: found[2].trim(),
+  }));
+  if (findings.length > 0) return findings;
+  return CLEAN_LINE.test(text) ? [] : null;
 }
 
 /**
@@ -125,17 +162,10 @@ function interpret(review) {
 }
 
 module.exports = {
-  id: "review",
-  minimumVerify: "proven",
-  check(run) {
-    // `review` is the verdict the reviewer's own dispatch leaves on the run
-    // view. Nothing writes it yet, so this gate refuses every run it is named
-    // by, which is the correct direction to be wrong in while it is unwired:
-    // no role names it, so it blocks nobody, and the day one does, the refusal
-    // says what is missing rather than waving the run through.
-    return interpret((run && run.review) || null);
-  },
   buildPrompt,
+  parseFindings,
   interpret,
+  isAdvisory,
   ADVISORY,
+  LABELS,
 };

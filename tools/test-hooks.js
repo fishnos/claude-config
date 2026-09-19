@@ -6780,17 +6780,11 @@ header("The evidence gate: a claim of done against the commands that ran");
   // a 0.5-to-1 score where 0.5 is a coin flip), because judges anchor on
   // confident closing language, which is exactly what a false success produces.
   // So this gate judges code quality and the evidence gate judges claims.
-  const reviewGate = require(path.join(HOOKS, "lib", "blind-review.js"));
+  const blindReview = require(path.join(HOOKS, "lib", "blind-review.js"));
 
-  check("the gate is named review", reviewGate.id, "review");
-  check(
-    "the review gate is off at verify: tested",
-    reviewGate.minimumVerify,
-    "proven",
-  );
   check(
     "the review gate asks for a diff and nothing else",
-    reviewGate
+    blindReview
       .buildPrompt({
         diff: "--- a/src/a.js\n+++ b/src/a.js\n+const x = 1;",
         brief: "SECRET BRIEF TEXT",
@@ -6800,7 +6794,7 @@ header("The evidence gate: a claim of done against the commands that ran");
   );
   check(
     "the review prompt carries the diff",
-    reviewGate
+    blindReview
       .buildPrompt({
         diff: "+const x = 1;",
         brief: "b",
@@ -6810,14 +6804,14 @@ header("The evidence gate: a claim of done against the commands that ran");
   );
   check(
     "a review finding does not block on its own",
-    reviewGate.interpret({
+    blindReview.interpret({
       findings: [{ severity: "Nit", text: "name it better" }],
     }).ok,
     true,
   );
   check(
     "a blocking severity blocks",
-    reviewGate.interpret({
+    blindReview.interpret({
       findings: [{ severity: "Blocking", text: "this drops the error" }],
     }).ok,
     false,
@@ -6826,7 +6820,7 @@ header("The evidence gate: a claim of done against the commands that ran");
   // the `Nit:` of the role file's own wording is the same severity as `nit`.
   check(
     "an advisory label survives its trailing colon and its case",
-    reviewGate.interpret({
+    blindReview.interpret({
       findings: [{ severity: "nit:", text: "name it better" }],
     }).ok,
     true,
@@ -6837,14 +6831,14 @@ header("The evidence gate: a claim of done against the commands that ran");
   // and reading that as advisory would let the gate quietly stop working.
   check(
     "a finding with no severity blocks",
-    reviewGate.interpret({ findings: [{ text: "this drops the error" }] }).ok,
+    blindReview.interpret({ findings: [{ text: "this drops the error" }] }).ok,
     false,
   );
   // From the survey's mechanism 3: a guardrail that silently degrades to "no
   // reviewer, therefore fine" is worse than no guardrail at all.
   check(
     "no reviewer available is a gate failure, not a pass",
-    reviewGate.interpret(null).ok,
+    blindReview.interpret(null).ok,
     false,
   );
   // A clean review says so by coming back with an empty list of findings. An
@@ -6853,27 +6847,80 @@ header("The evidence gate: a claim of done against the commands that ran");
   // case above exists to prevent.
   check(
     "a review with no findings list is not a clean review",
-    reviewGate.interpret({}).ok,
+    blindReview.interpret({}).ok,
     false,
   );
   check(
     "a review that found nothing passes",
-    reviewGate.interpret({ findings: [] }).ok,
+    blindReview.interpret({ findings: [] }).ok,
     true,
   );
-  // The runner keeps a module only when it exports a check. A gate missing one
-  // is dropped from the registry without a word, and the role that named it
-  // gets a warning about a missing gate instead of the gate itself.
   check(
-    "the gate offers the runner a check",
-    typeof reviewGate.check,
-    "function",
+    "the review prompt asks for one finding per labelled line",
+    blindReview.buildPrompt({ diff: "x" }).includes("`Blocking:`"),
+    true,
   );
-  // Nothing writes a review verdict onto the run view yet, and the gate must
-  // read that absence the same way interpret does.
   check(
-    "a run carrying no review verdict does not pass",
-    reviewGate.check({ finish: {}, settings: {} }).ok,
+    "the review prompt names the clean line",
+    blindReview.buildPrompt({ diff: "x" }).includes("Findings: none"),
+    true,
+  );
+  check(
+    "a Blocking line is read as a blocking finding",
+    JSON.stringify(blindReview.parseFindings("Blocking: drops the error")),
+    JSON.stringify([{ severity: "Blocking", text: "drops the error" }]),
+  );
+  check(
+    "a lower-case label is read under its canonical spelling",
+    JSON.stringify(blindReview.parseFindings("nit: rename rows")),
+    JSON.stringify([{ severity: "Nit", text: "rename rows" }]),
+  );
+  check(
+    "every finding line in a report is read",
+    blindReview.parseFindings(
+      "Intro.\nOptional: split it\nFYI: tests not read\nBlocking: leaks",
+    ).length,
+    3,
+  );
+  check(
+    "Findings: none alone is a clean review",
+    JSON.stringify(
+      blindReview.parseFindings("Looked at all of it.\nFindings: none"),
+    ),
+    "[]",
+  );
+  check(
+    "a finding line beside Findings: none still counts",
+    blindReview.parseFindings("Findings: none\nBlocking: leaks").length,
+    1,
+  );
+  check(
+    "a report with no finding line and no clean line is unreadable",
+    blindReview.parseFindings("Looks fine to me."),
+    null,
+  );
+  check(
+    "a report written only in an unknown label is unreadable",
+    blindReview.parseFindings("Critical: this leaks"),
+    null,
+  );
+  check(
+    "a label in the middle of a sentence is not a finding",
+    blindReview.parseFindings("I would call this Blocking: maybe."),
+    null,
+  );
+  check(
+    "a parsed clean review passes interpret",
+    blindReview.interpret({
+      findings: blindReview.parseFindings("Findings: none"),
+    }).ok,
+    true,
+  );
+  check(
+    "a parsed blocking review fails interpret",
+    blindReview.interpret({
+      findings: blindReview.parseFindings("Blocking: leaks"),
+    }).ok,
     false,
   );
 }
