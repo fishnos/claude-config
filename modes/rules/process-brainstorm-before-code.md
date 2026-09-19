@@ -2,6 +2,7 @@
 id: process-brainstorm-before-code
 setting: process
 primary_at: full
+worker: n/a
 ---
 
 **Understand.** Read the code before proposing anything. For a bug,

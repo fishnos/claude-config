@@ -2,6 +2,7 @@
 id: process-written-plan
 setting: process
 primary_at: full
+worker: n/a
 ---
 
 **Plan.** Multi-step work gets a written plan (`superpowers:writing-plans`);

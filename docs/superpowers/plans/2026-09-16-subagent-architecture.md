@@ -645,7 +645,7 @@ from the active mode`.
 The spec's principle: a rule leaves a worker's prose brief only when a gate has
 taken it over. This task is what makes that checkable instead of a promise.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const rules = require("./modes/rules.js");
@@ -696,13 +696,13 @@ const overCap = crew.briefBand(
 check("the brief band caps at five", (overCap.match(/R\d/g) || []).length, 5);
 ```
 
-- [ ] **Step 2: Run and watch them fail**
+- [x] **Step 2: Run and watch them fail**
 
 Run: `node tools/test-modes.js`
 Expected: FAIL. The first case fails because `worker` is `undefined`, and the
 `missing` case fails because a rule with no `worker` field currently parses fine.
 
-- [ ] **Step 3: Teach the rule parser the field**
+- [x] **Step 3: Teach the rule parser the field**
 
 In `tools/modes/rules.js`, after the existing `primary_at` and `only_at`
 validation:
@@ -720,7 +720,7 @@ if (worker !== "brief" && worker !== "n/a" && !workerIsGate)
 
 and add `worker` to the returned object.
 
-- [ ] **Step 4: Add `briefBand` to `tools/modes/crew.js`**
+- [x] **Step 4: Add `briefBand` to `tools/modes/crew.js`**
 
 ```js
 // Five is a ceiling read off the measurement literature, not a taste call:
@@ -743,13 +743,13 @@ function briefBand(corpusRules) {
 Export it, and pass `briefBand(corpusRules)` from `applyMode` into `writeCrew`
 in place of the empty string Task 2 left there.
 
-- [ ] **Step 5: Run and watch them pass**
+- [x] **Step 5: Run and watch them pass**
 
 Run: `node tools/test-modes.js`
 Expected: PASS, but every OTHER mode case now fails, because all 25 rule files
 lack the new field. That is the intended red.
 
-- [ ] **Step 6: Classify all 25 rules**
+- [x] **Step 6: Classify all 25 rules**
 
 Add one `worker:` line to each file in `modes/rules/`. The starting split from
 the spec, to be argued file by file rather than pasted:
@@ -770,7 +770,7 @@ Every rule not in that table still needs a line. A rule you cannot classify is a
 finding worth reporting, not a `brief` by default: `brief` is the band with a
 budget of five.
 
-- [ ] **Step 7: Add the validator check**
+- [x] **Step 7: Add the validator check**
 
 In `hooks/validate-config.js`, a check that walks `modes/rules/`, parses each
 file, fails on any missing or malformed `worker:` value, and fails when a
@@ -778,7 +778,7 @@ file, fails on any missing or malformed `worker:` value, and fails when a
 creates that directory the gate-existence half will fail, so write the check now
 and gate it on the directory existing, with a case pinning that.
 
-- [ ] **Step 8: Verify**
+- [x] **Step 8: Verify**
 
 Run: `node tools/ccfg.js test` (expect exit 0)
 Run: `node hooks/validate-config.js` (expect ALL CHECKS PASSED)
@@ -807,7 +807,7 @@ Run: `head -40 ~/.claude/agents/implementer.md` (expect at most five rules under
   `appendPath(sessionId, agentId, filePath)`, `findRun(sessionId, token)`,
   `recordFile(sessionId)`. Tasks 5, 6 and 8 all consume the record module.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const DISPATCH = path.join(HOOKS, "agent-dispatch.js");
@@ -909,12 +909,12 @@ temporary-directory pattern the suite already uses for the hand-run checks. Task
 `noneEnv = { CLAUDE_CONFIG_DIR: noneConfig }`; define both here, beside the
 directories.
 
-- [ ] **Step 2: Run and watch them fail**
+- [x] **Step 2: Run and watch them fail**
 
 Run: `node tools/test-hooks.js`
 Expected: FAIL, `Cannot find module` for `agent-dispatch.js`.
 
-- [ ] **Step 3: Add `rewrite` to `hooks/lib/hook-io.js`**
+- [x] **Step 3: Add `rewrite` to `hooks/lib/hook-io.js`**
 
 ```js
 /**
@@ -939,14 +939,14 @@ function rewrite(hookEventName, updatedInput) {
 
 Export it beside `deny`, `warn`, `announce` and `block`.
 
-- [ ] **Step 4: Write `hooks/lib/crew-record.js`**
+- [x] **Step 4: Write `hooks/lib/crew-record.js`**
 
 One JSON object per line under `cache/crew/<session>.jsonl`: a `run` line per
 dispatch, a `path` line per traced write. Append-only, because two hooks write
 it concurrently and a read-modify-write would lose lines. Cap the file the way
 `hooks/evidence-log.js` caps its own at 512 kilobytes.
 
-- [ ] **Step 5: Write `hooks/agent-dispatch.js`**
+- [x] **Step 5: Write `hooks/agent-dispatch.js`**
 
 Refuse a dispatch with no `Scope:` line when the lock's `settings.verify` is
 `tested` or `proven`; otherwise mint an eight-character token, staple the
@@ -966,12 +966,12 @@ tool call (measured on 2.1.273). The gate parser in Task 8 also accepts the four
 fields on one line separated by commas: the spike asked for them in one sentence,
 and the one auto-mode worker measured answered on one line.
 
-- [ ] **Step 6: Run and watch them pass**
+- [x] **Step 6: Run and watch them pass**
 
 Run: `node tools/test-hooks.js`
 Expected: PASS, 467 + 12 = 479 cases.
 
-- [ ] **Step 7: Prove the cases can fail**
+- [x] **Step 7: Prove the cases can fail**
 
 Delete the scope check and watch the two denial cases go red. Restore. Then hard
 code the token to a constant and watch the "token matches the record" case stay
@@ -979,7 +979,7 @@ green, which shows it is too weak: strengthen it to assert two dispatches mint
 different tokens, and watch that new case go red against the constant before
 restoring.
 
-- [ ] **Step 8: Update the case count and verify**
+- [x] **Step 8: Update the case count and verify**
 
 Set `docs/hooks.md`'s count to 479. Run `node tools/ccfg.js test` and
 `node hooks/validate-config.js`.
@@ -1005,7 +1005,7 @@ it out of `cache/evidence/`: a redirect, a heredoc or a node one-liner all reach
 it. The denial keys on `agent_id`, which the spike measured arriving in a
 worker's `PreToolUse` payload and which the main session's payloads do not carry.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const AGENT_GUARD = path.join(HOOKS, "agent-guard.js");
@@ -1119,12 +1119,12 @@ The read case is deliberate: the survey's mechanism 4 keeps writes out and leave
 reads open, because a worker that cannot read the record cannot be told why it
 was refused.
 
-- [ ] **Step 2: Run and watch them fail**
+- [x] **Step 2: Run and watch them fail**
 
 Run: `node tools/test-hooks.js`
 Expected: FAIL, module not found.
 
-- [ ] **Step 3: Write `hooks/agent-guard.js`**
+- [x] **Step 3: Write `hooks/agent-guard.js`**
 
 Resolve `tool_input.file_path` (or `edits[].file_path`) to an absolute path and
 deny when it sits under the evidence directory or the crew record directory.
@@ -1132,18 +1132,18 @@ For `Bash`, match the command text against both directory names. State in the
 header comment that the `Bash` half is the weaker check, and why it is still
 worth having.
 
-- [ ] **Step 4: Run and watch them pass**
+- [x] **Step 4: Run and watch them pass**
 
 Run: `node tools/test-hooks.js`
 Expected: PASS, 479 + 8 = 487 cases.
 
-- [ ] **Step 5: Prove the cases can fail**
+- [x] **Step 5: Prove the cases can fail**
 
 Drop the `agent_id` condition and watch the "main session is allowed" case go
 red. Restore. Drop the `Bash` matching and watch the three shell cases go red.
 Restore.
 
-- [ ] **Step 6: Update the case count and verify**
+- [x] **Step 6: Update the case count and verify**
 
 Set `docs/hooks.md` to 487. Run the full suite and the validator.
 
@@ -1164,7 +1164,7 @@ Set `docs/hooks.md` to 487. Run the full suite and the validator.
 Attribution is per `agent_id` rather than by diffing the repository, so two
 workers in one checkout do not inherit each other's changes.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const TRACE = path.join(HOOKS, "subagent-trace.js");
@@ -1229,12 +1229,12 @@ check(
 );
 ```
 
-- [ ] **Step 2: Run and watch them fail**
+- [x] **Step 2: Run and watch them fail**
 
 Run: `node tools/test-hooks.js`
 Expected: FAIL, module not found.
 
-- [ ] **Step 3: Write `hooks/subagent-trace.js`**
+- [x] **Step 3: Write `hooks/subagent-trace.js`**
 
 Return immediately when the payload carries no `agent_id`. Record the file path
 for `Edit` and `Write` (`MultiEdit` is not a tool on 2.1.273). For `Bash`, record
@@ -1243,12 +1243,12 @@ would put files in a worker's trace it never touched, which fails the scope gate
 for the wrong reason.
 Say that in the header comment.
 
-- [ ] **Step 4: Run and watch them pass**
+- [x] **Step 4: Run and watch them pass**
 
 Run: `node tools/test-hooks.js`
 Expected: PASS, 487 + 6 = 493 cases.
 
-- [ ] **Step 5: Prove they can fail, update the count, verify**
+- [x] **Step 5: Prove they can fail, update the count, verify**
 
 Remove the `agent_id` guard and watch "a main-session write is not traced" go
 red. Restore. Set `docs/hooks.md` to 493, run the full suite and the validator.
@@ -1276,7 +1276,7 @@ Injecting the same rules a worker's agent file already carries would say them
 twice. This hook exists for what the agent file cannot carry: the rules as the
 mode has them right now, for a worker dispatched after a mode switch.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const BRIEF = path.join(HOOKS, "subagent-brief.js");
@@ -1311,13 +1311,13 @@ The last case matters: built-in agent types (`Explore`, `general-purpose`,
 `code-simplifier`) cannot be given an agent file, and the operator's decision on
 2026-09-15 was that they are briefed at spawn anyway and gated at finish.
 
-- [ ] **Step 2 to 5: red, implement, green, prove failure**
+- [x] **Step 2 to 5: red, implement, green, prove failure**
 
 Cap the injected text at 8000 characters, the same cap and for the same reason as
 `hooks/mode-inject.js`: an oversized render means the corpus grew wrong, and
 truncating keeps that from flooding a worker's context while staying visible.
 
-- [ ] **Step 6: Update the count to 498 and verify**
+- [x] **Step 6: Update the count to 498 and verify**
 
 ---
 
@@ -1365,7 +1365,7 @@ and a block at `SubagentStop` sends the worker back to a second hand-back the
 harness refuses. A deny at the hand-back withholds the report, and the retry was
 measured delivering the corrected one.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const GATE = path.join(HOOKS, "subagent-gate.js");
@@ -1610,7 +1610,7 @@ check(
 );
 ```
 
-- [ ] **Step 2 to 5: red, implement, green, prove failure**
+- [x] **Step 2 to 5: red, implement, green, prove failure**
 
 The runner reads the event from `hook_event_name`. At `PreToolUse` it acts only
 when `tool_name` is `SubagentHandback`, and refuses with `io.deny`. At
@@ -1620,9 +1620,15 @@ nothing. A payload with no `agent_id` is the main session and passes through at
 every point.
 
 It loads every module in `hooks/subagent/gates/`, keeps the ones the role's
-`gates:` list names, drops the ones whose `minimumVerify` is above the mode's
-`verify` setting, and runs the rest in directory order, refusing on the first
-failure. A built-in agent type such as `general-purpose` has no role file, so it
+`gates:` list names, and runs every one of them in directory order. A gate whose
+`minimumVerify` sits above the mode's `verify` setting still runs, and a failure
+it reports is carried as a warning through `io.warn` rather than a refusal, so
+the verdict stays `allow` and the worker is told what its report lacked. Every
+other failure refuses at the first one. (Decided by the operator on 2026-09-17,
+against the spec's gate dial table: a gate that does not run also leaves
+the conformance log with nothing to record. The earlier draft of this task
+dropped those gates instead.) The `verify: none` cases above therefore assert
+both the `allow` verdict and the warning text. A built-in agent type such as `general-purpose` has no role file, so it
 runs `finish-shape` alone: the operator decided on 2026-09-15 that built-in types
 are still gated at finish. A gate module that throws is reported as a gate
 failure naming the module, never swallowed: a gate that silently stops running
@@ -1654,7 +1660,9 @@ hand-back excuses the stop that follows" go red; count only `SubagentStop` block
 and watch "a worker denied twice at hand-back is not blocked at stop" go red.
 Restore both.
 
-- [ ] **Step 6: Update the count to 518 and verify**
+- [x] **Step 6: Update the count to 518 and verify** (the real figure is 569: this
+      task added 34 cases rather than the 22 sketched above, and four more arrived
+      from separate work on the repo-setup audit while it was being built.)
 
 ---
 
@@ -1671,7 +1679,7 @@ Restore both.
   patterns) and `run.touched` (the traced paths) from the run record.
 - Produces: nothing.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 check(
@@ -1770,12 +1778,12 @@ check(
 The last case is deliberate: an investigator that writes nothing must not be
 blocked for it.
 
-- [ ] **Step 2 to 5: red, implement, green, prove failure**
+- [x] **Step 2 to 5: red, implement, green, prove failure**
 
 Match by path segment, never by string prefix, so `src/ab.js` is not inside
 `src/a`. Convert a glob to a regular expression that stops at a path separator.
 
-- [ ] **Step 6: Update the count to 527 and verify**
+- [x] **Step 6: Update the count to 594 and verify** (the real figure is 594: this task added 25 cases rather than the 9 sketched above, and the count had already moved past the plan's ladder.)
 
 ---
 
@@ -1797,7 +1805,7 @@ This gate is the answer to "claimed a verification it never ran". The log it
 reads is written by a hook from commands that really executed, and Task 5 keeps
 the worker out of it.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 check(
@@ -1903,12 +1911,12 @@ The "command ran before the last write" case is the one that carries the gate:
 running the suite and then editing the code is exactly the shape of a false
 completion claim that is not a lie, and only the ordering catches it.
 
-- [ ] **Step 2 to 5: red, implement, green, prove failure**
+- [x] **Step 2 to 5: red, implement, green, prove failure**
 
 "Runtime code" means a touched path outside `docs/`, `*.md` and `modes/`. Write
 that list in one named constant, not inline.
 
-- [ ] **Step 6: Update the count to 535 and verify**
+- [x] **Step 6: Update the count to 636 and verify**
 
 ---
 
@@ -1931,7 +1939,7 @@ claims no model-judge configuration exceeded AUROC 0.65, because judges anchor o
 confident closing language. The reviewer judges code quality. Claims are Task
 10's job.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 check(
@@ -1983,7 +1991,7 @@ check(
 The last case is from the survey's mechanism 3: a guardrail that silently
 degrades to "no reviewer, therefore fine" is worse than no guardrail.
 
-- [ ] **Step 2 to 6: red, implement, green, prove failure, count 541, verify**
+- [x] **Step 2 to 6: red, implement, green, prove failure, count 541, verify**
 
 ---
 
@@ -2026,7 +2034,7 @@ Whether `tools:` restricts a worker is not tracked. A `path` line records neithe
 the tool that wrote it nor the worker's role, so nothing in the record could show
 a worker using a tool its role leaves out; spec section 10 keeps it open.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 check(
@@ -2143,7 +2151,7 @@ check(
 );
 ```
 
-- [ ] **Step 2 to 6: red, implement, green, prove failure, count 550, verify**
+- [x] **Step 2 to 6: red, implement, green, prove failure, count 550, verify**
 
 ---
 
@@ -2155,7 +2163,7 @@ check(
 - Modify: `docs/hooks.md`
 - Test: the live check below
 
-- [ ] **Step 1: Wire the five hooks into `settings.json`**
+- [x] **Step 1: Wire the five hooks into `settings.json`**
 
 `PreToolUse`: `agent-dispatch.js`, then `agent-guard.js`, after the existing
 `git-guard.js` and `mode-guard.js`, plus a separate entry with matcher
@@ -2167,19 +2175,19 @@ purpose: it refuses at whichever point the report arrives and takes note of a
 delivered hand-back. Use the same `node -e` wrapper every existing entry uses,
 which honours `CLAUDE_CONFIG_DIR`.
 
-- [ ] **Step 2: Document all five in `docs/hooks.md`**
+- [x] **Step 2: Document all five in `docs/hooks.md`**
 
 Each hook gets what the existing entries get: the event, what it refuses, and
 why. Confirm the case count matches what the suite prints.
 
-- [ ] **Step 3: Verify the configuration is whole**
+- [x] **Step 3: Verify the configuration is whole**
 
 Run: `node tools/ccfg.js test` (expect exit 0)
 Run: `node hooks/validate-config.js` (expect ALL CHECKS PASSED)
 Run: `node tools/ccfg.js mode` (expect CLEAN, no rules dropped)
 Run: `node tools/ccfg.js crew` (expect three roles)
 
-- [ ] **Step 4: The live check, one dispatch**
+- [x] **Step 4: The live check, one dispatch**
 
 First render the crew for real: `node tools/ccfg.js mode build` re-applies the
 mode in force, which is the check Task 2 Step 10 never ran. On a copy of this
@@ -2195,7 +2203,7 @@ finish-shape gate without risking a repository. It is also the first run that
 loads a crew agent from `~/.claude/agents/`, which no measurement has covered;
 if the dispatch reports the agent type as not available, stop and report that.
 
-- [ ] **Step 5: Read the conformance log**
+- [x] **Step 5: Read the conformance log**
 
 Run: `node tools/ccfg.js conformance`
 
@@ -2208,7 +2216,7 @@ outranks the rest of this plan: the mechanism it names was re-measured on
 2.1.273 on 2026-09-16 and has moved. Stop and report it rather than working
 around it.
 
-- [ ] **Step 6: Self-review before reporting**
+- [x] **Step 6: Self-review before reporting**
 
 Use `google-code-review` over the whole change. Then report with the split: what
 was verified, naming the command, and what was not.

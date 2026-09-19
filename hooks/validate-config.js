@@ -285,6 +285,72 @@ if (fs.existsSync(messageDir)) {
   }
 }
 
+section("Every rule is classified for workers");
+// A rule with no `worker:` line is one no dispatched worker has a defined
+// relationship to: it is neither in the worker's prose brief, nor deliberately
+// withheld, nor claimed by a gate. The parser refuses such a file, so the
+// renderer would drop it and the mode would lead with fewer rules than the
+// corpus holds, silently. That is the failure the whole ordering design exists
+// to prevent, which is why it is checked here and not left to the suite alone.
+const rulesDir = path.join(ROOT, "modes", "rules");
+if (fs.existsSync(rulesDir)) {
+  const { parseRule } = require(path.join(ROOT, "tools", "modes", "rules.js"));
+  const gatesDir = path.join(ROOT, "hooks", "subagent", "gates");
+  const gatesBuilt = fs.existsSync(gatesDir);
+  const gateNames = new Set(
+    gatesBuilt
+      ? fs
+          .readdirSync(gatesDir)
+          .filter((entry) => entry.endsWith(".js"))
+          .map((entry) => entry.replace(/\.js$/, ""))
+      : [],
+  );
+  const named = new Set();
+  let classified = 0;
+
+  const ruleFiles = fs
+    .readdirSync(rulesDir)
+    .sort()
+    .filter((entry) => entry.endsWith(".md") && entry !== "_active.md");
+
+  for (const entry of ruleFiles) {
+    const file = path.join(rulesDir, entry);
+    const parsed = parseRule(fs.readFileSync(file, "utf8"), entry);
+    if (parsed.error !== undefined) {
+      check(`${entry} parses`, false, parsed.error);
+      continue;
+    }
+    classified += 1;
+    if (parsed.worker.startsWith("gate:"))
+      named.add(parsed.worker.slice("gate:".length));
+  }
+
+  // Counted against the files on disk rather than against the ones that parsed,
+  // so a rule that fails to parse cannot leave this line reading "all 24 rules"
+  // and passing anyway.
+  check(
+    `all ${ruleFiles.length} rules carry a worker classification`,
+    ruleFiles.length > 0 && classified === ruleFiles.length,
+    `${classified} of ${ruleFiles.length} files parsed`,
+  );
+
+  // A copy of this configuration without hooks/subagent/gates/ has no gate a
+  // rule could point at, so the check says it is skipping rather than failing
+  // every rule that names one.
+  if (gatesBuilt) {
+    for (const gate of [...named].sort())
+      check(
+        `the gate '${gate}' a rule names exists`,
+        gateNames.has(gate),
+        `no hooks/subagent/gates/${gate}.js`,
+      );
+  } else {
+    console.log(
+      `[SKIP] gates named by rules exist (${[...named].sort().join(", ") || "none named"}): hooks/subagent/gates/ not built yet`,
+    );
+  }
+}
+
 section("Marketplace manifest");
 const manifestPath = path.join(ROOT, ".claude-plugin", "marketplace.json");
 if (fs.existsSync(manifestPath)) {

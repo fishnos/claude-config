@@ -1329,6 +1329,8 @@ const IO = {
   bold,
   dim,
   yellow,
+  green,
+  red,
   // Single rewritten line on a TTY, plain lines when piped, so a long fill
   // reports progress without burying the result in scrollback.
   progress: (message) => {
@@ -1346,6 +1348,8 @@ const COMMANDS = {
   probe: (argv) => require("./probe/command.js").commandProbe(argv, IO),
   mode: (argv) => require("./modes/command.js").commandMode(argv, IO),
   crew: (argv) => require("./modes/command.js").commandCrew(argv, IO),
+  conformance: (argv) =>
+    require("./conformance.js").commandConformance(argv, IO),
   validate: commandValidate,
   backup: commandBackup,
   install: commandInstall,
@@ -1381,6 +1385,7 @@ ${bold("ccfg")}: manage this Claude Code configuration
   ${bold("broker install")}      run the key broker as a root-owned service account
                       status | seal | uninstall
   ${bold("evidence")} [session]   list the commands a session actually ran
+  ${bold("conformance")}         which harness assumptions real dispatches have confirmed
   ${bold("shell-init")}          print the shell profile line (--write to add it for you)
   ${bold("clean")} [--yes]       gzip idle logs, prune caches older than 30 days
   ${bold("test")}                run the hook, ccfg and broker regression suites

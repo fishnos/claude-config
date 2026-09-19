@@ -2,6 +2,7 @@
 id: subagents-never-self-verify
 setting: subagents
 primary_at: none
+worker: n/a
 ---
 
 Never use subagents to verify your own work. A subagent that reports your change

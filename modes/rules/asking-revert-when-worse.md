@@ -2,6 +2,7 @@
 id: asking-revert-when-worse
 setting: asking
 primary_at: never
+worker: brief
 ---
 
 **When a change makes things worse, revert to the last working state and say so.**

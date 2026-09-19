@@ -2,6 +2,7 @@
 id: code-mocks-last-resort
 setting: code
 primary_at: polished
+worker: brief
 ---
 
 Prefer the real implementation, then a fake, then a stub. Mocks are the last

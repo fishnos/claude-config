@@ -2,6 +2,7 @@
 id: asking-touch-only-what-was-named
 setting: asking
 primary_at: never
+worker: gate:scope
 ---
 
 **Touch only what was named.** Change the thing asked about and nothing adjacent.

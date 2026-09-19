@@ -61,11 +61,29 @@ function parseRule(text, sourcePath) {
   if (!settings.isValid(setting, value))
     return { error: `${sourcePath}: '${value}' is not a value of ${setting}` };
 
+  // What a dispatched worker does with the rule: read it as prose (`brief`),
+  // never see it (`n/a`), or have the named gate enforce it (`gate:<id>`).
+  //
+  // Required, with no default. Defaulting would mean `brief`, and the brief is
+  // the one band with a budget: five rules is where measured adherence stops
+  // improving. A rule that nobody classified would spend that budget silently.
+  const worker = headerField(header, "worker");
+  if (worker === null)
+    return { error: `${sourcePath}: no worker classification` };
+  const workerIsGate = worker.startsWith("gate:");
+  if (worker !== "brief" && worker !== "n/a" && !workerIsGate)
+    return {
+      error: `${sourcePath}: worker must be 'brief', 'n/a' or 'gate:<id>', got '${worker}'`,
+    };
+  if (workerIsGate && worker.slice("gate:".length).trim().length === 0)
+    return { error: `${sourcePath}: gate classification names no gate` };
+
   return {
     id,
     setting,
     primary_at: threshold,
     only_at: category,
+    worker,
     body: text.slice(matched[0].length).trim(),
   };
 }

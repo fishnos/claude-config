@@ -1094,6 +1094,14 @@ header("PostToolUse(Bash): evidence log");
     "0",
     JSON.stringify(recorded[0]),
   );
+  // When a command ran is what the evidence gate orders against the worker's
+  // last write, so a record without it cannot answer the question the gate asks.
+  check(
+    "when the command ran is recorded, as a parseable time",
+    Number.isFinite(Date.parse((recorded[0] || {}).at)),
+    true,
+    JSON.stringify(recorded[0]),
+  );
   check(
     "the response shape is recorded for later inspection",
     Array.isArray(recorded[0] && recorded[0].responseKeys)
@@ -3047,6 +3055,62 @@ header("/repo-setup context: one-step state file, ignore line and graph");
   }
 }
 
+header("/repo-setup audit: a ! exception in .gitignore is not an ignore");
+{
+  const auditScript = path.join(
+    __dirname,
+    "..",
+    "skills",
+    "repo-setup",
+    "audit.js",
+  );
+  const auditRow = (gitignore, id) => {
+    const root = makeRepository("audit-exception-");
+    fs.writeFileSync(path.join(root, ".gitignore"), gitignore);
+    fs.writeFileSync(path.join(root, "CLAUDE.md"), "# CLAUDE.md\n");
+    fs.mkdirSync(path.join(root, ".claude"));
+    fs.writeFileSync(path.join(root, ".claude", "state.md"), "# state\n");
+    const report = spawnSync(process.execPath, [auditScript, "--json", root], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    fs.rmSync(root, { recursive: true, force: true });
+    try {
+      const row = JSON.parse(report.stdout).checks.find((candidate) =>
+        candidate.id.startsWith(id),
+      );
+      return `${row.id}:${row.status}`;
+    } catch {
+      return "unparsed: " + report.stdout.slice(0, 120) + report.stderr;
+    }
+  };
+
+  check(
+    "an excepted CLAUDE.md counts as tracked",
+    auditRow("*.md\n!CLAUDE.md\n", "instructions"),
+    "instructions:ok",
+    "",
+  );
+  check(
+    "an ignored CLAUDE.md is still flagged",
+    auditRow("*.md\n", "instructions"),
+    "instructions-ignored:broken",
+    "",
+  );
+  check(
+    "an excepted state file counts as tracked",
+    auditRow(".claude/*\n!.claude/state.md\n", "state-file-tracked"),
+    "state-file-tracked:broken",
+    "",
+  );
+  check(
+    "an ignored state file counts as ignored",
+    auditRow(".claude/state.md\n", "state-file-tracked"),
+    "state-file-tracked:ok",
+    "",
+  );
+}
+
 header(
   "SessionStart: state-restore loads .claude/state.md by how the session started",
 );
@@ -4357,7 +4421,2789 @@ header("SKILL-INDEX.md catalogs plugin skills, not only personal ones");
   fs.rmSync(indexHome, { recursive: true, force: true });
 }
 
+// Two throwaway configuration directories, one per strictness. The dispatch
+// gate and every gate after it read `settings.verify` out of `mode.lock`, so a
+// case that wants a denial and a case that wants a pass differ only by which of
+// these it points CLAUDE_CONFIG_DIR at. Tasks 5 to 8 reuse both.
+const crewConfig = (verify) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), `crew-${verify}-`));
+  fs.writeFileSync(
+    path.join(directory, "mode.lock"),
+    JSON.stringify({
+      mode: "test",
+      codename: "TESTER",
+      settings: { verify },
+      deniedTools: [],
+      subagents: null,
+    }),
+  );
+  return directory;
+};
+const testedConfig = crewConfig("tested");
+const noneConfig = crewConfig("none");
+const workerEnv = { CLAUDE_CONFIG_DIR: testedConfig };
+const noneEnv = { CLAUDE_CONFIG_DIR: noneConfig };
+
+header("PreToolUse(Agent): the dispatch hook");
+{
+  // Stripping the sentence that states the scope of consent out of otherwise
+  // identical prompts took Claude Code from 0.0% to 17.1% out-of-scope actions
+  // (p = 2.4e-4, arxiv 2605.18583). The hook buys that sentence back by
+  // refusing a dispatch without one, and staples a run token on so the report
+  // that comes back can be joined to the dispatch that asked for it.
+  const DISPATCH = path.join(HOOKS, "agent-dispatch.js");
+
+  const dispatch = (prompt, subagentType) => ({
+    tool_name: "Agent",
+    hook_event_name: "PreToolUse",
+    session_id: "s1",
+    cwd: repo,
+    tool_input: { prompt, subagent_type: subagentType || "implementer" },
+  });
+
+  // A dispatch with no scope line is refused where proof is required.
+  check(
+    "a dispatch with no scope line is denied at verify: tested",
+    run(DISPATCH, dispatch("Go fix the parser."), workerEnv).verdict,
+    "DENY",
+  );
+  check(
+    "a dispatch with no scope line is allowed at verify: none",
+    run(DISPATCH, dispatch("Go fix the parser."), noneEnv).verdict,
+    "allow",
+  );
+  check(
+    "a dispatch with a scope line is allowed",
+    run(DISPATCH, dispatch("Scope: src/a.js\nGo fix the parser."), workerEnv)
+      .verdict,
+    "allow",
+  );
+
+  // The rewritten prompt carries a token the original did not.
+  const rewritten = runJson(
+    DISPATCH,
+    dispatch("Scope: src/a.js\nFix it."),
+    workerEnv,
+  );
+  const updated = (rewritten.hookSpecificOutput || {}).updatedInput || {};
+  check("the dispatch is rewritten", typeof updated.prompt, "string");
+  check(
+    "the rewritten prompt carries a run token",
+    /RUN [0-9a-f]{8}/.test(updated.prompt || ""),
+    true,
+  );
+  check(
+    "the rewritten prompt keeps the original",
+    (updated.prompt || "").includes("Fix it."),
+    true,
+  );
+  check(
+    "the rewritten prompt carries the contract",
+    (updated.prompt || "").includes("STATE"),
+    true,
+  );
+
+  // The run record is opened with the declared scope. The last line, not the
+  // first: several cases above dispatch under the same session, and the record
+  // under test is the one the rewrite just opened.
+  const recordLines = fs
+    .readFileSync(path.join(testedConfig, "cache", "crew", "s1.jsonl"), "utf8")
+    .trim()
+    .split("\n");
+  const record = JSON.parse(recordLines[recordLines.length - 1]);
+  check(
+    "the run record keeps the declared scope",
+    record.scope.join(","),
+    "src/a.js",
+  );
+  check("the run record keeps the role", record.role, "implementer");
+  check(
+    "the run record token matches the prompt",
+    (updated.prompt || "").includes(record.token),
+    true,
+  );
+
+  // The case above passes against a hard-coded constant, because a constant
+  // matches itself. Two dispatches minting the same token would join every
+  // report to whichever run happened to be first, so the tokens have to differ.
+  const secondToken = (
+    (
+      (
+        runJson(DISPATCH, dispatch("Scope: src/b.js\nFix it."), workerEnv)
+          .hookSpecificOutput || {}
+      ).updatedInput || {}
+    ).prompt || ""
+  ).match(/RUN ([0-9a-f]{8})/);
+  check(
+    "two dispatches mint different tokens",
+    secondToken !== null && secondToken[1] !== record.token,
+    true,
+  );
+
+  // The denial says what to add, because a bare refusal invites a second attempt
+  // by another route.
+  const denial = run(DISPATCH, dispatch("Go fix the parser."), workerEnv);
+  check(
+    "the denial shows the scope line format",
+    String(denial.reason).includes("Scope:"),
+    true,
+  );
+
+  // A non-dispatch tool call is not this hook's business.
+  check(
+    "a Bash call passes through the dispatch hook",
+    run(DISPATCH, bash("ls", repo), workerEnv).verdict,
+    "allow",
+  );
+
+  // Task is the other spelling of a dispatch. Gating one and not the other
+  // leaves the rule enforceable by whichever name the dispatcher happens to use.
+  const asTask = dispatch("Go fix the parser.");
+  asTask.tool_name = "Task";
+  check(
+    "a Task dispatch is gated the same way",
+    run(DISPATCH, asTask, workerEnv).verdict,
+    "DENY",
+  );
+
+  // The declaration has to be a line of its own: a sentence mentioning the word
+  // is not consent, and reading it as consent would let any prose defeat the gate.
+  check(
+    "the word inside a sentence is not a declaration",
+    run(
+      DISPATCH,
+      dispatch("Fix the parser and mind the Scope: of it."),
+      workerEnv,
+    ).verdict,
+    "DENY",
+  );
+
+  // A re-fired event must not mint a second token for one dispatch: the report
+  // would then carry a token no gate could match to the run that asked for it.
+  check(
+    "a prompt that already carries a run token is left alone",
+    JSON.stringify(
+      runJson(
+        DISPATCH,
+        dispatch("RUN abcd1234\nScope: src/a.js\nFix it."),
+        workerEnv,
+      ),
+    ),
+    "{}",
+  );
+}
+
+header("The run record round-trips what the gates read back");
+{
+  // Every later gate reads this module rather than the hook, so its four callers
+  // are exercised here directly: a run opened by the dispatch hook, a path
+  // written by the trace hook, and the two lookups the finish gates do.
+  const recordHome = fs.mkdtempSync(path.join(os.tmpdir(), "crewrec-"));
+  const previousConfigDir = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = recordHome;
+  const crewRecord = require(path.join(HOOKS, "lib", "crew-record.js"));
+
+  crewRecord.openRun({
+    sessionId: "rec1",
+    token: "0f0f0f0f",
+    role: "reviewer",
+    scope: ["src/a.js"],
+    head: "abc123",
+  });
+  crewRecord.appendPath("rec1", "agent-7", "src/a.js");
+  crewRecord.appendPath("rec1", "agent-8", "src/other.js");
+
+  const found = crewRecord.findRun("rec1", "0f0f0f0f");
+  check("a run is found by its token", found && found.role, "reviewer");
+  check(
+    "a token no dispatch minted finds nothing",
+    crewRecord.findRun("rec1", "deadbeef"),
+    null,
+  );
+  check(
+    "a worker's paths come back under its own agent id",
+    crewRecord.pathsFor("rec1", "agent-7").join(","),
+    "src/a.js",
+  );
+  check(
+    "one worker's paths do not include another's",
+    crewRecord.pathsFor("rec1", "agent-8").join(","),
+    "src/other.js",
+  );
+
+  // Past the cap the record stops accepting lines rather than growing forever.
+  const capped = crewRecord.recordFile("rec2");
+  fs.mkdirSync(path.dirname(capped), { recursive: true });
+  fs.writeFileSync(
+    capped,
+    "x".repeat(crewRecord.MAX_RECORD_BYTES + 1024) + "\n",
+  );
+  const sizeBefore = fs.statSync(capped).size;
+  crewRecord.openRun({
+    sessionId: "rec2",
+    token: "11112222",
+    role: "implementer",
+    scope: ["src/a.js"],
+    head: null,
+  });
+  check(
+    "an oversized run record stops accepting lines",
+    String(fs.statSync(capped).size),
+    String(sizeBefore),
+    "the record grew past the cap",
+  );
+
+  if (previousConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+  else process.env.CLAUDE_CONFIG_DIR = previousConfigDir;
+  fs.rmSync(recordHome, { recursive: true, force: true });
+}
+
+header("PreToolUse(any tool): the worker guard");
+{
+  // The evidence gate is only worth having if a worker cannot author the
+  // evidence. The `implementer` role carries Bash and Write, so a tool
+  // allowlist cannot deliver that: a redirect, a heredoc or a node one-liner
+  // all reach cache/evidence/. The guard keys on agent_id, which a worker's
+  // payload carries and the main session's does not.
+  const AGENT_GUARD = path.join(HOOKS, "agent-guard.js");
+  const evidenceFile = path.join(testedConfig, "cache", "evidence", "s1.jsonl");
+  const recordFile = path.join(testedConfig, "cache", "crew", "s1.jsonl");
+
+  const asWorker = (payload) => ({
+    ...payload,
+    agent_id: "a6e0a6f2",
+    agent_type: "implementer",
+  });
+
+  check(
+    "a worker writing the evidence log is denied",
+    run(
+      AGENT_GUARD,
+      asWorker({
+        tool_name: "Write",
+        session_id: "s1",
+        tool_input: { file_path: evidenceFile },
+      }),
+      workerEnv,
+    ).verdict,
+    "DENY",
+  );
+  check(
+    "the main session writing the evidence log is allowed",
+    run(
+      AGENT_GUARD,
+      {
+        tool_name: "Write",
+        session_id: "s1",
+        tool_input: { file_path: evidenceFile },
+      },
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+  check(
+    "a worker redirecting into the evidence log is denied",
+    run(
+      AGENT_GUARD,
+      asWorker(bash(`echo x > ${evidenceFile}`, repo)),
+      workerEnv,
+    ).verdict,
+    "DENY",
+  );
+  check(
+    "a worker heredoc into the evidence log is denied",
+    run(
+      AGENT_GUARD,
+      asWorker(bash(`cat <<'EOF' > ${evidenceFile}\nx\nEOF`, repo)),
+      workerEnv,
+    ).verdict,
+    "DENY",
+  );
+  check(
+    "a worker node one-liner into the evidence log is denied",
+    run(
+      AGENT_GUARD,
+      asWorker(
+        bash(
+          `node -e "require('fs').writeFileSync('${evidenceFile}','x')"`,
+          repo,
+        ),
+      ),
+      workerEnv,
+    ).verdict,
+    "DENY",
+  );
+  check(
+    "a worker writing the run record is denied",
+    run(
+      AGENT_GUARD,
+      asWorker({
+        tool_name: "Write",
+        session_id: "s1",
+        tool_input: { file_path: recordFile },
+      }),
+      workerEnv,
+    ).verdict,
+    "DENY",
+  );
+  check(
+    "a worker READING the evidence log is allowed",
+    run(
+      AGENT_GUARD,
+      asWorker({
+        tool_name: "Read",
+        session_id: "s1",
+        tool_input: { file_path: evidenceFile },
+      }),
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+  check(
+    "a worker writing its own repository is allowed",
+    run(
+      AGENT_GUARD,
+      asWorker({
+        tool_name: "Write",
+        session_id: "s1",
+        tool_input: { file_path: path.join(repo, "src", "a.js") },
+      }),
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+
+  // A multi-file edit carries its targets in an array, so a guard that only
+  // reads tool_input.file_path lets the same write through under another tool.
+  check(
+    "a worker editing the evidence log through MultiEdit is denied",
+    run(
+      AGENT_GUARD,
+      asWorker({
+        tool_name: "MultiEdit",
+        session_id: "s1",
+        tool_input: {
+          edits: [
+            { file_path: path.join(repo, "src", "a.js") },
+            { file_path: evidenceFile },
+          ],
+        },
+      }),
+      workerEnv,
+    ).verdict,
+    "DENY",
+  );
+
+  // A relative path is the same write spelled differently, and the payload
+  // carries the working directory it is relative to.
+  check(
+    "a worker writing a relative path into the record is denied",
+    run(
+      AGENT_GUARD,
+      asWorker({
+        tool_name: "Write",
+        session_id: "s1",
+        cwd: testedConfig,
+        tool_input: { file_path: path.join("cache", "crew", "s1.jsonl") },
+      }),
+      workerEnv,
+    ).verdict,
+    "DENY",
+  );
+
+  // The logger itself runs in the main session and writes through Bash-shaped
+  // work, so the shell half of the guard must not fire without an agent_id.
+  check(
+    "the main session redirecting into the evidence log is allowed",
+    run(AGENT_GUARD, bash(`echo x > ${evidenceFile}`, repo), workerEnv).verdict,
+    "allow",
+  );
+
+  // The evidence log moves with CLAUDE_EVIDENCE_DIR, and a guard that hardcodes
+  // cache/evidence/ would protect the wrong directory wherever it is moved.
+  {
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "crewev-"));
+    check(
+      "a worker writing a relocated evidence log is denied",
+      run(
+        AGENT_GUARD,
+        asWorker({
+          tool_name: "Write",
+          session_id: "s1",
+          tool_input: { file_path: path.join(elsewhere, "s1.jsonl") },
+        }),
+        { ...workerEnv, CLAUDE_EVIDENCE_DIR: elsewhere },
+      ).verdict,
+      "DENY",
+    );
+    fs.rmSync(elsewhere, { recursive: true, force: true });
+  }
+}
+
+header("PostToolUse(Edit/Write): the trace hook");
+{
+  // What a worker touched is attributed per agent_id, never by diffing the
+  // checkout: two workers running in one repository would otherwise inherit
+  // each other's writes and both fail the scope gate for the other's work.
+  const TRACE = path.join(HOOKS, "subagent-trace.js");
+
+  const asWorker = (payload) => ({
+    ...payload,
+    agent_id: "a6e0a6f2",
+    agent_type: "implementer",
+  });
+
+  const readRecordLines = (configDir, sessionId) => {
+    const file = path.join(configDir, "cache", "crew", sessionId + ".jsonl");
+    return readTextOrEmpty(file)
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => JSON.parse(line));
+  };
+
+  const writeCall = (target, workingDirectory) => ({
+    tool_name: "Write",
+    session_id: "s2",
+    cwd: workingDirectory || repo,
+    tool_input: { file_path: target },
+  });
+
+  run(TRACE, asWorker(writeCall(path.join(repo, "src", "a.js"))), workerEnv);
+  run(TRACE, writeCall(path.join(repo, "src", "b.js")), workerEnv);
+
+  const traced = readRecordLines(testedConfig, "s2").filter(
+    (line) => line.kind === "path",
+  );
+  check("a worker write is traced", traced.length, 1);
+  check(
+    "the traced path is the file written",
+    traced[0] && traced[0].path.endsWith("a.js"),
+    true,
+  );
+  check(
+    "the traced path carries its agent",
+    traced[0] && traced[0].agentId,
+    "a6e0a6f2",
+  );
+  check(
+    "a main-session write is not traced",
+    traced.some((line) => line.path.endsWith("b.js")),
+    false,
+  );
+
+  // The scope gate compares what was touched against patterns a dispatcher
+  // wrote by hand ("src/a.js"), so the record holds the repository-relative
+  // spelling rather than a temporary absolute path no pattern could match.
+  check(
+    "the traced path is relative to the repository",
+    traced[0] && traced[0].path,
+    path.join("src", "a.js"),
+  );
+
+  run(
+    TRACE,
+    asWorker({ ...bash("echo hi", repo), session_id: "s2" }),
+    workerEnv,
+  );
+  const afterBash = readRecordLines(testedConfig, "s2").filter(
+    (line) => line.kind === "path",
+  );
+  check("a Bash call that writes nothing traces nothing", afterBash.length, 1);
+
+  // Reading is most of what a worker does, and a read changes no file, so a
+  // read in the record would charge the worker for a file it only looked at.
+  run(
+    TRACE,
+    asWorker({
+      tool_name: "Read",
+      session_id: "s2",
+      cwd: repo,
+      tool_input: { file_path: path.join(repo, "src", "a.js") },
+    }),
+    workerEnv,
+  );
+  check(
+    "a read traces nothing",
+    readRecordLines(testedConfig, "s2").filter((line) => line.kind === "path")
+      .length,
+    1,
+  );
+
+  // Edit is how a worker changes a file that already exists, and it was the
+  // untested half of the pair until this case existed.
+  run(
+    TRACE,
+    asWorker({
+      tool_name: "Edit",
+      session_id: "s2",
+      cwd: repo,
+      tool_input: {
+        file_path: path.join(repo, "src", "edited.js"),
+        old_string: "a",
+        new_string: "b",
+      },
+    }),
+    workerEnv,
+  );
+  check(
+    "an edit is traced",
+    readRecordLines(testedConfig, "s2").some(
+      (line) => line.kind === "path" && line.path.endsWith("edited.js"),
+    ),
+    true,
+  );
+
+  // A relative file_path is what a worker actually sends most of the time.
+  run(TRACE, asWorker(writeCall(path.join("src", "rel.js"))), workerEnv);
+  check(
+    "a relative path is resolved against the working directory",
+    readRecordLines(testedConfig, "s2").some(
+      (line) =>
+        line.kind === "path" && line.path === path.join("src", "rel.js"),
+    ),
+    true,
+  );
+
+  // A worker often runs with its working directory below the repository root,
+  // and a path resolved against the wrong base loses the prefix every scope
+  // pattern is written with.
+  run(
+    TRACE,
+    asWorker(writeCall("nested.js", path.join(repo, "src"))),
+    workerEnv,
+  );
+  check(
+    "a path relative to a nested directory keeps its repository prefix",
+    readRecordLines(testedConfig, "s2").some(
+      (line) =>
+        line.kind === "path" && line.path === path.join("src", "nested.js"),
+    ),
+    true,
+  );
+
+  // A worker's first write often creates the directory it lands in, so the
+  // file and its parent are both absent when the path is recorded.
+  run(
+    TRACE,
+    asWorker(writeCall(path.join(repo, "fresh", "deep", "new.js"))),
+    workerEnv,
+  );
+  check(
+    "a write into a directory that does not exist yet stays relative",
+    readRecordLines(testedConfig, "s2").some(
+      (line) =>
+        line.kind === "path" &&
+        line.path === path.join("fresh", "deep", "new.js"),
+    ),
+    true,
+  );
+
+  // An empty error string is not a failure, and reading it as one would drop
+  // a write that really happened.
+  run(
+    TRACE,
+    asWorker({
+      ...writeCall(path.join(repo, "src", "blank-error.js")),
+      tool_response: { error: "" },
+    }),
+    workerEnv,
+  );
+  check(
+    "an empty error string does not count as a failure",
+    readRecordLines(testedConfig, "s2").some(
+      (line) => line.kind === "path" && line.path.endsWith("blank-error.js"),
+    ),
+    true,
+  );
+
+  // Outside any repository there is nothing to be relative to, and dropping
+  // the write would hide it from the scope gate entirely.
+  {
+    const looseDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "crewloose-"));
+    run(
+      TRACE,
+      asWorker(writeCall(path.join(looseDirectory, "x.js"), looseDirectory)),
+      workerEnv,
+    );
+    check(
+      "a write outside a repository is traced by absolute path",
+      readRecordLines(testedConfig, "s2").some(
+        (line) =>
+          line.kind === "path" &&
+          line.path === path.join(looseDirectory, "x.js"),
+      ),
+      true,
+    );
+    fs.rmSync(looseDirectory, { recursive: true, force: true });
+  }
+
+  // PostToolUse fires after a call that errored too, and a write that failed
+  // changed nothing. Charging the worker for it would fail the scope gate for
+  // a file that still holds exactly what it held before.
+  run(
+    TRACE,
+    asWorker({
+      ...writeCall(path.join(repo, "src", "failed.js")),
+      tool_response: { success: false, error: "permission denied" },
+    }),
+    workerEnv,
+  );
+  check(
+    "a failed write traces nothing",
+    readRecordLines(testedConfig, "s2").some(
+      (line) => line.kind === "path" && line.path.endsWith("failed.js"),
+    ),
+    false,
+  );
+
+  // The success field is not guaranteed to be present on every build, so its
+  // absence must not be read as failure.
+  run(
+    TRACE,
+    asWorker({
+      ...writeCall(path.join(repo, "src", "quiet.js")),
+      tool_response: { filePath: path.join(repo, "src", "quiet.js") },
+    }),
+    workerEnv,
+  );
+  check(
+    "a response with no success field is still traced",
+    readRecordLines(testedConfig, "s2").some(
+      (line) => line.kind === "path" && line.path.endsWith("quiet.js"),
+    ),
+    true,
+  );
+
+  const secondWorker = {
+    ...asWorker(writeCall(path.join(repo, "src", "c.js"))),
+    agent_id: "b111",
+  };
+  run(TRACE, secondWorker, workerEnv);
+  const bothWorkers = readRecordLines(testedConfig, "s2").filter(
+    (line) => line.kind === "path",
+  );
+  check(
+    "two workers keep separate traces",
+    new Set(bothWorkers.map((line) => line.agentId)).size,
+    2,
+  );
+}
+
+header("SubagentStart: the brief hook");
+{
+  // A worker's agent file is written when the mode is applied, so a worker
+  // dispatched after a later switch would read the previous posture's rules.
+  // This hook injects the band the mode makes primary AT SPAWN, which is the
+  // one thing the generated file cannot carry.
+  const BRIEF = path.join(HOOKS, "subagent-brief.js");
+
+  const ruleFile = (id, setting, primaryAt, worker, body) =>
+    `---\nid: ${id}\nsetting: ${setting}\nprimary_at: ${primaryAt}\nworker: ${worker}\n---\n\n${body}\n`;
+
+  const posture = {
+    verify: "tested",
+    claims: "labeled",
+    process: "light",
+    asking: "sometimes",
+    code: "polished",
+    subagents: "few",
+    voice: "caveman",
+  };
+
+  // A throwaway config carrying its own rule corpus, so what the hook renders
+  // is decided by this block rather than by whichever mode the operator has in
+  // force while the suite runs.
+  const briefConfigs = [];
+  const briefConfig = (ruleFiles, lock) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "crewbrief-"));
+    briefConfigs.push(directory);
+    if (lock !== null)
+      fs.writeFileSync(path.join(directory, "mode.lock"), JSON.stringify(lock));
+    const rulesDirectory = path.join(directory, "modes", "rules");
+    fs.mkdirSync(rulesDirectory, { recursive: true });
+    for (const [name, text] of Object.entries(ruleFiles))
+      fs.writeFileSync(path.join(rulesDirectory, name), text);
+    return directory;
+  };
+
+  const lock = { mode: "test", codename: "TESTER", settings: posture };
+  const fullConfig = briefConfig(
+    {
+      // The corpus loads in filename order, so the rule this posture leaves
+      // standing is read first. A band sliced in that order would carry it,
+      // and only the mode's own ordering keeps it out.
+      "a-standing.md": ruleFile(
+        "brief-standing",
+        "asking",
+        "always",
+        "brief",
+        "STANDING-RULE body.",
+      ),
+      "b-primary.md": ruleFile(
+        "brief-primary",
+        "verify",
+        "tested",
+        "brief",
+        "PRIMARY-RULE body.",
+      ),
+      "c-not-for-workers.md": ruleFile(
+        "worker-none",
+        "verify",
+        "tested",
+        "n/a",
+        "EXCLUDED-NA body.",
+      ),
+      "d-gated.md": ruleFile(
+        "worker-gated",
+        "verify",
+        "tested",
+        "gate:scope",
+        "EXCLUDED-GATE body.",
+      ),
+    },
+    lock,
+  );
+  const briefEnv = { CLAUDE_CONFIG_DIR: fullConfig };
+
+  const started = {
+    hook_event_name: "SubagentStart",
+    agent_id: "a1",
+    agent_type: "implementer",
+    session_id: "s3",
+    cwd: repo,
+  };
+
+  const reply = run(BRIEF, started, briefEnv);
+  check("the brief hook injects context", reply.verdict, "warn", reply.reason);
+  check("the brief names the mode", reply.reason.includes("TESTER"), true);
+  check(
+    "the brief names the posture",
+    reply.reason.includes("verify: tested"),
+    true,
+  );
+  check("the brief names the role", reply.reason.includes("implementer"), true);
+  check(
+    "the brief carries the rule band",
+    reply.reason.includes("Rules for this run"),
+    true,
+  );
+  check("the brief is capped", reply.reason.length <= 8000, true);
+
+  // The whole point of rendering at spawn: the band is the mode's primary band,
+  // not the corpus in filename order.
+  check(
+    "the brief carries a rule this mode makes primary",
+    reply.reason.includes("PRIMARY-RULE"),
+    true,
+  );
+  check(
+    "a brief rule this mode leaves standing stays out",
+    reply.reason.includes("STANDING-RULE"),
+    false,
+  );
+  check(
+    "a rule classified n/a stays out of the brief",
+    reply.reason.includes("EXCLUDED-NA"),
+    false,
+  );
+  check(
+    "a rule a gate enforces stays out of the brief",
+    reply.reason.includes("EXCLUDED-GATE"),
+    false,
+  );
+
+  // Built-in agent types (Explore, general-purpose, code-simplifier) cannot be
+  // given an agent file at all, so this injection is the only rules they ever
+  // see. The operator decided on 2026-09-15 that they are briefed anyway.
+  check(
+    "an unknown agent type still gets the band",
+    run(
+      BRIEF,
+      { ...started, agent_type: "general-purpose" },
+      briefEnv,
+    ).reason.includes("Rules for this run"),
+    true,
+  );
+
+  // No mode applied means no posture to brief from. Staying silent matches
+  // hooks/mode-inject.js, which also says nothing when the lock is missing.
+  const lockless = briefConfig(
+    {
+      "a-primary.md": ruleFile("brief-one", "verify", "tested", "brief", "X."),
+    },
+    null,
+  );
+  check(
+    "no mode applied means no brief",
+    run(BRIEF, started, { CLAUDE_CONFIG_DIR: lockless }).verdict,
+    "allow",
+  );
+
+  // An empty band must inject nothing rather than a heading with no rules
+  // under it, which would read to a worker as a posture that wants nothing.
+  const nothingForWorkers = briefConfig(
+    {
+      "a-none.md": ruleFile("worker-none", "verify", "tested", "n/a", "NA."),
+    },
+    lock,
+  );
+  check(
+    "a corpus with no brief rules says nothing",
+    run(BRIEF, started, { CLAUDE_CONFIG_DIR: nothingForWorkers }).verdict,
+    "allow",
+  );
+
+  // A corpus that grew wrong must not flood a worker's context. Truncating
+  // keeps the fault visible instead of silently spending the whole budget.
+  const oversized = briefConfig(
+    {
+      "a-huge.md": ruleFile(
+        "brief-huge",
+        "verify",
+        "tested",
+        "brief",
+        "HUGE ".repeat(4000),
+      ),
+    },
+    lock,
+  );
+  const cut = run(BRIEF, started, { CLAUDE_CONFIG_DIR: oversized });
+  check(
+    "an oversized band is truncated",
+    cut.reason.endsWith("[rules truncated]"),
+    true,
+  );
+  check("the truncated brief is still capped", cut.reason.length <= 8000, true);
+
+  for (const directory of briefConfigs)
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
+header("SubagentStop and SubagentHandback: the gate runner");
+{
+  // A worker's report arrives at one of two places, measured on 2.1.273: in auto
+  // mode the parent already has it when the worker calls SubagentHandback, and
+  // SubagentStop fires afterwards, so a block there only sends the worker back
+  // to a hand-back the harness refuses. The runner answers at both points: a
+  // deny withholds the report at the hand-back, a block sends it back at the
+  // stop, and the two share one two-refusal bound per worker.
+  const GATE = path.join(HOOKS, "subagent-gate.js");
+
+  const gateLines = (configDir, sessionId) => {
+    const file = path.join(configDir, "cache", "crew", sessionId + ".jsonl");
+    return readTextOrEmpty(file)
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => JSON.parse(line));
+  };
+
+  // A dispatched run for the reports below to join.
+  const gateRecord = path.join(testedConfig, "cache", "crew", "s4.jsonl");
+  fs.mkdirSync(path.dirname(gateRecord), { recursive: true });
+  fs.appendFileSync(
+    gateRecord,
+    JSON.stringify({
+      kind: "run",
+      token: "abcd1234",
+      role: "implementer",
+      scope: ["src/a.js"],
+    }) + "\n",
+  );
+  fs.appendFileSync(
+    gateRecord,
+    JSON.stringify({
+      kind: "run",
+      token: "beef0001",
+      role: "typoed",
+      scope: ["src/a.js"],
+    }) + "\n",
+  );
+  // The same dispatch under the loose posture, so a case there fails for its
+  // posture and not for a token that joins nothing.
+  const looseRecord = path.join(noneConfig, "cache", "crew", "s4.jsonl");
+  fs.mkdirSync(path.dirname(looseRecord), { recursive: true });
+  fs.appendFileSync(
+    looseRecord,
+    JSON.stringify({
+      kind: "run",
+      token: "abcd1234",
+      role: "implementer",
+      scope: ["src/a.js"],
+    }) + "\n",
+  );
+
+  // A worker transcript whose first user line is the dispatch prompt, the layout
+  // measured on 2.1.273. The second refusal quotes its RUN line from here.
+  const parentTranscript = path.join(testedConfig, "projects", "s4.jsonl");
+  const workerTranscript = (agentId) =>
+    path.join(
+      testedConfig,
+      "projects",
+      "s4",
+      "subagents",
+      `agent-${agentId}.jsonl`,
+    );
+  const writeWorkerTranscript = (agentId) => {
+    fs.mkdirSync(path.dirname(workerTranscript(agentId)), { recursive: true });
+    fs.writeFileSync(
+      workerTranscript(agentId),
+      JSON.stringify({
+        type: "user",
+        version: "2.1.273",
+        message: {
+          role: "user",
+          content: "Scope: src/a.js\nFix it.\n\nRUN abcd1234",
+        },
+      }) + "\n",
+    );
+  };
+
+  const SHAPED =
+    "Did it.\n\nRUN abcd1234\nSTATE done\nTOUCHED src/a.js\nEVIDENCE node tools/test-hooks.js";
+  const SHAPED_TYPOED = SHAPED.replace("abcd1234", "beef0001");
+
+  // Each scenario uses its own agent id, because refusals are counted per agent.
+  const stopped = (agentId, message) => ({
+    hook_event_name: "SubagentStop",
+    agent_id: agentId,
+    agent_type: "implementer",
+    session_id: "s4",
+    last_assistant_message: message,
+    agent_transcript_path: workerTranscript(agentId),
+    stop_hook_active: false,
+  });
+  const handingBack = (agentId, message) => ({
+    hook_event_name: "PreToolUse",
+    tool_name: "SubagentHandback",
+    agent_id: agentId,
+    agent_type: "implementer",
+    session_id: "s4",
+    transcript_path: parentTranscript,
+    tool_input: { message },
+  });
+  const handedBack = (agentId, success) => ({
+    hook_event_name: "PostToolUse",
+    tool_name: "SubagentHandback",
+    agent_id: agentId,
+    agent_type: "implementer",
+    session_id: "s4",
+    transcript_path: parentTranscript,
+    tool_input: { message: SHAPED },
+    tool_response: { success },
+  });
+
+  // Outside auto mode the report is the worker's last message.
+  check(
+    "a prose-only finish is blocked",
+    run(GATE, stopped("stop-prose", "All done, everything works."), workerEnv)
+      .verdict,
+    "BLOCK",
+  );
+  check(
+    "the block shows the template",
+    run(GATE, stopped("stop-template", "All done."), workerEnv).reason.includes(
+      "STATE",
+    ),
+    true,
+  );
+  check(
+    "the block names the gate that refused",
+    run(GATE, stopped("stop-named", "All done."), workerEnv).reason.includes(
+      "finish-shape",
+    ),
+    true,
+  );
+  check(
+    "a shape refusal says only the block is missing",
+    run(
+      GATE,
+      stopped("stop-only-shape", "All done."),
+      workerEnv,
+    ).reason.includes("Nothing about the work itself needs to change"),
+    true,
+  );
+  check(
+    "a finish with the shape is allowed",
+    run(GATE, stopped("stop-shaped", SHAPED), workerEnv).verdict,
+    "allow",
+  );
+  check(
+    "a finish block on one comma-separated line is allowed",
+    run(
+      GATE,
+      stopped(
+        "stop-one-line",
+        "Did it.\n\nRUN abcd1234, STATE done, TOUCHED src/a.js, EVIDENCE node tools/test-hooks.js",
+      ),
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+  check(
+    "a finish with an unknown STATE word is blocked",
+    run(
+      GATE,
+      stopped("stop-state", "RUN abcd1234\nSTATE finished\nTOUCHED src/a.js"),
+      workerEnv,
+    ).verdict,
+    "BLOCK",
+  );
+  check(
+    "a finish whose token matches no run is blocked",
+    run(
+      GATE,
+      stopped("stop-token", "RUN ffffffff\nSTATE done\nTOUCHED src/a.js"),
+      workerEnv,
+    ).verdict,
+    "BLOCK",
+  );
+  check(
+    "a blocked finish is recorded as a refusal",
+    gateLines(testedConfig, "s4").some(
+      (line) =>
+        line.kind === "mark" &&
+        line.mark === "refusal" &&
+        line.agentId === "stop-prose",
+    ),
+    true,
+  );
+
+  // The bound: the second refusal quotes the RUN line, and there is no third.
+  writeWorkerTranscript("stop-twice");
+  run(GATE, stopped("stop-twice", "All done."), workerEnv);
+  check(
+    "the second block quotes the exact RUN line",
+    run(GATE, stopped("stop-twice", "All done."), workerEnv).reason.includes(
+      "RUN abcd1234",
+    ),
+    true,
+  );
+  check(
+    "there is no third block",
+    run(GATE, stopped("stop-twice", "All done."), workerEnv).verdict,
+    "allow",
+  );
+  run(GATE, stopped("stop-no-transcript", "All done."), workerEnv);
+  check(
+    "a missing transcript leaves the second block on the template",
+    run(
+      GATE,
+      stopped("stop-no-transcript", "All done."),
+      workerEnv,
+    ).reason.includes("STATE"),
+    true,
+  );
+
+  // In auto mode the report is the hand-back message, and a refusal is a deny
+  // that withholds it from the parent.
+  check(
+    "a hand-back with no finish block is denied",
+    run(GATE, handingBack("back-prose", "All done."), workerEnv).verdict,
+    "DENY",
+  );
+  check(
+    "the hand-back denial shows the template",
+    run(
+      GATE,
+      handingBack("back-template", "All done."),
+      workerEnv,
+    ).reason.includes("STATE"),
+    true,
+  );
+  check(
+    "a hand-back with the finish block is allowed",
+    run(GATE, handingBack("back-shaped", SHAPED), workerEnv).verdict,
+    "allow",
+  );
+  writeWorkerTranscript("back-twice");
+  run(GATE, handingBack("back-twice", "All done."), workerEnv);
+  check(
+    "the second hand-back denial quotes the exact RUN line",
+    run(
+      GATE,
+      handingBack("back-twice", "All done."),
+      workerEnv,
+    ).reason.includes("RUN abcd1234"),
+    true,
+  );
+
+  // A delivered report is not gated again at the stop that follows it.
+  run(GATE, handedBack("back-delivered", true), workerEnv);
+  check(
+    "a delivered hand-back is recorded",
+    gateLines(testedConfig, "s4").some(
+      (line) =>
+        line.kind === "mark" &&
+        line.mark === "delivered" &&
+        line.agentId === "back-delivered",
+    ),
+    true,
+  );
+  check(
+    "a delivered hand-back excuses the stop that follows",
+    run(
+      GATE,
+      stopped("back-delivered", "Task complete and handed back to caller."),
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+  run(GATE, handedBack("back-refused", false), workerEnv);
+  check(
+    "a hand-back that was not delivered does not excuse the stop",
+    run(
+      GATE,
+      stopped("back-refused", "Task complete and handed back to caller."),
+      workerEnv,
+    ).verdict,
+    "BLOCK",
+  );
+
+  // Denials at the hand-back and blocks at the stop share one count.
+  run(GATE, handingBack("back-shared", "All done."), workerEnv);
+  run(GATE, handingBack("back-shared", "All done."), workerEnv);
+  check(
+    "a worker denied twice at hand-back is not blocked at stop",
+    run(GATE, stopped("back-shared", "All done."), workerEnv).verdict,
+    "allow",
+  );
+
+  check(
+    "a call with no agent_id passes through",
+    run(
+      GATE,
+      { ...handingBack("unused", "All done."), agent_id: undefined },
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+  check(
+    "a tool other than the hand-back passes through",
+    run(
+      GATE,
+      { ...handingBack("back-other", "All done."), tool_name: "Write" },
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+  run(
+    GATE,
+    { ...handedBack("back-write", true), tool_name: "Write" },
+    workerEnv,
+  );
+  check(
+    "a finished write is not mistaken for a delivered hand-back",
+    gateLines(testedConfig, "s4").some(
+      (line) => line.kind === "mark" && line.agentId === "back-write",
+    ),
+    false,
+  );
+
+  // A worker that copied the contract's own parenthetical, or added a remark
+  // after its state word, said the right thing. Refusing that would spend a
+  // round trip teaching it punctuation.
+  check(
+    "a RUN line carrying the contract's parenthetical still joins",
+    run(
+      GATE,
+      stopped(
+        "stop-parenthetical",
+        "RUN abcd1234  (repeat this line unchanged at the end of your report)\nSTATE done\nTOUCHED src/a.js",
+      ),
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+  check(
+    "a STATE word followed by a remark still reads as that state",
+    run(
+      GATE,
+      stopped(
+        "stop-remark",
+        "RUN abcd1234\nSTATE done (both suites green)\nTOUCHED src/a.js",
+      ),
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+
+  // The bound lives in the record, so a record that can no longer be appended to
+  // cannot carry it. Refusing regardless risks a loop with nothing to stop it.
+  {
+    const fullRecord = path.join(testedConfig, "cache", "crew", "s5.jsonl");
+    fs.writeFileSync(
+      fullRecord,
+      JSON.stringify({ kind: "note", filler: "x".repeat(600 * 1024) }) + "\n",
+    );
+    const atCeiling = run(
+      GATE,
+      { ...stopped("stop-full", "All done."), session_id: "s5" },
+      workerEnv,
+    );
+    check("a full run record refuses nothing", atCeiling.verdict, "warn");
+    check(
+      "the unrefused report says why it was let through",
+      atCeiling.reason.includes("size ceiling"),
+      true,
+    );
+  }
+
+  // The role file decides which gates run. A role that names none is gated on
+  // nothing, which is how a posture stays a posture rather than a hard-coded
+  // list; a role that names a gate no module provides says so instead of
+  // dropping it silently, because a gate that quietly stops running is the
+  // failure this whole design exists to prevent.
+  const roleDirectory = path.join(testedConfig, "modes", "roles");
+  fs.mkdirSync(roleDirectory, { recursive: true });
+  fs.writeFileSync(
+    path.join(roleDirectory, "shapeless.md"),
+    "---\nid: shapeless\ndescription: Gated on nothing.\ntools: Read\n---\n\nBody.\n",
+  );
+  fs.writeFileSync(
+    path.join(roleDirectory, "typoed.md"),
+    "---\nid: typoed\ndescription: Names a gate that does not exist.\ntools: Read\ngates: finish-shape, no-such-gate\n---\n\nBody.\n",
+  );
+  check(
+    "a role that names no gate lets a prose finish through",
+    run(
+      GATE,
+      { ...stopped("role-none", "All done."), agent_type: "shapeless" },
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+  // This report's token joins the run whose role is `typoed`, while its payload
+  // still says `implementer`: the warning below can only appear if the record's
+  // role won, so it pins that order as well as the missing module.
+  const typoed = run(GATE, stopped("role-typo", SHAPED_TYPOED), workerEnv);
+  check(
+    "a gate no module provides warns instead of refusing",
+    typoed.verdict,
+    "warn",
+  );
+  check(
+    "a gate no module provides is named",
+    typoed.reason.includes("no-such-gate"),
+    true,
+  );
+
+  // At verify: none every gate still runs, and a failure is carried as a warning
+  // rather than a refusal: a gate that does not run leaves the conformance log
+  // with nothing to record.
+  const noneStop = run(GATE, stopped("none-stop", "All done."), noneEnv);
+  check("at verify: none no finish is not blocked", noneStop.verdict, "warn");
+  check(
+    "the warning at verify: none still shows the template",
+    noneStop.reason.includes("STATE"),
+    true,
+  );
+  const noneBack = run(GATE, handingBack("none-back", "All done."), noneEnv);
+  check("at verify: none no hand-back is not denied", noneBack.verdict, "warn");
+  check(
+    "a shaped finish at verify: none says nothing",
+    run(GATE, stopped("none-shaped", SHAPED), noneEnv).verdict,
+    "allow",
+  );
+  check(
+    "a warning at verify: none is not counted as a refusal",
+    gateLines(noneConfig, "s4").some(
+      (line) => line.kind === "mark" && line.mark === "refusal",
+    ),
+    false,
+  );
+}
+
+header(
+  "The scope gate: what a worker touched against what it was sent to touch",
+);
+{
+  // The dispatcher's scope line is the sentence that keeps a worker inside its
+  // area: stripping it took out-of-scope actions from 0% to 17.1%. This gate is
+  // what makes the line binding. It reads the paths the trace hook recorded,
+  // which no worker can write, so it needs nothing from the model beyond naming
+  // a deviation when it had a reason to step outside.
+  const scopeGate = require(path.join(HOOKS, "subagent", "gates", "scope.js"));
+  const GATE_RUNNER = path.join(HOOKS, "subagent-gate.js");
+  // A gate that wrongly passes carries no reason, and reading `.includes` off
+  // that would crash the suite where it should fail one case and carry on.
+  const reasonOf = (result) => String((result && result.reason) || "");
+
+  check("the gate is named scope", scopeGate.id, "scope");
+  check(
+    "the gate refuses from verify: tested upward",
+    scopeGate.minimumVerify,
+    "tested",
+  );
+
+  check(
+    "a worker inside its scope passes",
+    scopeGate.check({
+      scope: ["src/a.js"],
+      touched: ["src/a.js"],
+      finish: { deviations: [] },
+    }).ok,
+    true,
+  );
+  check(
+    "a worker outside its scope fails",
+    scopeGate.check({
+      scope: ["src/a.js"],
+      touched: ["src/a.js", "src/b.js"],
+      finish: { deviations: [] },
+    }).ok,
+    false,
+  );
+  check(
+    "the failure names the offending path",
+    reasonOf(
+      scopeGate.check({
+        scope: ["src/a.js"],
+        touched: ["src/b.js"],
+        finish: { deviations: [] },
+      }),
+    ).includes("src/b.js"),
+    true,
+  );
+  check(
+    "the failure names every offending path",
+    reasonOf(
+      scopeGate.check({
+        scope: ["src/a.js"],
+        touched: ["src/b.js", "src/c.js"],
+        finish: { deviations: [] },
+      }),
+    ).includes("src/c.js"),
+    true,
+  );
+  check(
+    "the failure quotes the scope it was measured against",
+    reasonOf(
+      scopeGate.check({
+        scope: ["src/a.js"],
+        touched: ["src/b.js"],
+        finish: { deviations: [] },
+      }),
+    ).includes("src/a.js"),
+    true,
+  );
+
+  check(
+    "a named deviation passes",
+    scopeGate.check({
+      scope: ["src/a.js"],
+      touched: ["src/a.js", "src/b.js"],
+      finish: { deviations: ["src/b.js: the import had to move with it"] },
+    }).ok,
+    true,
+  );
+  check(
+    "a deviation with no reason fails",
+    scopeGate.check({
+      scope: ["src/a.js"],
+      touched: ["src/b.js"],
+      finish: { deviations: ["src/b.js"] },
+    }).ok,
+    false,
+  );
+  check(
+    "a deviation separated by a dash passes",
+    scopeGate.check({
+      scope: ["src/a.js"],
+      touched: ["src/b.js"],
+      finish: { deviations: ["src/b.js - the import moved with it"] },
+    }).ok,
+    true,
+  );
+  check(
+    "a deviation written as a sentence passes",
+    scopeGate.check({
+      scope: ["src/a.js"],
+      touched: ["src/b.js"],
+      finish: {
+        deviations: ["had to touch src/b.js too, the import followed the move"],
+      },
+    }).ok,
+    true,
+  );
+  check(
+    "a deviation for one path does not excuse another",
+    scopeGate.check({
+      scope: ["src/a.js"],
+      touched: ["src/b.js", "src/c.js"],
+      finish: { deviations: ["src/b.js: the import moved with it"] },
+    }).ok,
+    false,
+  );
+  check(
+    "the unexcused path is the one named",
+    reasonOf(
+      scopeGate.check({
+        scope: ["src/a.js"],
+        touched: ["src/b.js", "src/c.js"],
+        finish: { deviations: ["src/b.js: the import moved with it"] },
+      }),
+    ).includes("src/b.js"),
+    false,
+  );
+
+  check(
+    "a directory scope covers its files",
+    scopeGate.check({
+      scope: ["hooks/"],
+      touched: ["hooks/a.js", "hooks/lib/b.js"],
+      finish: { deviations: [] },
+    }).ok,
+    true,
+  );
+  check(
+    "a directory scope without a trailing slash covers its files",
+    scopeGate.check({
+      scope: ["hooks"],
+      touched: ["hooks/a.js"],
+      finish: { deviations: [] },
+    }).ok,
+    true,
+  );
+  check(
+    "a glob scope covers its matches",
+    scopeGate.check({
+      scope: ["hooks/*.js"],
+      touched: ["hooks/a.js"],
+      finish: { deviations: [] },
+    }).ok,
+    true,
+  );
+  check(
+    "a glob does not cross a directory boundary",
+    scopeGate.check({
+      scope: ["hooks/*.js"],
+      touched: ["hooks/lib/b.js"],
+      finish: { deviations: [] },
+    }).ok,
+    false,
+  );
+  check(
+    "a double star crosses more than one directory boundary",
+    scopeGate.check({
+      scope: ["hooks/**/*.js"],
+      touched: ["hooks/lib/deep/b.js"],
+      finish: { deviations: [] },
+    }).ok,
+    true,
+  );
+  // The rule the whole gate turns on: segments, never string prefixes.
+  check(
+    "a scope does not cover a sibling whose name merely starts the same",
+    scopeGate.check({
+      scope: ["src/a"],
+      touched: ["src/ab.js"],
+      finish: { deviations: [] },
+    }).ok,
+    false,
+  );
+
+  check(
+    "touching nothing passes",
+    scopeGate.check({
+      scope: ["src/a.js"],
+      touched: [],
+      finish: { deviations: [] },
+    }).ok,
+    true,
+  );
+
+  // The refusal is written into a worker's context, so its length cannot follow
+  // the number of files the worker happened to write.
+  const fourteenPaths = Array.from(
+    { length: 14 },
+    (unused, index) => `src/out${index}.js`,
+  );
+  check(
+    "a long list of offending paths is counted rather than spelled out",
+    reasonOf(
+      scopeGate.check({
+        scope: ["src/a.js"],
+        touched: fourteenPaths,
+        finish: { deviations: [] },
+      }),
+    ).includes("and 2 more"),
+    true,
+  );
+  check(
+    "the paths past the cap are not named",
+    reasonOf(
+      scopeGate.check({
+        scope: ["src/a.js"],
+        touched: fourteenPaths,
+        finish: { deviations: [] },
+      }),
+    ).includes("src/out13.js"),
+    false,
+  );
+  // A dispatch that declared no scope is refused by the dispatch hook under any
+  // posture that wants one. Where it is allowed, the scope genuinely is whatever
+  // the work turns out to need, so there is nothing here to measure against.
+  check(
+    "an undeclared scope checks nothing",
+    scopeGate.check({
+      scope: ["(undeclared)"],
+      touched: ["src/b.js"],
+      finish: { deviations: [] },
+    }).ok,
+    true,
+  );
+  check(
+    "a run record with no scope at all checks nothing",
+    scopeGate.check({
+      scope: [],
+      touched: ["src/b.js"],
+      finish: { deviations: [] },
+    }).ok,
+    true,
+  );
+
+  // End to end through the runner, which is the only thing that proves the
+  // runner picks this module by the name a role gives and hands it the paths
+  // from the record rather than the paths the report claims.
+  fs.writeFileSync(
+    path.join(testedConfig, "modes", "roles", "scoped.md"),
+    "---\nid: scoped\ndescription: Gated on shape and scope.\ntools: Write\ngates: finish-shape, scope\n---\n\nBody.\n",
+  );
+  const scopeRecord = path.join(testedConfig, "cache", "crew", "s4.jsonl");
+  fs.appendFileSync(
+    scopeRecord,
+    JSON.stringify({
+      kind: "run",
+      token: "cafe0002",
+      role: "scoped",
+      scope: ["src/a.js"],
+    }) + "\n",
+  );
+  fs.appendFileSync(
+    scopeRecord,
+    JSON.stringify({
+      kind: "path",
+      agentId: "scope-wired",
+      path: "src/b.js",
+    }) + "\n",
+  );
+  fs.appendFileSync(
+    scopeRecord,
+    JSON.stringify({
+      kind: "path",
+      agentId: "scope-excused",
+      path: "src/b.js",
+    }) + "\n",
+  );
+  const wiredReport =
+    "Did it.\n\nRUN cafe0002\nSTATE done\nTOUCHED src/a.js\nEVIDENCE node tools/test-hooks.js";
+  const wired = run(
+    GATE_RUNNER,
+    {
+      hook_event_name: "SubagentStop",
+      agent_id: "scope-wired",
+      agent_type: "scoped",
+      session_id: "s4",
+      last_assistant_message: wiredReport,
+      stop_hook_active: false,
+    },
+    workerEnv,
+  );
+  check(
+    "a write outside the scope is blocked through the runner",
+    wired.verdict,
+    "BLOCK",
+  );
+  check(
+    "the block through the runner names the path the record holds",
+    reasonOf(wired).includes("src/b.js"),
+    true,
+  );
+  // The scope reason asks for a Deviations line or an undone write; a closing
+  // line saying the work needs no change would tell the worker to ignore it.
+  check(
+    "a scope refusal does not say the work needs no change",
+    reasonOf(wired).includes("Nothing about the work"),
+    false,
+  );
+  check(
+    "a scope refusal asks for what its reason names",
+    reasonOf(wired).includes("Do what the reason above asks"),
+    true,
+  );
+  const wiredAgain = run(
+    GATE_RUNNER,
+    {
+      hook_event_name: "SubagentStop",
+      agent_id: "scope-wired",
+      agent_type: "scoped",
+      session_id: "s4",
+      last_assistant_message: wiredReport,
+      stop_hook_active: false,
+    },
+    workerEnv,
+  );
+  check(
+    "a second scope refusal still asks for what its reason names",
+    reasonOf(wiredAgain).includes("refused this report again") &&
+      reasonOf(wiredAgain).includes("Do what the reason above asks"),
+    true,
+  );
+  check(
+    "a deviation in the report reaches the gate through the runner",
+    run(
+      GATE_RUNNER,
+      {
+        hook_event_name: "SubagentStop",
+        agent_id: "scope-excused",
+        agent_type: "scoped",
+        session_id: "s4",
+        last_assistant_message:
+          wiredReport +
+          "\n\nDeviations: src/b.js, the import followed the move",
+        stop_hook_active: false,
+      },
+      workerEnv,
+    ).verdict,
+    "allow",
+  );
+}
+
+header("The evidence gate: a claim of done against the commands that ran");
+{
+  // "Claimed a verification it never ran" is the failure this gate answers, and
+  // the hard half of it is not the lie. It is the honest report written after
+  // the suite ran and the code then changed again, and only the ordering of the
+  // two catches that. So the gate reads two records no worker may write: the
+  // evidence log, which hooks/evidence-log.js appends from real Bash calls, and
+  // the run record's path lines, which say when the worker last wrote code.
+  const evidenceGate = require(
+    path.join(HOOKS, "subagent", "gates", "evidence.js"),
+  );
+  const GATE_RUNNER = path.join(HOOKS, "subagent-gate.js");
+  // A gate that wrongly passes carries no reason, and reading `.includes` off
+  // that would crash the suite where it should fail one case and carry on.
+  const reasonOf = (result) => String((result && result.reason) || "");
+
+  check("the gate is named evidence", evidenceGate.id, "evidence");
+  check(
+    "the gate refuses from verify: tested upward",
+    evidenceGate.minimumVerify,
+    "tested",
+  );
+
+  check(
+    "a cited command that ran passes at claims: sourced",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [{ command: "node tools/test-hooks.js", at: 200 }],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "a cited command absent from the log fails at claims: sourced",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+  check(
+    "the same case passes at claims: labeled",
+    evidenceGate.check({
+      settings: { claims: "labeled" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  // The case that carries the gate: running the suite and then editing the code
+  // is exactly the shape of a false completion claim that is not a lie.
+  check(
+    "a command that ran BEFORE the last write fails",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [{ command: "node tools/test-hooks.js", at: 50 }],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+  check(
+    "STATE done with no evidence fails at claims: labeled",
+    evidenceGate.check({
+      settings: { claims: "labeled" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: [] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+  check(
+    "STATE blocked with no evidence passes",
+    evidenceGate.check({
+      settings: { claims: "labeled" },
+      touched: ["hooks/a.js"],
+      finish: { state: "blocked", evidence: [] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "STATE rejected with no evidence passes",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "rejected", evidence: [] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "a docs-only change needs no command",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["docs/hooks.md"],
+      finish: { state: "done", evidence: [] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "the failure quotes the command it could not find",
+    reasonOf(
+      evidenceGate.check({
+        settings: { claims: "sourced" },
+        touched: ["hooks/a.js"],
+        finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+        log: [],
+        lastWriteAt: 100,
+      }),
+    ).includes("node tools/test-hooks.js"),
+    true,
+  );
+  check(
+    "a report with no evidence at all names the code it claims to have proved",
+    reasonOf(
+      evidenceGate.check({
+        settings: { claims: "sourced" },
+        touched: ["hooks/a.js"],
+        finish: { state: "done", evidence: [] },
+        log: [],
+        lastWriteAt: 100,
+      }),
+    ).includes("hooks/a.js"),
+    true,
+  );
+
+  // The claims dial decides how much of this gate applies. At `loose` an
+  // unlabelled claim is what the posture asks for, so there is nothing to check.
+  check(
+    "at claims: loose nothing is checked",
+    evidenceGate.check({
+      settings: { claims: "loose" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: [] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  // Every mode in modes/*.json sets `claims`, so a lock without one is damaged
+  // or hand-written. It reads as the middle posture rather than the weakest,
+  // because a gate that quietly checks nothing is the failure this design is
+  // built to prevent.
+  check(
+    "a lock with no claims dial still asks for evidence",
+    evidenceGate.check({
+      settings: {},
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: [] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+  check(
+    "a lock with no claims dial does not read the log",
+    evidenceGate.check({
+      settings: {},
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+
+  // What counts as runtime code, which is the only thing a command can verify.
+  check(
+    "a markdown file outside docs is not runtime code",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["README.md"],
+      finish: { state: "done", evidence: [] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "mode data is not runtime code",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["modes/build.json"],
+      finish: { state: "done", evidence: [] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "one runtime path beside prose still asks for a command",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["docs/hooks.md", "hooks/a.js"],
+      finish: { state: "done", evidence: [] },
+      log: [],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+
+  // How a citation is matched against the log. The log holds the command as the
+  // harness executed it, which is routinely longer than the part the worker
+  // means, so the executed text may contain the citation and never the reverse:
+  // a citation that contains the executed command claims more than ran.
+  check(
+    "a cd prefix in the executed command still matches the citation",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [
+        { command: "cd /tmp/work && node tools/test-hooks.js", at: 200 },
+        { command: "git status", at: 150 },
+      ],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "a citation claiming more than the log holds fails",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: {
+        state: "done",
+        evidence: ["node tools/test-hooks.js && npx prettier --check ."],
+      },
+      log: [{ command: "node tools/test-hooks.js", at: 200 }],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+  check(
+    "extra whitespace in either text does not matter",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node  tools/test-hooks.js"] },
+      log: [{ command: "node tools/test-hooks.js", at: 200 }],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  // hooks/evidence-log.js cuts a command at 400 characters and flags it, so a
+  // long citation can only ever match the front of what was stored.
+  check(
+    "a truncated log entry matches the citation it begins",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: {
+        state: "done",
+        evidence: ["node tools/test-hooks.js --filter=" + "x".repeat(500)],
+      },
+      log: [
+        {
+          command: "node tools/test-hooks.js --filter=" + "x".repeat(360),
+          truncated: true,
+          at: 200,
+        },
+      ],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "an untruncated entry the citation only begins does not match",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js --all"] },
+      log: [{ command: "node tools/test-hooks.js", truncated: false, at: 200 }],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+
+  // A run that was cut short or came back non-zero proves nothing, whatever the
+  // report says it proved. An unknown exit stays unknown: this harness reports
+  // none at all (hooks/evidence-log.js), so treating null as failure would
+  // refuse every honest report on it.
+  check(
+    "an interrupted run is not proof",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [
+        { command: "node tools/test-hooks.js", interrupted: true, at: 200 },
+      ],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+  check(
+    "a run that exited non-zero is not proof",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [{ command: "node tools/test-hooks.js", exit: 1, at: 200 }],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+  check(
+    "an unknown exit is still proof the command ran",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [{ command: "node tools/test-hooks.js", exit: null, at: 200 }],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+
+  // Ordering, case by case.
+  check(
+    "a re-run after the write excuses the earlier stale run",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [
+        { command: "node tools/test-hooks.js", at: 50 },
+        { command: "node tools/test-hooks.js", at: 200 },
+      ],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "one stale citation among two fresh ones fails",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: {
+        state: "done",
+        evidence: ["node tools/test-hooks.js", "npx prettier --check ."],
+      },
+      log: [
+        { command: "node tools/test-hooks.js", at: 200 },
+        { command: "npx prettier --check .", at: 50 },
+      ],
+      lastWriteAt: 100,
+    }).ok,
+    false,
+  );
+  check(
+    "the stale refusal quotes the command that went first",
+    reasonOf(
+      evidenceGate.check({
+        settings: { claims: "sourced" },
+        touched: ["hooks/a.js"],
+        finish: {
+          state: "done",
+          evidence: ["node tools/test-hooks.js", "npx prettier --check ."],
+        },
+        log: [
+          { command: "node tools/test-hooks.js", at: 200 },
+          { command: "npx prettier --check .", at: 50 },
+        ],
+        lastWriteAt: 100,
+      }),
+    ).includes("npx prettier --check ."),
+    true,
+  );
+  // A write and a command inside the same millisecond cannot be put in order,
+  // so the benefit of the doubt goes to the worker.
+  check(
+    "a command in the same millisecond as the write is not stale",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [{ command: "node tools/test-hooks.js", at: 100 }],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  // Both of these are older logs and older records rather than dishonest
+  // reports, and a refusal a worker cannot act on is worse than a loose pass.
+  check(
+    "a log entry with no time is not called stale",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [{ command: "node tools/test-hooks.js" }],
+      lastWriteAt: 100,
+    }).ok,
+    true,
+  );
+  check(
+    "no last write time at all skips the ordering check",
+    evidenceGate.check({
+      settings: { claims: "sourced" },
+      touched: ["hooks/a.js"],
+      finish: { state: "done", evidence: ["node tools/test-hooks.js"] },
+      log: [{ command: "node tools/test-hooks.js", at: 50 }],
+      lastWriteAt: null,
+    }).ok,
+    true,
+  );
+
+  // End to end through the runner, which is the only thing that proves the
+  // runner reads the evidence log, builds the last write time out of the run
+  // record, and hands this gate a LIST of cited commands rather than one string.
+  const sourcedConfig = fs.mkdtempSync(path.join(os.tmpdir(), "crew-sourced-"));
+  const sourcedEnv = { CLAUDE_CONFIG_DIR: sourcedConfig };
+  fs.writeFileSync(
+    path.join(sourcedConfig, "mode.lock"),
+    JSON.stringify({
+      mode: "test",
+      codename: "TESTER",
+      settings: { verify: "tested", claims: "sourced" },
+      deniedTools: [],
+      subagents: null,
+    }),
+  );
+  fs.mkdirSync(path.join(sourcedConfig, "modes", "roles"), { recursive: true });
+  fs.writeFileSync(
+    path.join(sourcedConfig, "modes", "roles", "sourced.md"),
+    "---\nid: sourced\ndescription: Gated on shape and evidence.\ntools: Write\ngates: finish-shape, evidence\n---\n\nBody.\n",
+  );
+
+  const sourcedRecord = path.join(sourcedConfig, "cache", "crew", "s6.jsonl");
+  fs.mkdirSync(path.dirname(sourcedRecord), { recursive: true });
+  const appendRecord = (entry) =>
+    fs.appendFileSync(sourcedRecord, JSON.stringify(entry) + "\n");
+  appendRecord({
+    kind: "run",
+    token: "cafe0003",
+    role: "sourced",
+    scope: ["hooks/a.js"],
+    at: "2026-09-18T11:58:00.000Z",
+  });
+  const wroteAt = (agentId, at) =>
+    appendRecord({ kind: "path", agentId, path: "hooks/a.js", at });
+  wroteAt("ev-fresh", "2026-09-18T11:59:00.000Z");
+  wroteAt("ev-missing", "2026-09-18T11:59:00.000Z");
+  wroteAt("ev-two", "2026-09-18T11:59:00.000Z");
+  wroteAt("ev-last-line", "2026-09-18T11:59:00.000Z");
+  wroteAt("ev-stale", "2026-09-18T12:05:00.000Z");
+
+  const sourcedLog = path.join(sourcedConfig, "cache", "evidence", "s6.jsonl");
+  fs.mkdirSync(path.dirname(sourcedLog), { recursive: true });
+  for (const entry of [
+    {
+      command: "node tools/test-hooks.js",
+      at: "2026-09-18T12:00:00.000Z",
+      interrupted: false,
+      exit: null,
+    },
+    {
+      command: "npx prettier --check hooks",
+      at: "2026-09-18T12:00:10.000Z",
+      interrupted: false,
+      exit: null,
+    },
+  ]) {
+    fs.appendFileSync(sourcedLog, JSON.stringify(entry) + "\n");
+  }
+
+  const reported = (agentId, evidenceLines) =>
+    run(
+      GATE_RUNNER,
+      {
+        hook_event_name: "SubagentStop",
+        agent_id: agentId,
+        agent_type: "sourced",
+        session_id: "s6",
+        last_assistant_message:
+          "Did it.\n\nRUN cafe0003\nSTATE done\nTOUCHED hooks/a.js\n" +
+          evidenceLines,
+        stop_hook_active: false,
+      },
+      sourcedEnv,
+    );
+
+  check(
+    "a command the log holds passes through the runner",
+    reported("ev-fresh", "EVIDENCE node tools/test-hooks.js").verdict,
+    "allow",
+  );
+  const missing = reported("ev-missing", "EVIDENCE npx vitest run");
+  check(
+    "a command the log never saw is blocked through the runner",
+    missing.verdict,
+    "BLOCK",
+  );
+  check(
+    "the block through the runner quotes the command",
+    reasonOf(missing).includes("npx vitest run"),
+    true,
+  );
+  check(
+    "a command that ran before the record's last write is blocked",
+    reported("ev-stale", "EVIDENCE node tools/test-hooks.js").verdict,
+    "BLOCK",
+  );
+  // One EVIDENCE line citing two commands: a parser that handed the gate the
+  // whole line as one string would find no command matching it and block, so
+  // this passing is what proves the citation reaches the gate as a list.
+  check(
+    "two commands cited on one line are both checked",
+    reported(
+      "ev-two",
+      "EVIDENCE node tools/test-hooks.js, npx prettier --check hooks",
+    ).verdict,
+    "allow",
+  );
+  // The parser's documented rule is that the last occurrence of a field wins, so
+  // a second EVIDENCE line replaces the first rather than adding to it. Pinned
+  // here because this gate is the first thing that reads the field.
+  const lastLine = reported(
+    "ev-last-line",
+    "EVIDENCE node tools/test-hooks.js\nEVIDENCE npx vitest run",
+  );
+  check("a second EVIDENCE line replaces the first", lastLine.verdict, "BLOCK");
+  check(
+    "the block names the command on the last line",
+    reasonOf(lastLine).includes("npx vitest run"),
+    true,
+  );
+
+  fs.rmSync(sourcedConfig, { recursive: true, force: true });
+}
+
+{
+  // The blind review gate. A reviewer worker sees the diff and never the brief,
+  // because a reviewer told what the change was meant to do argues toward it.
+  //
+  // The sharpest finding in the survey is what this gate must NOT be asked to
+  // do: on false completion claims no model-judge configuration exceeded an
+  // AUROC of 0.65 (the area under the receiver operating characteristic curve,
+  // a 0.5-to-1 score where 0.5 is a coin flip), because judges anchor on
+  // confident closing language, which is exactly what a false success produces.
+  // So this gate judges code quality and the evidence gate judges claims.
+  const reviewGate = require(
+    path.join(HOOKS, "subagent", "gates", "review.js"),
+  );
+
+  check("the gate is named review", reviewGate.id, "review");
+  check(
+    "the review gate is off at verify: tested",
+    reviewGate.minimumVerify,
+    "proven",
+  );
+  check(
+    "the review gate asks for a diff and nothing else",
+    reviewGate
+      .buildPrompt({
+        diff: "--- a/src/a.js\n+++ b/src/a.js\n+const x = 1;",
+        brief: "SECRET BRIEF TEXT",
+      })
+      .includes("SECRET BRIEF TEXT"),
+    false,
+  );
+  check(
+    "the review prompt carries the diff",
+    reviewGate
+      .buildPrompt({
+        diff: "+const x = 1;",
+        brief: "b",
+      })
+      .includes("+const x = 1;"),
+    true,
+  );
+  check(
+    "a review finding does not block on its own",
+    reviewGate.interpret({
+      findings: [{ severity: "Nit", text: "name it better" }],
+    }).ok,
+    true,
+  );
+  check(
+    "a blocking severity blocks",
+    reviewGate.interpret({
+      findings: [{ severity: "Blocking", text: "this drops the error" }],
+    }).ok,
+    false,
+  );
+  // The advisory labels are matched the way a reviewer actually writes them, so
+  // the `Nit:` of the role file's own wording is the same severity as `nit`.
+  check(
+    "an advisory label survives its trailing colon and its case",
+    reviewGate.interpret({
+      findings: [{ severity: "nit:", text: "name it better" }],
+    }).ok,
+    true,
+  );
+  // Fail-closed on vocabulary: the list names what ships, so anything off it
+  // blocks. A finding with no severity at all is the case that matters, because
+  // it is what a reviewer produces when it forgets the labelling instruction,
+  // and reading that as advisory would let the gate quietly stop working.
+  check(
+    "a finding with no severity blocks",
+    reviewGate.interpret({ findings: [{ text: "this drops the error" }] }).ok,
+    false,
+  );
+  // From the survey's mechanism 3: a guardrail that silently degrades to "no
+  // reviewer, therefore fine" is worse than no guardrail at all.
+  check(
+    "no reviewer available is a gate failure, not a pass",
+    reviewGate.interpret(null).ok,
+    false,
+  );
+  // A clean review says so by coming back with an empty list of findings. An
+  // answer with no list at all is a malformed review rather than a quiet
+  // approval, and reading it as approval is the same silent degradation the
+  // case above exists to prevent.
+  check(
+    "a review with no findings list is not a clean review",
+    reviewGate.interpret({}).ok,
+    false,
+  );
+  check(
+    "a review that found nothing passes",
+    reviewGate.interpret({ findings: [] }).ok,
+    true,
+  );
+  // The runner keeps a module only when it exports a check. A gate missing one
+  // is dropped from the registry without a word, and the role that named it
+  // gets a warning about a missing gate instead of the gate itself.
+  check(
+    "the gate offers the runner a check",
+    typeof reviewGate.check,
+    "function",
+  );
+  // Nothing writes a review verdict onto the run view yet, and the gate must
+  // read that absence the same way interpret does.
+  check(
+    "a run carrying no review verdict does not pass",
+    reviewGate.check({ finish: {}, settings: {} }).ok,
+    false,
+  );
+}
+
+// --- the conformance log: what a real dispatch confirmed about this harness ---
+//
+// Every gate in this design rests on something measured about Claude Code once,
+// on one build. The reader below turns the run record into a verdict per
+// assumption, so a harness update that breaks one shows up as "contradicted"
+// rather than as a gate that quietly stops firing.
+{
+  const conformance = require(path.join(__dirname, "conformance.js"));
+
+  check(
+    "an unobserved assumption reads not yet observed",
+    conformance.summarise([])[0].state,
+    "not yet observed",
+  );
+  const stateOf = (entries, id) =>
+    conformance.summarise(entries).find((row) => row.id === id).state;
+
+  check(
+    "a token returned in the report confirms updatedInput",
+    stateOf(
+      [
+        { kind: "run", token: "abcd1234" },
+        {
+          kind: "finish",
+          point: "SubagentStop",
+          token: "abcd1234",
+          tokenSource: "report",
+          build: "2.1.273",
+        },
+      ],
+      "updated-input",
+    ),
+    "confirmed",
+  );
+  check(
+    "a token read from the transcript also confirms updatedInput",
+    stateOf(
+      [
+        { kind: "run", token: "abcd1234" },
+        {
+          kind: "finish",
+          point: "SubagentHandback",
+          token: "abcd1234",
+          tokenSource: "transcript",
+          transcriptFound: true,
+          build: "2.1.273",
+        },
+      ],
+      "updated-input",
+    ),
+    "confirmed",
+  );
+  // A token no dispatch minted proves nothing about updatedInput: a worker that
+  // invents eight hex characters would otherwise confirm the assumption for it.
+  check(
+    "a token no run minted confirms nothing",
+    stateOf(
+      [
+        { kind: "run", token: "abcd1234" },
+        {
+          kind: "finish",
+          point: "SubagentStop",
+          token: "ffffffff",
+          tokenSource: "report",
+          build: "2.1.273",
+        },
+      ],
+      "updated-input",
+    ),
+    "not yet observed",
+  );
+  check(
+    "a finish with no token anywhere contradicts updatedInput",
+    stateOf(
+      [
+        { kind: "run", token: "abcd1234" },
+        {
+          kind: "finish",
+          point: "SubagentStop",
+          token: null,
+          tokenSource: null,
+          transcriptFound: true,
+          transcriptRead: true,
+          build: "2.1.273",
+        },
+      ],
+      "updated-input",
+    ),
+    "contradicted",
+  );
+  // A transcript that was there and held nothing readable is not the harness
+  // dropping the prompt: a prompt longer than the gate's prefix read leaves no
+  // parseable line, and blaming the harness for that would be a false alarm.
+  check(
+    "a transcript nothing could be read from contradicts nothing",
+    stateOf(
+      [
+        { kind: "run", token: "abcd1234" },
+        {
+          kind: "finish",
+          point: "SubagentStop",
+          token: null,
+          tokenSource: null,
+          transcriptFound: true,
+          transcriptRead: false,
+          build: "2.1.273",
+        },
+      ],
+      "updated-input",
+    ),
+    "not yet observed",
+  );
+  // A missing transcript is not evidence about the token: the file that would
+  // have carried it was never there, which is the other assumption's business.
+  check(
+    "a missing transcript contradicts nothing about the token",
+    stateOf(
+      [
+        { kind: "run", token: "abcd1234" },
+        {
+          kind: "finish",
+          point: "SubagentHandback",
+          token: null,
+          tokenSource: null,
+          transcriptFound: false,
+        },
+      ],
+      "updated-input",
+    ),
+    "not yet observed",
+  );
+  check(
+    "the build is carried through",
+    conformance
+      .summarise([
+        { kind: "run", token: "a" },
+        {
+          kind: "finish",
+          point: "SubagentStop",
+          token: "a",
+          tokenSource: "report",
+          build: "2.1.273",
+        },
+      ])
+      .find((row) => row.id === "updated-input").build,
+    "2.1.273",
+  );
+  check(
+    "a path line confirms agent_id",
+    stateOf([{ kind: "path", agentId: "a1" }], "agent-id"),
+    "confirmed",
+  );
+  check(
+    "a token parsed from a hand-back report confirms the report arrives",
+    stateOf(
+      [
+        {
+          kind: "finish",
+          point: "SubagentHandback",
+          token: "a",
+          tokenSource: "report",
+        },
+      ],
+      "report-arrives",
+    ),
+    "confirmed",
+  );
+  // The record spells a gate's decision as a mark, so the reader reads marks.
+  check(
+    "a delivery after a hand-back refusal confirms the retry",
+    stateOf(
+      [
+        {
+          kind: "mark",
+          agentId: "a1",
+          mark: "refusal",
+          point: "SubagentHandback",
+        },
+        { kind: "mark", agentId: "a1", mark: "delivered" },
+      ],
+      "handback-retry",
+    ),
+    "confirmed",
+  );
+  // A delivery with no refusal before it is the ordinary case and says nothing
+  // about whether a denied hand-back is ever retried.
+  check(
+    "a delivery on its own does not confirm the retry",
+    stateOf(
+      [{ kind: "mark", agentId: "a1", mark: "delivered" }],
+      "handback-retry",
+    ),
+    "not yet observed",
+  );
+  // Only a hand-back answers the layout question. At the stop the harness hands
+  // over `agent_transcript_path` itself, so a transcript found there says
+  // nothing about the path this design derives beside the parent's.
+  check(
+    "a transcript found at the stop says nothing about the derived path",
+    stateOf(
+      [
+        {
+          kind: "finish",
+          point: "SubagentStop",
+          token: null,
+          tokenSource: null,
+          transcriptFound: true,
+        },
+      ],
+      "transcript-layout",
+    ),
+    "not yet observed",
+  );
+  check(
+    "a missing derived transcript contradicts the layout",
+    stateOf(
+      [
+        {
+          kind: "finish",
+          point: "SubagentHandback",
+          token: null,
+          tokenSource: null,
+          transcriptFound: false,
+        },
+      ],
+      "transcript-layout",
+    ),
+    "contradicted",
+  );
+  // Later evidence wins. A harness that changes back, or an assumption broken
+  // only on one build, would otherwise read as permanently contradicted.
+  check(
+    "a later observation replaces an earlier verdict",
+    stateOf(
+      [
+        { kind: "run", token: "abcd1234" },
+        {
+          kind: "finish",
+          point: "SubagentStop",
+          token: null,
+          tokenSource: null,
+          transcriptFound: true,
+          build: "2.1.272",
+        },
+        {
+          kind: "finish",
+          point: "SubagentStop",
+          token: "abcd1234",
+          tokenSource: "report",
+          build: "2.1.273",
+        },
+      ],
+      "updated-input",
+    ),
+    "confirmed",
+  );
+  // Whether a role's tools: list actually restricts a worker cannot be answered
+  // from this record: a path line records neither the tool that wrote it nor the
+  // worker's role. Tracking it would report an untested assumption as confirmed.
+  check(
+    "the tool restriction is not tracked",
+    conformance.summarise([]).some((row) => row.id === "tools-restrict"),
+    false,
+  );
+}
+
+// --- the gate runner writes the finish line the reader counts -----------------
+{
+  const GATE_FINISH = path.join(HOOKS, "subagent-gate.js");
+  const finishes = (sessionId) =>
+    readTextOrEmpty(
+      path.join(testedConfig, "cache", "crew", sessionId + ".jsonl"),
+    )
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => JSON.parse(line))
+      .filter((line) => line.kind === "finish");
+
+  const workerTranscriptAt = (agentId) =>
+    path.join(
+      testedConfig,
+      "projects",
+      "s7",
+      "subagents",
+      `agent-${agentId}.jsonl`,
+    );
+  const writeTranscriptAt = (agentId) => {
+    fs.mkdirSync(path.dirname(workerTranscriptAt(agentId)), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      workerTranscriptAt(agentId),
+      JSON.stringify({
+        type: "user",
+        version: "2.1.273",
+        message: {
+          role: "user",
+          content: "Scope: src/a.js\nFix it.\n\nRUN abcd1234",
+        },
+      }) + "\n",
+    );
+  };
+
+  const logRecord = path.join(testedConfig, "cache", "crew", "s7.jsonl");
+  fs.mkdirSync(path.dirname(logRecord), { recursive: true });
+  fs.writeFileSync(
+    logRecord,
+    JSON.stringify({
+      kind: "run",
+      token: "abcd1234",
+      role: "implementer",
+      scope: ["src/a.js"],
+    }) + "\n",
+  );
+
+  writeTranscriptAt("log-shaped");
+  run(
+    GATE_FINISH,
+    {
+      hook_event_name: "SubagentStop",
+      agent_id: "log-shaped",
+      agent_type: "implementer",
+      session_id: "s7",
+      last_assistant_message:
+        "Did it.\n\nRUN abcd1234\nSTATE done\nTOUCHED src/a.js\nEVIDENCE node tools/test-hooks.js",
+      agent_transcript_path: workerTranscriptAt("log-shaped"),
+      stop_hook_active: false,
+    },
+    workerEnv,
+  );
+  const shapedFinish = finishes("s7").find(
+    (line) => line.agentId === "log-shaped",
+  );
+  check("a report read at the stop is recorded", Boolean(shapedFinish), true);
+  check(
+    "the finish records the token the report carried",
+    shapedFinish && shapedFinish.token,
+    "abcd1234",
+  );
+  check(
+    "the finish records where the token came from",
+    shapedFinish && shapedFinish.tokenSource,
+    "report",
+  );
+  check(
+    "the finish records the build from the worker transcript",
+    shapedFinish && shapedFinish.build,
+    "2.1.273",
+  );
+  check(
+    "the finish records which point the report arrived at",
+    shapedFinish && shapedFinish.point,
+    "SubagentStop",
+  );
+
+  // A prose-only report leaves the token out, and the transcript still has it.
+  writeTranscriptAt("log-prose");
+  run(
+    GATE_FINISH,
+    {
+      hook_event_name: "SubagentStop",
+      agent_id: "log-prose",
+      agent_type: "implementer",
+      session_id: "s7",
+      last_assistant_message: "All done, everything works.",
+      agent_transcript_path: workerTranscriptAt("log-prose"),
+      stop_hook_active: false,
+    },
+    workerEnv,
+  );
+  const proseFinish = finishes("s7").find(
+    (line) => line.agentId === "log-prose",
+  );
+  check(
+    "a token found only in the transcript is recorded as such",
+    proseFinish && proseFinish.tokenSource,
+    "transcript",
+  );
+  check(
+    "the transcript that carried it is recorded as found",
+    proseFinish && proseFinish.transcriptFound,
+    true,
+  );
+  check(
+    "the transcript that carried it is recorded as read",
+    proseFinish && proseFinish.transcriptRead,
+    true,
+  );
+
+  // A dispatch prompt longer than the gate's prefix read leaves no whole line
+  // inside it, so nothing parses. The file was still there, and the record has
+  // to keep those two facts apart: read as "the prompt never arrived" this
+  // would have the conformance log report harness drift over a long prompt.
+  {
+    const agentId = "log-oversized";
+    fs.mkdirSync(path.dirname(workerTranscriptAt(agentId)), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      workerTranscriptAt(agentId),
+      JSON.stringify({
+        type: "user",
+        version: "2.1.273",
+        message: {
+          role: "user",
+          content: "x".repeat(200 * 1024) + "\\n\\nRUN abcd1234",
+        },
+      }) + "\n",
+    );
+    run(
+      GATE_FINISH,
+      {
+        hook_event_name: "SubagentStop",
+        agent_id: agentId,
+        agent_type: "implementer",
+        session_id: "s7",
+        last_assistant_message: "All done, everything works.",
+        agent_transcript_path: workerTranscriptAt(agentId),
+        stop_hook_active: false,
+      },
+      workerEnv,
+    );
+    const oversizedFinish = finishes("s7").find(
+      (line) => line.agentId === agentId,
+    );
+    check(
+      "a transcript too long to scan is still recorded as found",
+      oversizedFinish && oversizedFinish.transcriptFound,
+      true,
+    );
+    check(
+      "a transcript too long to scan is recorded as unread",
+      oversizedFinish && oversizedFinish.transcriptRead,
+      false,
+    );
+    check(
+      "a transcript too long to scan yields no token",
+      oversizedFinish && oversizedFinish.token,
+      null,
+    );
+  }
+
+  // A hand-back whose derived transcript is not there: the layout assumption is
+  // the one this case exists to contradict, and nothing may read as confirmed.
+  run(
+    GATE_FINISH,
+    {
+      hook_event_name: "PreToolUse",
+      tool_name: "SubagentHandback",
+      agent_id: "log-missing",
+      agent_type: "implementer",
+      session_id: "s7",
+      transcript_path: path.join(testedConfig, "projects", "s7.jsonl"),
+      tool_input: { message: "All done." },
+    },
+    workerEnv,
+  );
+  const missingFinish = finishes("s7").find(
+    (line) => line.agentId === "log-missing",
+  );
+  check(
+    "a hand-back with no transcript records it missing",
+    missingFinish && missingFinish.transcriptFound,
+    false,
+  );
+  check(
+    "a missing transcript carries no build",
+    missingFinish && missingFinish.build,
+    null,
+  );
+  check(
+    "a missing transcript is recorded as unread",
+    missingFinish && missingFinish.transcriptRead,
+    false,
+  );
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
+fs.rmSync(testedConfig, { recursive: true, force: true });
+fs.rmSync(noneConfig, { recursive: true, force: true });
 fs.rmSync(captureHome, { recursive: true, force: true });
 fs.rmSync(captureRepository, { recursive: true, force: true });
 console.log(`\ntemp repo removed; live marker cache untouched`);

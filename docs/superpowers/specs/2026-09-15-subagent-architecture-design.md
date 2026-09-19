@@ -228,7 +228,10 @@ This is what makes the scope gate precise instead of approximate. Diffing the
 repository at finish would attribute to one worker whatever a sibling worker
 changed in the same checkout at the same time. Attributing per `agent_id`
 attributes correctly, and a payload carrying no `agent_id` is the main session
-acting, which is recorded and never gated.
+acting, which is neither recorded nor gated. (Decided by the operator on
+2026-09-17: the record holds worker activity only. Recording the main session
+would append a line for every edit made in ordinary work, and no gate ever reads
+those lines.)
 
 The record is in `cache/`, which `.gitignore:115` already excludes, so nothing
 here reaches the public repository.
@@ -423,8 +426,8 @@ before its code exists. The ones that carry the design:
   not in the original.
 - A finish block whose token matches the record joins; one whose token does not
   is not attributed to that run.
-- A `PostToolUse` payload carrying no `agent_id` is recorded as the main session
-  and never gated.
+- A `PostToolUse` payload carrying no `agent_id` is left alone: nothing recorded,
+  nothing gated.
 - A worker that wrote outside its declared scope is blocked, and the same worker
   with a deviation line naming the file is allowed.
 - A `STATE done` citing a command absent from the evidence log is blocked at

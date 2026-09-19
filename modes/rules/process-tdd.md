@@ -2,6 +2,7 @@
 id: process-tdd
 setting: process
 primary_at: full
+worker: brief
 ---
 
 **Build.** Tests first where the behavior is specifiable

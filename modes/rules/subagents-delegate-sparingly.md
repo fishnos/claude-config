@@ -2,6 +2,7 @@
 id: subagents-delegate-sparingly
 setting: subagents
 primary_at: none
+worker: n/a
 ---
 
 Delegate to a subagent only for large, genuinely independent, parallelizable work,

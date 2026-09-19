@@ -34,6 +34,31 @@ function allowedTools(role, deniedTools) {
   return role.tools.filter((tool) => !deniedTools.includes(tool));
 }
 
+// Five is a ceiling read off the measurement literature, not a taste call:
+// adherence approaches zero past roughly five guardrails, and across 707 real
+// agent prompts the rate at which EVERY constraint held was 27.2%. A sixth rule
+// in a worker's brief does not add a sixth rule, it makes all six less likely.
+const MAX_BRIEF_RULES = 5;
+
+/**
+ * The prose a worker reads, from the rules classified `brief`.
+ *
+ * Takes the rules ALREADY ordered for the mode in force, primary band first,
+ * and keeps the first five. Ordering is the caller's job because it is the
+ * mode's job: `tools/modes/render.js` carries the 1,218 trials saying position
+ * governs adherence, so a band sliced in filename order would spend the budget
+ * on whichever rules happen to sort first.
+ */
+function briefBand(orderedRules) {
+  const chosen = orderedRules
+    .filter((rule) => rule.worker === "brief")
+    .slice(0, MAX_BRIEF_RULES);
+  if (chosen.length === 0) return "";
+  return (
+    "## Rules for this run\n\n" + chosen.map((rule) => rule.body).join("\n\n")
+  );
+}
+
 function renderAgent(role, resolvedSettings, deniedTools, briefBand) {
   const tools = allowedTools(role, deniedTools);
   if (tools.length === 0) return null;
@@ -109,6 +134,7 @@ function writeCrew(configDir, roles, resolvedSettings, deniedTools, briefBand) {
 module.exports = {
   crewRoster,
   allowedTools,
+  briefBand,
   renderAgent,
   isGenerated,
   writeCrew,

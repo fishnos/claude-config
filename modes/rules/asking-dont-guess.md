@@ -2,6 +2,7 @@
 id: asking-dont-guess
 setting: asking
 primary_at: never
+worker: brief
 ---
 
 **Don't guess.** When the cause is unclear, say what specifically is unclear and

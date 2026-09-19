@@ -2,6 +2,7 @@
 id: voice-lead-with-outcome
 setting: voice
 only_at: caveman
+worker: gate:finish-shape
 ---
 
 Before the first tool call, say in one sentence what you're about to do. While
