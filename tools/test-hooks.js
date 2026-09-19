@@ -3078,7 +3078,9 @@ header("/repo-setup context: one-step state file, ignore line and graph");
   }
 }
 
-header("/repo-setup audit: with git unavailable, each file keeps its own approximation");
+header(
+  "/repo-setup audit: with git unavailable, each file keeps its own approximation",
+);
 {
   const auditScript = path.join(
     __dirname,
