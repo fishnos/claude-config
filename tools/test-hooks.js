@@ -7402,6 +7402,98 @@ header("The evidence gate: a claim of done against the commands that ran");
   );
 }
 
+header("The run record: review lines");
+{
+  const recordConfig = fs.mkdtempSync(
+    path.join(os.tmpdir(), "crew-review-record-"),
+  );
+  const recordEnv = { CLAUDE_CONFIG_DIR: recordConfig };
+  const recordModule = path.join(HOOKS, "lib", "crew-record.js");
+  // The module reads CLAUDE_CONFIG_DIR when called, so each case runs in a child
+  // process with its own environment rather than mutating this one.
+  const runInChild = (body) => {
+    const script = `const record = require(${JSON.stringify(recordModule)});\n${body}`;
+    const result = spawnSync(process.execPath, ["-e", script], {
+      encoding: "utf8",
+      env: { ...process.env, ...recordEnv },
+    });
+    return (result.stdout || "").trim();
+  };
+  // A child whose call throws writes no line, so every reader below has to cope
+  // with a line that is missing or is the previous case's. Each one answers with
+  // a wrong value rather than a thrown error: a case that aborts this file takes
+  // every later case down with it, and the first break then hides the rest.
+  const lastLine = () => {
+    const text = readTextOrEmpty(
+      path.join(recordConfig, "cache", "crew", "r1.jsonl"),
+    ).trim();
+    if (text === "") return {};
+    const lines = text.split("\n");
+    return JSON.parse(lines[lines.length - 1]);
+  };
+
+  runInChild(
+    `record.openRun({ sessionId: "r1", token: "aaaa0001", role: "implementer", scope: ["a.js"], head: "h", verify: "proven" });`,
+  );
+  check(
+    "a run line keeps the posture it was dispatched under",
+    lastLine().verify,
+    "proven",
+  );
+  check("a run line with no reviews says null", lastLine().reviews, null);
+
+  runInChild(
+    `record.openRun({ sessionId: "r1", token: "bbbb0002", role: "reviewer", scope: [], head: "h", verify: "proven", reviews: ["aaaa0001"] });`,
+  );
+  check(
+    "a reviewer run line keeps what it reviews",
+    (lastLine().reviews || []).join(","),
+    "aaaa0001",
+  );
+
+  runInChild(
+    `record.appendReview("r1", { token: "bbbb0002", reviews: ["aaaa0001"], findings: [{ severity: "Nit", text: "x" }] });`,
+  );
+  check("a review line has its kind", lastLine().kind, "review");
+  check(
+    "a review line keeps its findings",
+    (lastLine().findings || [{}])[0].severity,
+    "Nit",
+  );
+
+  runInChild(
+    `record.appendStands("r1", { token: "aaaa0001", reason: "false alarm" });`,
+  );
+  check("a stands line keeps its reason", lastLine().reason, "false alarm");
+
+  runInChild(`record.appendHold("r1", { token: "aaaa0001" });`);
+  check(
+    "a hold line names its run",
+    lastLine().kind + " " + lastLine().token,
+    "hold aaaa0001",
+  );
+
+  runInChild(
+    `record.appendFinish("r1", { agentId: "agent-old", token: "aaaa0001" }); record.appendFinish("r1", { agentId: "agent-new", token: "aaaa0001" });`,
+  );
+  check(
+    "a token joins to the newest worker that reported it",
+    runInChild(
+      `process.stdout.write(String(record.agentForToken("r1", "aaaa0001")));`,
+    ),
+    "agent-new",
+  );
+  check(
+    "a token nobody reported joins to nothing",
+    runInChild(
+      `process.stdout.write(String(record.agentForToken("r1", "cccc0003")));`,
+    ),
+    "null",
+  );
+
+  fs.rmSync(recordConfig, { recursive: true, force: true });
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(testedConfig, { recursive: true, force: true });
 fs.rmSync(noneConfig, { recursive: true, force: true });

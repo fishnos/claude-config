@@ -70,13 +70,17 @@ function readLines(sessionId) {
  * be taken against the state the worker actually started from rather than
  * against whatever HEAD has become by the time it reports.
  */
-function openRun({ sessionId, token, role, scope, head }) {
+function openRun({ sessionId, token, role, scope, head, verify, reviews }) {
   return appendLine(sessionId, {
     kind: "run",
     token,
     role: role || null,
     scope: Array.isArray(scope) ? scope : [],
     head: head || null,
+    verify: verify || null,
+    // Only a reviewer's dispatch carries this. Null rather than an empty list
+    // so a reader can test it for truth without also checking its length.
+    reviews: Array.isArray(reviews) && reviews.length > 0 ? reviews : null,
     at: new Date().toISOString(),
   });
 }
@@ -151,6 +155,41 @@ function appendFinish(
   });
 }
 
+/** A reviewer's verdict on the runs it was dispatched to review. */
+function appendReview(sessionId, { token, reviews, findings }) {
+  return appendLine(sessionId, {
+    kind: "review",
+    token,
+    reviews,
+    findings,
+    at: new Date().toISOString(),
+  });
+}
+
+/**
+ * The main session's written reason that a run's blocking findings stand.
+ *
+ * Kept here rather than read back from the transcript each time, because the
+ * turn end that wrote it is gone by the next one.
+ */
+function appendStands(sessionId, { token, reason }) {
+  return appendLine(sessionId, {
+    kind: "stands",
+    token,
+    reason,
+    at: new Date().toISOString(),
+  });
+}
+
+/** One turn end held on a run, counted toward the two-hold bound. */
+function appendHold(sessionId, { token }) {
+  return appendLine(sessionId, {
+    kind: "hold",
+    token,
+    at: new Date().toISOString(),
+  });
+}
+
 /** Every mark recorded against a given worker. */
 function marksFor(sessionId, agentId) {
   return readLines(sessionId).filter(
@@ -167,6 +206,23 @@ function findRun(sessionId, token) {
   return null;
 }
 
+/**
+ * The worker a run token belongs to, or null.
+ *
+ * Only a `finish` line holds both halves of the join: the dispatch minted the
+ * token before the worker had an agent id, and the trace hook records paths by
+ * agent id alone. The newest wins, because a worker whose report was refused
+ * reports a second time, and the later line is the one that describes the work.
+ */
+function agentForToken(sessionId, token) {
+  let agentId = null;
+  for (const entry of readLines(sessionId)) {
+    if (entry.kind === "finish" && entry.token === token && entry.agentId)
+      agentId = entry.agentId;
+  }
+  return agentId;
+}
+
 /** Every path a given worker wrote. */
 function pathsFor(sessionId, agentId) {
   return readLines(sessionId)
@@ -181,6 +237,10 @@ module.exports = {
   appendPath,
   appendMark,
   appendFinish,
+  appendReview,
+  appendStands,
+  appendHold,
+  agentForToken,
   marksFor,
   findRun,
   pathsFor,
