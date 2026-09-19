@@ -2203,13 +2203,16 @@ const ENVIRONMENT = process.env;
       hardHash: "h",
     }),
   );
+  // The colour check below needs colour on, whatever the caller's shell says.
+  const colourEnvironment = { ...ENVIRONMENT };
+  delete colourEnvironment.NO_COLOR;
   const drawn = require("child_process").spawnSync(
     process.execPath,
     [path.join(__dirname, "..", "hooks", "mode-status.js")],
     {
       input: JSON.stringify({ session_id: "stale-1" }),
       encoding: "utf8",
-      env: { ...ENVIRONMENT, CLAUDE_CONFIG_DIR: root },
+      env: { ...colourEnvironment, CLAUDE_CONFIG_DIR: root },
     },
   ).stdout;
 
