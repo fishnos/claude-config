@@ -46,6 +46,20 @@ const io = require("./lib/hook-io");
 const CLEAR_SUGGESTION =
   /(?<![A-Za-z0-9/])\/clear(?![A-Za-z0-9]|[-.][A-Za-z0-9]|\/)/;
 
+// A reply quoting a commit message or the operator's words mentions /clear
+// without suggesting it, and quoted text sits in a fence or a blockquote. The
+// gauge's own suggestion is never in either, so dropping both before matching
+// loses no real suggestion. The first pattern takes an opening fence through to
+// its matching close, or to the end of the message when it never closes.
+function withoutQuotations(message) {
+  return String(message || "")
+    .replace(
+      /^ {0,3}(```|~~~)[^\n]*\n[\s\S]*?(^ {0,3}\1[^\n]*$|(?![\s\S]))/gm,
+      "",
+    )
+    .replace(/^ {0,3}>.*$/gm, "");
+}
+
 io.run(() => {
   const payload = io.readPayload();
   if (payload.stop_hook_active) return;
@@ -56,7 +70,7 @@ io.run(() => {
     typeof payload.last_assistant_message === "string"
       ? payload.last_assistant_message
       : transcriptTail.latestAssistantText(payload.transcript_path);
-  if (!CLEAR_SUGGESTION.test(message)) return;
+  if (!CLEAR_SUGGESTION.test(withoutQuotations(message))) return;
 
   const tokens = transcriptTail.latestContextTokens(payload.transcript_path);
   if (zones.zoneOf(tokens) === "green") return;

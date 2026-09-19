@@ -3758,6 +3758,40 @@ header(
     "",
   );
 
+  // Observed live 2026-09-16: a reply quoting a commit message that mentioned
+  // /clear was held as a suggestion. Quoted text sits in a fence or a
+  // blockquote, and the gauge's own suggestion never does.
+  startTurn("gate-fenced-quote", 150000);
+  check(
+    "a /clear inside a fenced block is a quotation, not a suggestion",
+    stop("gate-fenced-quote", 150000, {
+      last_assistant_message:
+        "Suggested message:\n\n```\nMake the gate hold a /clear suggestion\n```\n",
+    }).verdict,
+    "allow",
+    "",
+  );
+  startTurn("gate-blockquote", 150000);
+  check(
+    "a /clear inside a blockquote is a quotation, not a suggestion",
+    stop("gate-blockquote", 150000, {
+      last_assistant_message:
+        "You wrote:\n> then run /clear and go\nDone as asked.",
+    }).verdict,
+    "allow",
+    "",
+  );
+  startTurn("gate-after-fence", 150000);
+  check(
+    "a suggestion after a fenced block still fires",
+    stop("gate-after-fence", 150000, {
+      last_assistant_message:
+        "```\nnode tools/ccfg.js test\n```\n" + suggestion,
+    }).verdict,
+    "BLOCK",
+    "",
+  );
+
   // A config directory that is really a file: mkdirSync under it fails with
   // ENOTDIR, which is the cheapest way to make the write fail on every platform.
   const notADirectory = path.join(gateHome, "not-a-directory");
