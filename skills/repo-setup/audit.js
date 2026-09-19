@@ -26,22 +26,23 @@ const SNOOZE_DAYS = 14;
 /**
  * Authoritative ignore status.
  *
- * `check-ignore -v` prints the rule that excluded the file and prints nothing
- * when it is tracked, so empty output means either "not ignored" or "git could
- * not run". Those need different answers, and the approximate scan is the only
- * one available for the second, so an absent git falls back to it rather than
- * reporting a clean repo it never inspected.
+ * Plain `check-ignore` prints the path and exits 0 only when git ignores it.
+ * Not `-v`: that form also prints, and exits 0, for a file a `!` exception
+ * re-includes, which would read an excepted file as ignored. Empty output
+ * means either "not ignored" or "git could not run". Those need different
+ * answers, and the approximate scan is the only one available for the second,
+ * so an absent git falls back to it rather than reporting a clean repo it
+ * never inspected.
  */
 function gitIgnores(root, fileName) {
-  if (io.git(["check-ignore", "-v", fileName], root) !== "") return true;
+  if (io.git(["check-ignore", fileName], root) !== "") return true;
   const gitWorks = io.git(["rev-parse", "--git-dir"], root) !== "";
   return gitWorks ? false : repoAudit.isIgnored(root, fileName);
 }
 
 /** Whether git ignores the state file, with the hook's approximation when git cannot run. */
 function stateFileGitIgnored(root) {
-  if (io.git(["check-ignore", "-v", ".claude/state.md"], root) !== "")
-    return true;
+  if (io.git(["check-ignore", ".claude/state.md"], root) !== "") return true;
   const gitWorks = io.git(["rev-parse", "--git-dir"], root) !== "";
   return gitWorks ? false : stateFile.stateFileIgnoreListed(root);
 }
