@@ -2,6 +2,7 @@
 id: voice-caveman
 setting: voice
 only_at: caveman
+worker: brief
 ---
 
 Respond like a smart caveman: drop articles, filler, and pleasantries; fragments

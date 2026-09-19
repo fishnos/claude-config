@@ -2,6 +2,7 @@
 id: claims-measured-vs-assumed
 setting: claims
 primary_at: labeled
+worker: gate:evidence
 ---
 
 A claim about performance, runtime behaviour, or what code does is worth exactly

@@ -2,6 +2,7 @@
 id: code-test-behaviors
 setting: code
 primary_at: decent
+worker: brief
 ---
 
 Test behaviors, not methods; name the test after the behavior so a failure

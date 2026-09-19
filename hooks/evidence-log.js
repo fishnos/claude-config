@@ -82,6 +82,11 @@ io.run(() => {
   appendEntry(logFile(payload.session_id), {
     command: command.slice(0, MAX_COMMAND_LENGTH),
     truncated: command.length > MAX_COMMAND_LENGTH,
+    // When it ran, and not only that it ran. The evidence gate
+    // (hooks/subagent/gates/evidence.js) orders a cited command against the run
+    // record's last write to the code it claims to verify, and the record's own
+    // lines carry the same ISO spelling.
+    at: new Date().toISOString(),
     exit: exitStatus(response),
     // The one failure signal this harness does report.
     interrupted: Boolean(response && response.interrupted),

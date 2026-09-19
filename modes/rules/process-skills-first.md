@@ -2,6 +2,7 @@
 id: process-skills-first
 setting: process
 primary_at: light
+worker: brief
 ---
 
 Skills are part of the process, not a fallback. Before starting a task, check

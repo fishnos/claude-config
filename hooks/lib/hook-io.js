@@ -86,6 +86,30 @@ function announce(hookEventName, additionalContext, systemMessage) {
   process.exit(0);
 }
 
+/**
+ * Let the call through with different arguments.
+ *
+ * Measured working on the Agent tool on build 2.1.270 by the 2026-09-15 spike,
+ * against a five-month-old closed issue claiming it was silently ignored there.
+ * It is the only channel that can put anything into a dispatch prompt, because
+ * SubagentStart can inject context but never sees the brief.
+ *
+ * `systemMessage` is optional and reaches the operator's transcript rather than
+ * the model, which is how a rewrite says something without turning itself into
+ * a warning the harness treats as a separate decision.
+ */
+function rewrite(hookEventName, updatedInput, systemMessage) {
+  emit({
+    systemMessage,
+    hookSpecificOutput: {
+      hookEventName,
+      permissionDecision: "allow",
+      updatedInput,
+    },
+  });
+  process.exit(0);
+}
+
 /** Stop-hook form: send the model back for another turn. */
 function block(reason) {
   emit({ decision: "block", reason });
@@ -143,6 +167,7 @@ module.exports = {
   deny,
   warn,
   announce,
+  rewrite,
   block,
   configDir,
   evidenceDir,

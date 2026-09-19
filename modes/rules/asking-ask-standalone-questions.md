@@ -2,6 +2,7 @@
 id: asking-ask-standalone-questions
 setting: asking
 primary_at: sometimes
+worker: n/a
 ---
 
 Ask questions that stand on their own: name the concrete choice and give real

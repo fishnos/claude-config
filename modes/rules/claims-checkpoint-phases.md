@@ -2,6 +2,7 @@
 id: claims-checkpoint-phases
 setting: claims
 primary_at: sourced
+worker: n/a
 ---
 
 **Checkpoint multi-phase work.** Finish a phase, show the output, stop. Do not

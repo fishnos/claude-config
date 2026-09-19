@@ -2,6 +2,7 @@
 id: claims-measure-before-ordering
 setting: claims
 primary_at: sourced
+worker: n/a
 ---
 
 **Measure before ordering the work.** Any plan whose sequence rests on impact

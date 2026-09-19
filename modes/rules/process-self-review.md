@@ -2,6 +2,7 @@
 id: process-self-review
 setting: process
 primary_at: full
+worker: brief
 ---
 
 **Review.** `google-code-review` as a self-review pass before reporting work

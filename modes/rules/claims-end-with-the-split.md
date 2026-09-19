@@ -2,6 +2,7 @@
 id: claims-end-with-the-split
 setting: claims
 primary_at: labeled
+worker: gate:evidence
 ---
 
 **End with the split.** Every report ends with what was verified (claim +

@@ -94,6 +94,7 @@ const WELL_FORMED = `---
 id: claims-measured-vs-assumed
 setting: claims
 primary_at: labeled
+worker: gate:evidence
 ---
 
 A claim is worth exactly what produced it. Say measured or assumed.
@@ -149,6 +150,7 @@ const CATEGORICAL = `---
 id: voice-caveman
 setting: voice
 only_at: caveman
+worker: brief
 ---
 Drop the articles.
 `;
@@ -158,7 +160,8 @@ check("a categorical rule has no threshold", categorical.primary_at, null);
 
 check(
   "a rule with neither placement is refused",
-  rules.parseRule("---\nid: x\nsetting: voice\n---\nbody\n", "corpus/x.md").error,
+  rules.parseRule("---\nid: x\nsetting: voice\n---\nbody\n", "corpus/x.md")
+    .error,
   "corpus/x.md: no primary_at or only_at",
 );
 check(
@@ -207,6 +210,72 @@ check(
   loaded.errors.some((message) => message.includes("notes.txt")),
   false,
 );
+
+// ------------------------------------------------ a rule's worker classification
+//
+// Every rule says what a dispatched worker does with it: reads it as prose
+// (`brief`), never sees it (`n/a`), or has a named gate enforcing it
+// (`gate:<id>`). The field is required rather than defaulted, because the
+// default would silently be `brief` and the brief is the one band with a budget.
+{
+  const briefRule = rules.parseRule(
+    "---\nid: x\nsetting: code\nprimary_at: rough\nworker: brief\n---\nbody",
+    "x.md",
+  );
+  check("a rule parses worker: brief", briefRule.worker, "brief");
+
+  const gateRule = rules.parseRule(
+    "---\nid: x\nsetting: code\nprimary_at: rough\nworker: gate:scope\n---\nbody",
+    "x.md",
+  );
+  check("a rule parses a gate classification", gateRule.worker, "gate:scope");
+
+  const missing = rules.parseRule(
+    "---\nid: x\nsetting: code\nprimary_at: rough\n---\nbody",
+    "x.md",
+  );
+  check(
+    "a rule with no worker field is an error",
+    typeof missing.error,
+    "string",
+  );
+
+  const bogus = rules.parseRule(
+    "---\nid: x\nsetting: code\nprimary_at: rough\nworker: maybe\n---\nbody",
+    "x.md",
+  );
+  check("an unknown worker value is an error", typeof bogus.error, "string");
+
+  const emptyGate = rules.parseRule(
+    "---\nid: x\nsetting: code\nprimary_at: rough\nworker: gate:\n---\nbody",
+    "x.md",
+  );
+  check(
+    "a gate classification naming no gate is an error",
+    typeof emptyGate.error,
+    "string",
+  );
+
+  const crew = require("./modes/crew.js");
+  const band = crew.briefBand([
+    { worker: "brief", body: "ONE" },
+    { worker: "gate:scope", body: "TWO" },
+    { worker: "n/a", body: "THREE" },
+  ]);
+  check("the brief band keeps brief rules", band.includes("ONE"), true);
+  check("the brief band drops gated rules", band.includes("TWO"), false);
+  check("the brief band drops n/a rules", band.includes("THREE"), false);
+
+  const overCap = crew.briefBand(
+    Array.from({ length: 7 }, (_, index) => ({
+      worker: "brief",
+      body: `R${index}`,
+    })),
+  );
+  check("the brief band caps at five", (overCap.match(/R\d/g) || []).length, 5);
+
+  check("a crew with no brief rule gets no band", crew.briefBand([]), "");
+}
 
 // ------------------------------------------------------------------ render
 
@@ -266,7 +335,14 @@ check(
 );
 
 const VOICED = [
-  { id: "cave", setting: "voice", primary_at: null, only_at: "caveman", body: "Cave.", file: "v.md" },
+  {
+    id: "cave",
+    setting: "voice",
+    primary_at: null,
+    only_at: "caveman",
+    body: "Cave.",
+    file: "v.md",
+  },
 ];
 check(
   "a categorical rule is primary at its own value",
@@ -388,7 +464,10 @@ check(
 );
 check(
   "a hook whose name merely shares letters with a core hook is still allowed",
-  modes.coreHookViolation({ name: "fine", disableHooks: ["review-reminder.js"] }),
+  modes.coreHookViolation({
+    name: "fine",
+    disableHooks: ["review-reminder.js"],
+  }),
   null,
 );
 
@@ -433,13 +512,50 @@ check(
 const REAL_CONFIG = path.join(os.homedir(), ".claude");
 const realCorpus = rules.loadCorpus(path.join(REAL_CONFIG, "modes", "rules"));
 
-check("the real corpus loads with no malformed rules", realCorpus.errors.length, 0);
+check(
+  "the real corpus loads with no malformed rules",
+  realCorpus.errors.length,
+  0,
+);
 check("the real corpus is not empty", realCorpus.rules.length > 0, true);
 check(
   "every rule id is unique",
   new Set(realCorpus.rules.map((rule) => rule.id)).size,
   realCorpus.rules.length,
 );
+// A gate name is a promise that a gate of that name will enforce the rule. The
+// four the spec defines are the only ones any rule may name; a fifth would be a
+// rule taken out of every worker's brief and handed to nothing.
+{
+  const GATES = ["finish-shape", "scope", "evidence", "review"];
+  const namedGates = realCorpus.rules
+    .filter((rule) => rule.worker.startsWith("gate:"))
+    .map((rule) => rule.worker.slice("gate:".length));
+  check(
+    "every rule the corpus holds is classified for workers",
+    realCorpus.rules.every((rule) => typeof rule.worker === "string"),
+    true,
+  );
+  check(
+    "every gate a rule names is one the spec defines",
+    namedGates.every((gate) => GATES.includes(gate)),
+    true,
+  );
+  // The strictest posture is where the corpus makes the most rules primary, so
+  // it is where the band would overflow if the cap ever stopped holding.
+  const strictest = render.band(realCorpus.rules, {
+    ...settings.DEFAULTS,
+    verify: "proven",
+    process: "full",
+  }).primary;
+  const strictestBand = require("./modes/crew.js").briefBand(strictest);
+  const headingAndRules = strictestBand.split("\n\n").length;
+  check(
+    "the strictest posture still hands a worker five rules and a heading",
+    headingAndRules,
+    6,
+  );
+}
 // The harness loads every .md in rules/ wholesale, so the 25 source files must
 // not sit there. Only the single generated render belongs there, which is the
 // sorted copy.
@@ -465,8 +581,17 @@ check(
 }
 
 const MODE_NAMES = [
-  "spike", "build", "ship", "paper", "research",
-  "review", "debug", "design", "unattended", "pair", "nomad",
+  "spike",
+  "build",
+  "ship",
+  "paper",
+  "research",
+  "review",
+  "debug",
+  "design",
+  "unattended",
+  "pair",
+  "nomad",
 ];
 
 const realModes = MODE_NAMES.map((name) =>
@@ -612,7 +737,11 @@ check(
   false,
 );
 
-check("reading the lock back names the mode", apply.readLock(applySandbox).mode, "spike");
+check(
+  "reading the lock back names the mode",
+  apply.readLock(applySandbox).mode,
+  "spike",
+);
 
 // The lock records the name under `mode`; a reader looking for `name` finds
 // nothing and reports (none) while showing the applied posture, a display
@@ -639,7 +768,11 @@ check("reading the lock back names the mode", apply.readLock(applySandbox).mode,
   const chain = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-chain-"));
   fs.mkdirSync(path.join(chain, "rules"), { recursive: true });
   const original =
-    JSON.stringify({ effortLevel: "high", skillOverrides: { keep: "user-invocable-only" } }, null, 2) + "\n";
+    JSON.stringify(
+      { effortLevel: "high", skillOverrides: { keep: "user-invocable-only" } },
+      null,
+      2,
+    ) + "\n";
   fs.writeFileSync(path.join(chain, "settings.json"), original);
 
   apply.applyMode(chain, modes.parseMode(SPIKE, "spike.json"), CORPUS, {});
@@ -673,7 +806,10 @@ check("reading the lock back names the mode", apply.readLock(applySandbox).mode,
     fs.mkdirSync(path.join(chain, "skills", skill), { recursive: true });
     fs.writeFileSync(path.join(chain, "skills", skill, "SKILL.md"), "x");
   }
-  fs.writeFileSync(path.join(chain, "settings.json"), JSON.stringify({}, null, 2) + "\n");
+  fs.writeFileSync(
+    path.join(chain, "settings.json"),
+    JSON.stringify({}, null, 2) + "\n",
+  );
 
   const hidesBeta = modes.parseMode(
     { name: "one", settings: {}, glitch: { skills: { only: ["alpha"] } } },
@@ -686,7 +822,9 @@ check("reading the lock back names the mode", apply.readLock(applySandbox).mode,
 
   apply.applyMode(chain, hidesBeta, CORPUS, {});
   apply.applyMode(chain, hidesAlpha, CORPUS, {});
-  const after = JSON.parse(fs.readFileSync(path.join(chain, "settings.json"), "utf8"));
+  const after = JSON.parse(
+    fs.readFileSync(path.join(chain, "settings.json"), "utf8"),
+  );
 
   check(
     "a skill the new mode wants is visible again after switching",
@@ -708,7 +846,11 @@ check(
   originalText,
 );
 check("revert clears the lock", apply.readLock(applySandbox), null);
-check("revert with no mode applied reports nothing to do", apply.revert(applySandbox), false);
+check(
+  "revert with no mode applied reports nothing to do",
+  apply.revert(applySandbox),
+  false,
+);
 
 check(
   "a mode disabling a protected hook is refused before anything is written",
@@ -746,28 +888,29 @@ const glitch = require("./modes/glitch.js");
 // the model into "switch to this mode" would widen its own access.
 check(
   "a mode may not grant a tool the base config denies",
-  glitch.parseGlitch({ tools: { allow: ["Bash"] } }, "m.json").error.includes(
-    "never grant",
-  ),
+  glitch
+    .parseGlitch({ tools: { allow: ["Bash"] } }, "m.json")
+    .error.includes("never grant"),
   true,
 );
 check(
   "a mode may not reveal a skill the operator switched off",
-  glitch.parseGlitch({ skills: { on: ["secret"] } }, "m.json").error.includes(
-    "never reveal",
-  ),
+  glitch
+    .parseGlitch({ skills: { on: ["secret"] } }, "m.json")
+    .error.includes("never reveal"),
   true,
 );
 check(
   "a mode may not gate the ability to read",
-  glitch.parseGlitch({ tools: { deny: ["Read"] } }, "m.json").error.includes(
-    "always be able to read",
-  ),
+  glitch
+    .parseGlitch({ tools: { deny: ["Read"] } }, "m.json")
+    .error.includes("always be able to read"),
   true,
 );
 check(
   "a mode may not gate the ability to search",
-  glitch.parseGlitch({ tools: { deny: ["Grep"] } }, "m.json").error !== undefined,
+  glitch.parseGlitch({ tools: { deny: ["Grep"] } }, "m.json").error !==
+    undefined,
   true,
 );
 
@@ -785,10 +928,7 @@ check(
 // `only` hides everything outside the list. The operator's own overrides pass
 // through untouched, which is what makes revert able to restore them.
 {
-  const layer = glitch.parseGlitch(
-    { skills: { only: ["keep-me"] } },
-    "m.json",
-  );
+  const layer = glitch.parseGlitch({ skills: { only: ["keep-me"] } }, "m.json");
   const merged = glitch.skillOverridesFor(
     layer,
     ["keep-me", "hide-me", "also-hide"],
@@ -847,7 +987,10 @@ check(
     },
   );
   const recorded = JSON.parse(
-    fs.readFileSync(path.join(root, "cache", "mode-session", "baseline"), "utf8"),
+    fs.readFileSync(
+      path.join(root, "cache", "mode-session", "baseline"),
+      "utf8",
+    ),
   );
   const bare = glitch.parseGlitch(undefined, "none");
   check(
@@ -860,7 +1003,10 @@ check(
 // The warning has to stay loud for the case it was built for.
 {
   const bare = glitch.parseGlitch(undefined, "none");
-  const hidesSkills = glitch.parseGlitch({ skills: { off: ["graphify"] } }, "m");
+  const hidesSkills = glitch.parseGlitch(
+    { skills: { off: ["graphify"] } },
+    "m",
+  );
   check(
     "a mode that hides a skill still differs from the baseline",
     glitch.hardHash(hidesSkills, {}) === glitch.hardHash(bare, {}),
@@ -914,8 +1060,9 @@ check(
 );
 check(
   "the refusal names the mode so the model knows why",
-  JSON.parse(runGuardHook({ tool_name: "Write" }, guardSandbox).stdout)
-    .hookSpecificOutput.permissionDecisionReason.includes("APPRAISER"),
+  JSON.parse(
+    runGuardHook({ tool_name: "Write" }, guardSandbox).stdout,
+  ).hookSpecificOutput.permissionDecisionReason.includes("APPRAISER"),
   true,
 );
 // A bare refusal invites the model to reach the same end by another route,
@@ -923,8 +1070,9 @@ check(
 // around it, the model stopped instead of falling back to a shell command.
 check(
   "the refusal tells the model not to route around it",
-  JSON.parse(runGuardHook({ tool_name: "Write" }, guardSandbox).stdout)
-    .hookSpecificOutput.permissionDecisionReason.includes("another"),
+  JSON.parse(
+    runGuardHook({ tool_name: "Write" }, guardSandbox).stdout,
+  ).hookSpecificOutput.permissionDecisionReason.includes("another"),
   true,
 );
 check(
@@ -1075,13 +1223,22 @@ check("plain output carries no escape codes", /\u001b\[/.test(drawn), false);
 // The banner is painted in the mode's own hue, so a switch is recognised by
 // colour before a word of it is read.
 {
-  const lit = banner.renderBanner({ ...SWITCH, plain: false, color: 226, icon: "\u25b2" });
+  const lit = banner.renderBanner({
+    ...SWITCH,
+    plain: false,
+    color: 226,
+    icon: "\u25b2",
+  });
   check(
     "a switch is painted in the mode's colour",
     lit.includes("\u001b[38;5;226m"),
     true,
   );
-  check("the arrow carries the mode's glyph", lit.includes("\u25b2 SPIKE"), true);
+  check(
+    "the arrow carries the mode's glyph",
+    lit.includes("\u25b2 SPIKE"),
+    true,
+  );
   check(
     "a mode with no colour still renders",
     banner
@@ -1091,7 +1248,9 @@ check("plain output carries no escape codes", /\u001b\[/.test(drawn), false);
   );
   check(
     "plain suppresses the colour too",
-    /\u001b\[/.test(banner.renderBanner({ ...SWITCH, plain: true, color: 226 })),
+    /\u001b\[/.test(
+      banner.renderBanner({ ...SWITCH, plain: true, color: 226 }),
+    ),
     false,
   );
 }
@@ -1131,7 +1290,11 @@ fs.mkdirSync(path.join(hookSandbox, "rules"), { recursive: true });
 
 const noLock = runInjectHook({ session_id: "s1" }, hookSandbox);
 check("with no mode applied the hook exits clean", noLock.status, 0);
-check("with no mode applied the hook injects nothing", noLock.stdout.trim(), "");
+check(
+  "with no mode applied the hook injects nothing",
+  noLock.stdout.trim(),
+  "",
+);
 
 fs.writeFileSync(
   path.join(hookSandbox, "rules", "_active.md"),
@@ -1187,11 +1350,7 @@ check(
 );
 
 const settled = runInjectHook({ session_id: "s1" }, hookSandbox);
-check(
-  "the message after a change goes quiet again",
-  settled.stdout.trim(),
-  "",
-);
+check("the message after a change goes quiet again", settled.stdout.trim(), "");
 
 const otherSession = runInjectHook({ session_id: "s2" }, hookSandbox);
 check(
@@ -1324,19 +1483,35 @@ fs.writeFileSync(
 );
 
 const announced = runSessionHook({ session_id: "s9" }, sessionSandbox);
-const context = JSON.parse(announced.stdout).hookSpecificOutput.additionalContext;
-check("the session hook announces the mode by codename", context.includes("APPRAISER"), true);
+const context = JSON.parse(announced.stdout).hookSpecificOutput
+  .additionalContext;
+check(
+  "the session hook announces the mode by codename",
+  context.includes("APPRAISER"),
+  true,
+);
 check("it says what is gated", context.includes("2 tools gated"), true);
-check("it says how many skills are hidden", context.includes("40 skills hidden"), true);
+check(
+  "it says how many skills are hidden",
+  context.includes("40 skills hidden"),
+  true,
+);
 // Being told the frozen half is frozen is the whole point: a model that thinks
 // a mid-session switch took hold completely will report work as done under a
 // posture that was never fully in force.
-check("it warns that the frozen half needs a new session", context.includes("CORRUPTED"), true);
+check(
+  "it warns that the frozen half needs a new session",
+  context.includes("CORRUPTED"),
+  true,
+);
 
 check(
   "the session records the posture it actually loaded",
   JSON.parse(
-    fs.readFileSync(path.join(sessionSandbox, "cache", "mode-session", "s9"), "utf8"),
+    fs.readFileSync(
+      path.join(sessionSandbox, "cache", "mode-session", "s9"),
+      "utf8",
+    ),
   ).hardHash,
   "cafe1234",
 );
@@ -1439,9 +1614,13 @@ check(
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-pins-"));
   fs.mkdirSync(path.join(root, "rules"), { recursive: true });
   for (const directory of ["modes", "tools", "hooks"])
-    fs.cpSync(path.join(__dirname, "..", directory), path.join(root, directory), {
-      recursive: true,
-    });
+    fs.cpSync(
+      path.join(__dirname, "..", directory),
+      path.join(root, directory),
+      {
+        recursive: true,
+      },
+    );
   fs.writeFileSync(
     path.join(root, "settings.json"),
     JSON.stringify({ model: "claude-sonnet-5", effortLevel: "low" }, null, 2),
@@ -1496,7 +1675,9 @@ check(
 // nothing in the banner or the status line mentioned.
 {
   const shipped = path.join(__dirname, "..", "modes");
-  for (const file of fs.readdirSync(shipped).filter((n) => n.endsWith(".json"))) {
+  for (const file of fs
+    .readdirSync(shipped)
+    .filter((n) => n.endsWith(".json"))) {
     const mode = JSON.parse(fs.readFileSync(path.join(shipped, file), "utf8"));
     check(
       `${path.basename(file, ".json")} leaves the model to the operator`,
@@ -1516,7 +1697,11 @@ check(
   fs.mkdirSync(markers, { recursive: true });
   fs.writeFileSync(
     path.join(root, "mode.lock"),
-    JSON.stringify({ mode: "review", codename: "APPRAISER", hardHash: "newhash" }),
+    JSON.stringify({
+      mode: "review",
+      codename: "APPRAISER",
+      hardHash: "newhash",
+    }),
   );
   // Chat A started before the switch and is genuinely half-applied.
   fs.writeFileSync(
@@ -1572,20 +1757,22 @@ check(
     JSON.stringify({ hardHash: "newhash" }),
   );
   const drawFor = (sessionId) =>
-    require("child_process").spawnSync(
-      process.execPath,
-      [path.join(__dirname, "..", "hooks", "mode-status.js")],
-      {
-        input: JSON.stringify({ session_id: sessionId }),
-        encoding: "utf8",
-        env: {
-          ...process.env,
-          CLAUDE_CONFIG_DIR: root,
-          CLAUDE_SESSION_ID: "",
-          NO_COLOR: "1",
+    require("child_process")
+      .spawnSync(
+        process.execPath,
+        [path.join(__dirname, "..", "hooks", "mode-status.js")],
+        {
+          input: JSON.stringify({ session_id: sessionId }),
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            CLAUDE_CONFIG_DIR: root,
+            CLAUDE_SESSION_ID: "",
+            NO_COLOR: "1",
+          },
         },
-      },
-    ).stdout.trim();
+      )
+      .stdout.trim();
 
   check(
     "the status line marks the half-applied chat",
@@ -1631,7 +1818,8 @@ check(
   // Read through a string that is never undefined: a hook that emits no visible
   // message should fail all four checks below, not throw on the second one and
   // hide the other three.
-  const visible = typeof emitted.systemMessage === "string" ? emitted.systemMessage : "";
+  const visible =
+    typeof emitted.systemMessage === "string" ? emitted.systemMessage : "";
 
   check(
     "the session start is announced where the operator can see it",
@@ -1656,15 +1844,17 @@ check(
 
   // No mode, nothing to announce. A banner on every plain session is noise.
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-announce-bare-"));
-  const quiet = require("child_process").spawnSync(
-    process.execPath,
-    [path.join(__dirname, "..", "hooks", "mode-session.js")],
-    {
-      input: JSON.stringify({ session_id: "announce-2" }),
-      encoding: "utf8",
-      env: { ...process.env, CLAUDE_CONFIG_DIR: bare },
-    },
-  ).stdout.trim();
+  const quiet = require("child_process")
+    .spawnSync(
+      process.execPath,
+      [path.join(__dirname, "..", "hooks", "mode-session.js")],
+      {
+        input: JSON.stringify({ session_id: "announce-2" }),
+        encoding: "utf8",
+        env: { ...process.env, CLAUDE_CONFIG_DIR: bare },
+      },
+    )
+    .stdout.trim();
   check("a session with no mode announces nothing", quiet, "");
   fs.rmSync(root, { recursive: true, force: true });
   fs.rmSync(bare, { recursive: true, force: true });
@@ -1685,7 +1875,10 @@ function commandSandbox() {
 
 function writeModeCommand(root, mode, name, body) {
   fs.mkdirSync(path.join(root, "modes", "commands", mode), { recursive: true });
-  fs.writeFileSync(path.join(root, "modes", "commands", mode, `${name}.md`), body);
+  fs.writeFileSync(
+    path.join(root, "modes", "commands", mode, `${name}.md`),
+    body,
+  );
 }
 
 const PLAIN_COMMAND = "---\ndescription: Narrow the repro\n---\n\nShrink it.\n";
@@ -1697,7 +1890,9 @@ const PLAIN_COMMAND = "---\ndescription: Narrow the repro\n---\n\nShrink it.\n";
   check("a mode command is written into commands/", installed.length, 1);
   check(
     "the installed file carries the mode command body",
-    fs.readFileSync(path.join(root, "commands", "narrow.md"), "utf8").includes("Shrink it."),
+    fs
+      .readFileSync(path.join(root, "commands", "narrow.md"), "utf8")
+      .includes("Shrink it."),
     true,
   );
 }
@@ -1805,7 +2000,11 @@ const PLAIN_COMMAND = "---\ndescription: Narrow the repro\n---\n\nShrink it.\n";
   writeModeCommand(root, "review", "verdict", PLAIN_COMMAND);
   const first = commands.install(root, "trace", ["narrow"], []);
   const second = commands.install(root, "review", ["verdict"], first);
-  check("switching installs the new mode's command", second.includes("verdict"), true);
+  check(
+    "switching installs the new mode's command",
+    second.includes("verdict"),
+    true,
+  );
   check(
     "switching removes the previous mode's command",
     fs.existsSync(path.join(root, "commands", "narrow.md")),
@@ -1847,13 +2046,20 @@ const PLAIN_COMMAND = "---\ndescription: Narrow the repro\n---\n\nShrink it.\n";
 // difference between a working clone and one where `ccfg mode debug` throws.
 {
   const shipped = path.join(__dirname, "..", "modes");
-  for (const file of fs.readdirSync(shipped).filter((n) => n.endsWith(".json"))) {
+  for (const file of fs
+    .readdirSync(shipped)
+    .filter((n) => n.endsWith(".json"))) {
     const mode = JSON.parse(fs.readFileSync(path.join(shipped, file), "utf8"));
-    for (const name of ((mode.glitch || {}).commands) || []) {
+    for (const name of (mode.glitch || {}).commands || []) {
       check(
         `${path.basename(file, ".json")} carries the file for /${name}`,
         fs.existsSync(
-          path.join(shipped, "commands", path.basename(file, ".json"), `${name}.md`),
+          path.join(
+            shipped,
+            "commands",
+            path.basename(file, ".json"),
+            `${name}.md`,
+          ),
         ),
         true,
       );
@@ -1931,7 +2137,11 @@ const ENVIRONMENT = process.env;
 
 {
   const racked = runCcfg(["mode", "list"]);
-  check("the rack frames the list", racked.stdout.includes("CARTRIDGE RACK"), true);
+  check(
+    "the rack frames the list",
+    racked.stdout.includes("CARTRIDGE RACK"),
+    true,
+  );
   check(
     "the rack marks exactly one cartridge as loaded",
     racked.stdout.split("\n").filter((line) => line.startsWith("  > ")).length,
@@ -1939,12 +2149,14 @@ const ENVIRONMENT = process.env;
   );
   check(
     "the rack carries every mode's glyph",
-    ["▚", "⣤", "▨", "⣿"].every((glyph) =>
-      racked.stdout.includes(glyph),
-    ),
+    ["▚", "⣤", "▨", "⣿"].every((glyph) => racked.stdout.includes(glyph)),
     true,
   );
-  check("the rack still says what a mode gates", /tools gated/.test(racked.stdout), true);
+  check(
+    "the rack still says what a mode gates",
+    /tools gated/.test(racked.stdout),
+    true,
+  );
 }
 
 // ------------------------------------------------------------ the status view
@@ -1961,10 +2173,18 @@ const ENVIRONMENT = process.env;
     /\[(CLEAN|CORRUPTED|UNKNOWN)\]/.test(view.stdout),
     true,
   );
-  check("an ordered dial gets a gauge", /verify\s+\[[#-]{3}\]/.test(view.stdout), true);
+  check(
+    "an ordered dial gets a gauge",
+    /verify\s+\[[#-]{3}\]/.test(view.stdout),
+    true,
+  );
   // voice is a set of registers with no ladder between them, so a bar would
   // claim a ranking that does not exist.
-  check("the register gets no gauge", /voice\s+\[[#-]/.test(view.stdout), false);
+  check(
+    "the register gets no gauge",
+    /voice\s+\[[#-]/.test(view.stdout),
+    false,
+  );
   check(
     "the status view says why the register has no gauge",
     view.stdout.includes("not a level"),
@@ -2033,7 +2253,11 @@ const ENVIRONMENT = process.env;
     painted.includes(ESC + "[38;5;45m"),
     true,
   );
-  check("the status line still names the mode", painted.includes("RUNNER"), true);
+  check(
+    "the status line still names the mode",
+    painted.includes("RUNNER"),
+    true,
+  );
   check(
     "the status line honours NO_COLOR",
     drawLine({ NO_COLOR: "1" }).includes(ESC),
@@ -2062,7 +2286,9 @@ const ENVIRONMENT = process.env;
     CORPUS,
     {},
   );
-  const lock = JSON.parse(fs.readFileSync(path.join(root, "mode.lock"), "utf8"));
+  const lock = JSON.parse(
+    fs.readFileSync(path.join(root, "mode.lock"), "utf8"),
+  );
   check("applying a mode records its colour in the lock", lock.color, 226);
   fs.rmSync(root, { recursive: true, force: true });
 }
@@ -2072,7 +2298,11 @@ const ENVIRONMENT = process.env;
 // times over.
 {
   const racked = runCcfg(["mode", "list"]).stdout;
-  check("one gated tool is not pluralised", /\[1 tool gated/.test(racked), true);
+  check(
+    "one gated tool is not pluralised",
+    /\[1 tool gated/.test(racked),
+    true,
+  );
   check("more than one still is", /\d+ tools gated/.test(racked), true);
 }
 
@@ -2120,12 +2350,16 @@ const ENVIRONMENT = process.env;
   );
   check(
     "a solo mode says so",
-    gatesOf({ tools: [], skills: null, subagents: "none", commands: [] }).join(", "),
+    gatesOf({ tools: [], skills: null, subagents: "none", commands: [] }).join(
+      ", ",
+    ),
     "solo",
   );
   check(
     "a mode's own slash commands are listed by name",
-    gatesOf({ tools: [], skills: null, commands: ["narrow", "verdict"] }).join(", "),
+    gatesOf({ tools: [], skills: null, commands: ["narrow", "verdict"] }).join(
+      ", ",
+    ),
     "/narrow /verdict",
   );
 }
@@ -2137,7 +2371,9 @@ const ENVIRONMENT = process.env;
   const lines = ink
     .frame({
       title: "ACTIVE CARTRIDGE",
-      rows: [{ left: ink.painter(false, 45).accent("RUNNER"), right: "[CLEAN]" }],
+      rows: [
+        { left: ink.painter(false, 45).accent("RUNNER"), right: "[CLEAN]" },
+      ],
       ink: ink.painter(false, 45),
     })
     .split("\n");
@@ -2216,7 +2452,11 @@ const ENVIRONMENT = process.env;
     },
   ).stdout;
 
-  check("an edited glyph reaches the status line without a switch", drawn.includes("█"), true);
+  check(
+    "an edited glyph reaches the status line without a switch",
+    drawn.includes("█"),
+    true,
+  );
   check("the lock's stale glyph is not drawn", drawn.includes("◆"), false);
   check(
     "an edited colour reaches it too",
@@ -2242,8 +2482,16 @@ const ENVIRONMENT = process.env;
     applied: false,
   });
 
-  check("a switch still says it swapped", swapped.includes("CARTRIDGE SWAP"), true);
-  check("a switch still says it came up", swapped.includes("POWERING UP"), true);
+  check(
+    "a switch still says it swapped",
+    swapped.includes("CARTRIDGE SWAP"),
+    true,
+  );
+  check(
+    "a switch still says it came up",
+    swapped.includes("POWERING UP"),
+    true,
+  );
 
   check(
     "a comparison does not claim a swap",
@@ -2271,7 +2519,11 @@ const ENVIRONMENT = process.env;
   );
 
   // Five of the seven dials move between build and spike; claims and voice hold.
-  check("the frame counts the dials that moved", /5 of 7 dials/.test(swapped), true);
+  check(
+    "the frame counts the dials that moved",
+    /5 of 7 dials/.test(swapped),
+    true,
+  );
   check("and the ones that differ", /5 of 7 dials/.test(compared), true);
 
   check(
@@ -2294,8 +2546,16 @@ const ENVIRONMENT = process.env;
 // The comparison the operator actually runs, through the real binary.
 {
   const compared = runCcfg(["mode", "diff", "spike", "ship"]).stdout;
-  check("the real comparison says nothing happened", compared.includes("nothing applied"), true);
-  check("the real comparison does not say POWERING UP", compared.includes("POWERING UP"), false);
+  check(
+    "the real comparison says nothing happened",
+    compared.includes("nothing applied"),
+    true,
+  );
+  check(
+    "the real comparison does not say POWERING UP",
+    compared.includes("POWERING UP"),
+    false,
+  );
 }
 
 // A real switch, driven through the binary in a throwaway config.
@@ -2325,14 +2585,22 @@ const ENVIRONMENT = process.env;
   switchTo("spike");
   const landed = switchTo("ship");
 
-  check("the switch names the mode being left", landed.includes("▘ RECON"), true);
+  check(
+    "the switch names the mode being left",
+    landed.includes("▘ RECON"),
+    true,
+  );
   check("and the one being loaded", landed.includes("█ FIXER"), true);
   check(
     "the arriving glyph is not on both sides",
     landed.split("█ FIXER").length - 1,
     1,
   );
-  check("a real switch says it powered up", landed.includes("POWERING UP"), true);
+  check(
+    "a real switch says it powered up",
+    landed.includes("POWERING UP"),
+    true,
+  );
   fs.rmSync(root, { recursive: true, force: true });
 }
 
@@ -2398,7 +2666,10 @@ const ENVIRONMENT = process.env;
 {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hand-add-"));
   fs.mkdirSync(path.join(root, "rules"), { recursive: true });
-  const reminder = { type: "command", command: "node hooks/review-reminder.js" };
+  const reminder = {
+    type: "command",
+    command: "node hooks/review-reminder.js",
+  };
   const logger = { type: "command", command: "node hooks/evidence-log.js" };
   fs.writeFileSync(
     path.join(root, "settings.json"),
@@ -2479,13 +2750,17 @@ const ENVIRONMENT = process.env;
           Stop: [
             {
               matcher: "*",
-              hooks: [{ type: "command", command: "node hooks/review-reminder.js" }],
+              hooks: [
+                { type: "command", command: "node hooks/review-reminder.js" },
+              ],
             },
           ],
           PostToolUse: [
             {
               matcher: "Write",
-              hooks: [{ type: "command", command: "node hooks/style-check.js" }],
+              hooks: [
+                { type: "command", command: "node hooks/style-check.js" },
+              ],
             },
           ],
         },
@@ -2651,7 +2926,9 @@ const ENVIRONMENT = process.env;
           Stop: [
             {
               matcher: "*",
-              hooks: [{ type: "command", command: "node hooks/review-reminder.js" }],
+              hooks: [
+                { type: "command", command: "node hooks/review-reminder.js" },
+              ],
             },
           ],
         },
@@ -2736,7 +3013,9 @@ const ENVIRONMENT = process.env;
           PostToolUse: [
             {
               matcher: "Write",
-              hooks: [{ type: "command", command: "node hooks/review-reminder.js" }],
+              hooks: [
+                { type: "command", command: "node hooks/review-reminder.js" },
+              ],
             },
           ],
         },
@@ -2930,7 +3209,11 @@ const ENVIRONMENT = process.env;
     gates: ["finish-shape", "scope"],
     body: "Work inside the scope.",
   };
-  const shipSettings = { verify: "proven", claims: "sourced", code: "polished" };
+  const shipSettings = {
+    verify: "proven",
+    claims: "sourced",
+    code: "polished",
+  };
 
   const rendered = crew.renderAgent(role, shipSettings, ["Bash"], "RULE ONE");
   check(
@@ -3065,7 +3348,48 @@ const ENVIRONMENT = process.env;
   );
 
   apply.applyMode(root, team, CORPUS, {});
-  check("a mode switch writes an agent file", fs.existsSync(implementerFile), true);
+  check(
+    "a mode switch writes an agent file",
+    fs.existsSync(implementerFile),
+    true,
+  );
+
+  // The rules a worker reads are the mode's primary band, never the corpus in
+  // filename order. Position is what the 1,218 measured trials behind
+  // tools/modes/render.js say governs adherence, so handing a worker the first
+  // five files alphabetically would throw away the whole ordering the mode
+  // exists to compute. Under the default posture (verify: tested) the `tested`
+  // rule is primary and the `proven` rule is standing.
+  const BRIEFED = [
+    {
+      id: "a-proven",
+      setting: "verify",
+      primary_at: "proven",
+      worker: "brief",
+      body: "PROVEN-RULE",
+      file: "a.md",
+    },
+    {
+      id: "b-tested",
+      setting: "verify",
+      primary_at: "tested",
+      worker: "brief",
+      body: "TESTED-RULE",
+      file: "b.md",
+    },
+  ];
+  apply.applyMode(root, team, BRIEFED, {});
+  const briefed = fs.readFileSync(implementerFile, "utf8");
+  check(
+    "a worker's brief carries the mode's primary rule",
+    briefed.includes("TESTED-RULE"),
+    true,
+  );
+  check(
+    "a worker's brief leaves out a rule the mode left standing",
+    briefed.includes("PROVEN-RULE"),
+    false,
+  );
 
   apply.applyMode(root, solo, CORPUS, {});
   check(

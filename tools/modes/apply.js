@@ -228,12 +228,16 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
 
   const disabledHooks = mode.disableHooks || [];
   const layer = mode.glitch || glitch.parseGlitch(undefined, mode.name);
+  // The worker's brief is built from the same band the rules file leads with,
+  // so a worker reads the rules this posture makes primary and not whichever
+  // five rules sort first by filename.
+  const primaryBand = render.band(corpusRules, resolved.settings).primary;
   crew.writeCrew(
     configDir,
     crew.crewRoster(loadRoleCorpus(configDir), layer.subagents),
     resolved.settings,
     layer.tools,
-    "",
+    crew.briefBand(primaryBand),
   );
   let skillsHidden = 0;
   let baseSkillOverrides = {};
