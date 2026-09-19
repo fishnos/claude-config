@@ -6780,9 +6780,7 @@ header("The evidence gate: a claim of done against the commands that ran");
   // a 0.5-to-1 score where 0.5 is a coin flip), because judges anchor on
   // confident closing language, which is exactly what a false success produces.
   // So this gate judges code quality and the evidence gate judges claims.
-  const reviewGate = require(
-    path.join(HOOKS, "subagent", "gates", "review.js"),
-  );
+  const reviewGate = require(path.join(HOOKS, "lib", "blind-review.js"));
 
   check("the gate is named review", reviewGate.id, "review");
   check(
