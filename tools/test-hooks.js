@@ -2955,6 +2955,8 @@ header("/repo-setup context: one-step state file, ignore line and graph");
     "the deep audit sees the ignore line through git",
     "context without graphify still exits 0",
     "context without graphify says so",
+    "context ignores the archive exactly once",
+    "context adds only the archive line where the state file is already ignored",
   ];
   if (process.platform === "win32") {
     for (const label of contextCases)
@@ -3020,6 +3022,27 @@ header("/repo-setup context: one-step state file, ignore line and graph");
       1,
       readTextOrEmpty(path.join(fresh, ".gitignore")),
     );
+    check(
+      "context ignores the archive exactly once",
+      readTextOrEmpty(path.join(fresh, ".gitignore"))
+        .split("\n")
+        .filter((line) => line === ".claude/state.archive.md").length,
+      1,
+      readTextOrEmpty(path.join(fresh, ".gitignore")),
+    );
+    const stateOnlyRoot = makeRepository("context-state-only-");
+    fs.writeFileSync(
+      path.join(stateOnlyRoot, ".gitignore"),
+      ".claude/state.md\n",
+    );
+    runContext(stateOnlyRoot, true);
+    check(
+      "context adds only the archive line where the state file is already ignored",
+      readTextOrEmpty(path.join(stateOnlyRoot, ".gitignore")),
+      ".claude/state.md\n.claude/state.archive.md\n",
+      "",
+    );
+    fs.rmSync(stateOnlyRoot, { recursive: true, force: true });
     const deepReport = spawnSync(
       process.execPath,
       [auditScript, "--json", fresh],
@@ -3053,6 +3076,57 @@ header("/repo-setup context: one-step state file, ignore line and graph");
     for (const directory of [fakeBin, fresh, noGraphifyRoot])
       fs.rmSync(directory, { recursive: true, force: true });
   }
+}
+
+header("/repo-setup audit: with git unavailable, each file keeps its own approximation");
+{
+  const auditScript = path.join(
+    __dirname,
+    "..",
+    "skills",
+    "repo-setup",
+    "audit.js",
+  );
+  // An absolute node and a PATH with no git on it: every git call fails, which
+  // is the only way to reach the filesystem approximations.
+  const withoutGit = (args) =>
+    spawnSync(process.execPath, [auditScript, ...args], {
+      encoding: "utf8",
+      windowsHide: true,
+      env: { HOME: os.homedir(), PATH: path.join(os.tmpdir(), "no-git-here") },
+    });
+
+  // `*.md` is a pattern only the instruction file's approximation reads, so
+  // this fails if the state file's narrower one is ever used in its place.
+  const patternRoot = makeRepository("no-git-instructions-");
+  fs.writeFileSync(path.join(patternRoot, ".gitignore"), "*.md\n");
+  fs.writeFileSync(path.join(patternRoot, "CLAUDE.md"), "x\n");
+  const patternReport = withoutGit(["--json", patternRoot]);
+  let instructionRow = "unparsed";
+  try {
+    instructionRow = JSON.parse(patternReport.stdout).checks[0].id;
+  } catch {
+    // Left as "unparsed" so the check below reports it.
+  }
+  check(
+    "without git, a CLAUDE.md a wildcard ignores is still flagged",
+    instructionRow,
+    "instructions-ignored",
+    patternReport.stdout.slice(0, 200) + patternReport.stderr,
+  );
+
+  const listedRoot = makeRepository("no-git-archive-");
+  fs.writeFileSync(path.join(listedRoot, ".gitignore"), ".claude/state.md\n");
+  withoutGit(["context", listedRoot]);
+  check(
+    "without git, context reads the ignore file and adds only the archive line",
+    readTextOrEmpty(path.join(listedRoot, ".gitignore")),
+    ".claude/state.md\n.claude/state.archive.md\n",
+    "",
+  );
+
+  for (const directory of [patternRoot, listedRoot])
+    fs.rmSync(directory, { recursive: true, force: true });
 }
 
 header("/repo-setup audit: a ! exception in .gitignore is not an ignore");
@@ -3227,9 +3301,54 @@ header(
   );
   check(
     "the cap leaves a visible note",
-    oversized.includes("[truncated at 8,000 characters"),
+    oversized.includes("over the 8,000 that load"),
     true,
     oversized.slice(-200),
+  );
+
+  // A file past the cap is cut by section, most needed first, so a long
+  // history cannot push the goal's neighbours and the hot files out of view.
+  fs.writeFileSync(
+    statePath,
+    [
+      "# Working state",
+      "## Goal",
+      "GOAL_MARKER",
+      "## Decisions",
+      "DECISIONS_MARKER " + "d".repeat(3000),
+      "## Progress",
+      "- Next: NEXT_MARKER",
+      "- " + "p".repeat(12000) + " PROGRESS_TAIL_MARKER",
+      "## Hot files",
+      "HOT_FILES_MARKER",
+    ].join("\n\n"),
+  );
+  const bySection = contextOf(start("clear"));
+  check(
+    "an oversized file still loads the hot files after a long progress log",
+    bySection.includes("GOAL_MARKER") && bySection.includes("HOT_FILES_MARKER"),
+    true,
+    bySection.slice(0, 300),
+  );
+  check(
+    "room a cut section leaves unused goes to the sections ranked after it",
+    bySection.includes("DECISIONS_MARKER"),
+    true,
+    bySection.slice(-600),
+  );
+  check(
+    "a section cut to fit keeps its newest lines, at the top",
+    bySection.includes("NEXT_MARKER") &&
+      !bySection.includes("PROGRESS_TAIL_MARKER"),
+    true,
+    bySection.slice(-600),
+  );
+  check(
+    "the cut names what was left out and where finished work goes",
+    bySection.includes("Progress") &&
+      bySection.includes(".claude/state.archive.md"),
+    true,
+    bySection.slice(-600),
   );
 
   fs.copyFileSync(template, statePath);
@@ -3689,6 +3808,41 @@ header(
     "allow",
     "",
   );
+
+  // Updated is not enough when the file has outgrown what a clear loads: the
+  // session after the clear would get only part of it.
+  const underCapState = fs.readFileSync(statePath, "utf8");
+  startTurn("gate-oversized", 150000);
+  fs.appendFileSync(statePath, "\n- " + "x".repeat(9000) + "\n");
+  const heldOversized = stop("gate-oversized", 150000);
+  check(
+    "holds a clear suggestion when the updated file is over the load cap",
+    heldOversized.verdict,
+    "BLOCK",
+    heldOversized.reason,
+  );
+  check(
+    "the oversize hold says where finished entries go",
+    String(heldOversized.reason).includes(".claude/state.archive.md"),
+    true,
+    heldOversized.reason,
+  );
+  check(
+    "the oversize hold holds only once a turn",
+    stop("gate-oversized", 150000).verdict,
+    "allow",
+    "",
+  );
+  startTurn("gate-oversized-unchanged", 150000);
+  const heldBoth = String(stop("gate-oversized-unchanged", 150000).reason);
+  check(
+    "one hold asks for both the update and the trim",
+    heldBoth.includes("update .claude/state.md") &&
+      heldBoth.includes(".claude/state.archive.md"),
+    true,
+    heldBoth,
+  );
+  fs.writeFileSync(statePath, underCapState);
 
   startTurn("gate-green", 50000);
   check(
