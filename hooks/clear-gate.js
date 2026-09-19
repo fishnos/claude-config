@@ -1,6 +1,7 @@
 "use strict";
 
-// Stop: hold a /clear suggestion made without updating .claude/state.md.
+// Stop: hold a /clear suggestion made without updating .claude/state.md, or
+// while the file is larger than a clear loads.
 //
 // A clear taken with an out-of-date file is the one way the context design loses
 // work outright, and whether the file changed this turn is machine-checkable, so
@@ -81,31 +82,51 @@ io.run(() => {
   if (state === null) return;
 
   // Without the gauge's record there is nothing to compare against, and holding
-  // a stop on a guess is worse than letting one suggestion through.
+  // a stop on a guess is worse than letting one suggestion through. The same
+  // record carries the loop guard, so without it the size check waits too.
   const record = zones.readGaugeState(io.configDir(), payload.session_id);
-  if (
-    record !== null &&
-    stateFile.stateDigest(state.text) === record.stateDigest
-  ) {
-    // The second loop guard: this gate has already held once for this turn, so
-    // holding again would be the loop stop_hook_active is meant to prevent.
-    if (record.gateHeldTurn === record.turn) return;
+  if (record !== null) {
+    const unchanged =
+      stateFile.stateDigest(state.text) === record.stateDigest;
+    // Updated is not enough once the file is past what a clear loads: the
+    // session after it would start from part of the record.
+    const oversized = state.text.length > stateFile.MAX_LOADED_CHARACTERS;
+    if (unchanged || oversized) {
+      // The second loop guard: this gate has already held once for this turn,
+      // so holding again would be the loop stop_hook_active is meant to prevent.
+      if (record.gateHeldTurn === record.turn) return;
 
-    // Hold only once the marker is on disk. If the write is lost the gate has no
-    // memory of having held and would hold again on the next stop, so a failed
-    // write degrades to letting the suggestion through rather than looping.
-    const holdRecorded = zones.writeGaugeState(
-      io.configDir(),
-      payload.session_id,
-      { ...record, gateHeldTurn: record.turn },
-    );
-    if (!holdRecorded) return;
+      // Hold only once the marker is on disk. If the write is lost the gate has
+      // no memory of having held and would hold again on the next stop, so a
+      // failed write degrades to letting the suggestion through, not looping.
+      const holdRecorded = zones.writeGaugeState(
+        io.configDir(),
+        payload.session_id,
+        { ...record, gateHeldTurn: record.turn },
+      );
+      if (!holdRecorded) return;
 
-    io.block(
-      "update .claude/state.md before suggesting a clear: record progress, " +
-        "decisions, rejected approaches and the next step, then suggest it again.",
-    );
-    return;
+      const asks = [];
+      if (unchanged) {
+        asks.push(
+          "update .claude/state.md before suggesting a clear: record " +
+            "progress, decisions, rejected approaches and the next step.",
+        );
+      }
+      if (oversized) {
+        asks.push(
+          `.claude/state.md is ${stateFile.formatCount(state.text.length)} ` +
+            "characters, and a clear loads only " +
+            `${stateFile.formatCount(stateFile.MAX_LOADED_CHARACTERS)}. ` +
+            "Move finished Progress entries, settled Decisions and old " +
+            "Rejected approaches word for word to the end of " +
+            ".claude/state.archive.md, keeping the newest entries at the top " +
+            "of each section.",
+        );
+      }
+      io.block(`${asks.join(" ")} Then suggest the clear again.`);
+      return;
+    }
   }
 
   // Whenever a graph exists, not only when stale: this session's edits are

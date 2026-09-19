@@ -83,6 +83,18 @@ same reasoning as `MAX_SECTION` in the retired pre-compact hook: a file that
 large is being used as a log, and truncating with a visible note keeps it from
 flooding the restored context while leaving the problem in view.
 
+Amended 2026-09-18, after the file in the configuration repository reached
+170,363 characters and a clear was loading only its first 8,000, which held
+the Goal and part of Instructions but not Progress or Hot files. Three changes
+followed. The cap now cuts by section, most needed first (Goal, Instructions,
+Unconfirmed, Hot files, Where to look, Open questions, then Progress,
+Decisions, Rejected), keeps the top of a section it has to cut because entries
+are kept newest first, and names every section it cut or left out. The clear
+gate holds a clear suggestion while the file is over the cap, so the file is
+trimmed at the moment it is written rather than noticed at the next load.
+Trimmed entries move word for word to `.claude/state.archive.md`, beside the
+file, git-ignored the same way and never loaded, so a trim loses nothing.
+
 The file covers one piece of work. When the user says the work is done, anything
 worth keeping goes to auto-memory, which has been the single memory system since
 2026-07-31, and the file resets to the template. It is a working record, not a

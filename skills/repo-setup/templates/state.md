@@ -1,6 +1,6 @@
 # Working state
 
-<!-- Loaded at session start, after /clear and after compaction, capped at 8,000 characters. A few lines per section. When the work is done, move anything worth keeping to auto-memory and reset this file to the template. -->
+<!-- Loaded at session start, after /clear and after compaction, capped at 8,000 characters; past that, the clear gate holds a /clear until it is trimmed. A few lines per section, newest entries at the top. Move finished entries word for word to .claude/state.archive.md, which is never loaded. When the work is done, move anything worth keeping to auto-memory and reset this file to the template. -->
 
 ## Goal
 
@@ -24,9 +24,9 @@
 
 ## Progress
 
-- Done:
-- In progress:
 - Next:
+- In progress:
+- Done:
 
 ## Hot files
 

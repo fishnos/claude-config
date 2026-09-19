@@ -40,15 +40,20 @@ function gitIgnores(root, fileName) {
   return gitWorks ? false : repoAudit.isIgnored(root, fileName);
 }
 
-/** Whether git ignores the state file, with the hook's approximation when git cannot run. */
-function stateFileGitIgnored(root) {
-  if (io.git(["check-ignore", ".claude/state.md"], root) !== "") return true;
+/** Whether git ignores a file under .claude/, with the hook's approximation when git cannot run. */
+function claudeFileGitIgnored(root, relativePath) {
+  const posixPath = relativePath.split(path.sep).join("/");
+  if (io.git(["check-ignore", posixPath], root) !== "") return true;
   const gitWorks = io.git(["rev-parse", "--git-dir"], root) !== "";
-  return gitWorks ? false : stateFile.stateFileIgnoreListed(root);
+  return gitWorks ? false : stateFile.ignoreListed(root, relativePath);
+}
+
+function stateFileGitIgnored(root) {
+  return claudeFileGitIgnored(root, stateFile.STATE_FILE_RELATIVE);
 }
 
 /**
- * The one-step setup: state file, ignore line, code graph. Never overwrites a
+ * The one-step setup: state file, ignore lines, code graph. Never overwrites a
  * state file, and never starts graphify's document pass, which spends tokens.
  */
 function runContext(root) {
@@ -61,19 +66,24 @@ function runContext(root) {
     console.log("wrote     .claude/state.md from the template");
   }
 
-  if (stateFileGitIgnored(root)) {
-    console.log("kept      .gitignore (git already ignores .claude/state.md)");
-  } else {
+  // The archive holds what is trimmed out of the state file, so it must stay
+  // out of git on the same terms.
+  for (const relativePath of [
+    stateFile.STATE_FILE_RELATIVE,
+    stateFile.ARCHIVE_FILE_RELATIVE,
+  ]) {
+    const line = relativePath.split(path.sep).join("/");
+    if (claudeFileGitIgnored(root, relativePath)) {
+      console.log(`kept      .gitignore (git already ignores ${line})`);
+      continue;
+    }
     const gitignorePath = path.join(root, ".gitignore");
     const existing = fs.existsSync(gitignorePath)
       ? fs.readFileSync(gitignorePath, "utf8")
       : "";
     const separator = existing === "" || existing.endsWith("\n") ? "" : "\n";
-    fs.writeFileSync(
-      gitignorePath,
-      `${existing}${separator}.claude/state.md\n`,
-    );
-    console.log("appended  .claude/state.md to .gitignore");
+    fs.writeFileSync(gitignorePath, `${existing}${separator}${line}\n`);
+    console.log(`appended  ${line} to .gitignore`);
   }
 
   const graphBuild = spawnSync("graphify", ["update", root], {

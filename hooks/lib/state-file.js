@@ -11,33 +11,64 @@ const path = require("path");
 
 const STATE_FILE_RELATIVE = path.join(".claude", "state.md");
 
+// Where finished entries go when the working record outgrows the load cap:
+// beside it, git-ignored the same way, and never loaded, so trimming the record
+// loses nothing and costs no context.
+const ARCHIVE_FILE_RELATIVE = path.join(".claude", "state.archive.md");
+
 // The four spellings the design names. Anything subtler is for the skill, which
 // asks `git check-ignore`; a missed match here costs one extra notice.
-const COVERING_LINES = new Set([
-  ".claude/state.md",
-  "/.claude/state.md",
-  ".claude/",
-  "/.claude/",
-]);
+function coveringLines(relativePath) {
+  const posixPath = relativePath.split(path.sep).join("/");
+  return new Set([posixPath, `/${posixPath}`, ".claude/", "/.claude/"]);
+}
 
 function stateFilePath(root) {
   return path.join(root, STATE_FILE_RELATIVE);
 }
 
-function stateFileIgnoreListed(root) {
+function ignoreListed(root, relativePath) {
   let text;
   try {
     text = fs.readFileSync(path.join(root, ".gitignore"), "utf8");
   } catch {
     return false;
   }
-  return text.split(/\r?\n/).some((line) => COVERING_LINES.has(line.trim()));
+  const covering = coveringLines(relativePath);
+  return text.split(/\r?\n/).some((line) => covering.has(line.trim()));
+}
+
+function stateFileIgnoreListed(root) {
+  return ignoreListed(root, STATE_FILE_RELATIVE);
 }
 
 // A cap, not a budget, on the same reasoning as the retired pre-compact hook's
 // MAX_SECTION: a file this large is being used as a log, and truncating with a
 // visible note keeps it from flooding the context while leaving that in view.
+// The clear gate holds a clear while the file is over it, so the cut below is
+// the backstop for a compaction, which no gate can hold.
 const MAX_LOADED_CHARACTERS = 8000;
+
+// Room kept for the note that says what the cut left out.
+const CUT_NOTE_RESERVE = 600;
+
+// A section cut to less than this is noise; it is left out and named instead.
+const MINIMUM_CUT_SECTION = 200;
+
+// Which sections a resumed session needs first. The short orienting ones come
+// before Progress so a long log cannot push them out, and the history sections
+// come last. A heading not listed here ranks after all of these.
+const LOAD_PRIORITY = [
+  "Goal",
+  "Instructions",
+  "Unconfirmed",
+  "Hot files",
+  "Where to look",
+  "Open questions",
+  "Progress",
+  "Decisions",
+  "Rejected",
+];
 
 // Lines the template itself carries, so a file holding only these is empty.
 const TEMPLATE_SCAFFOLD =
@@ -91,13 +122,99 @@ function hasContent(text) {
     .some((line) => line !== "" && !TEMPLATE_SCAFFOLD.test(line));
 }
 
+function splitSections(text) {
+  const lines = text.split(/\r?\n/);
+  const firstHeading = lines.findIndex((line) => line.startsWith("## "));
+  if (firstHeading === -1) return null;
+  const sections = [];
+  for (let index = firstHeading; index < lines.length; index += 1) {
+    if (lines[index].startsWith("## ")) {
+      sections.push({ heading: lines[index].slice(3).trim(), lines: [] });
+    }
+    sections[sections.length - 1].lines.push(lines[index]);
+  }
+  return {
+    preamble: lines.slice(0, firstHeading).join("\n"),
+    sections: sections.map((section, position) => ({
+      heading: section.heading,
+      position,
+      text: section.lines.join("\n").trimEnd(),
+    })),
+  };
+}
+
+function priorityOf(heading) {
+  const rank = LOAD_PRIORITY.indexOf(heading);
+  return rank === -1 ? LOAD_PRIORITY.length : rank;
+}
+
+// Whole lines from the top, because entries are kept newest first.
+function headOf(text, limit) {
+  const cut = text.slice(0, limit);
+  const lastBreak = cut.lastIndexOf("\n");
+  return lastBreak > 0 ? cut.slice(0, lastBreak) : cut;
+}
+
+function formatCount(count) {
+  return count.toLocaleString("en-US");
+}
+
+/**
+ * The file as a session loads it: whole when it fits the cap, otherwise
+ * section by section in LOAD_PRIORITY order, with a note naming every section
+ * cut or left out so the session knows to read the file for them.
+ */
 function loadedText(text) {
   if (text.length <= MAX_LOADED_CHARACTERS) return text;
-  return (
-    text.slice(0, MAX_LOADED_CHARACTERS) +
-    "\n\n[truncated at 8,000 characters: .claude/state.md is being used as a " +
-    "log; move finished work to auto-memory and trim it]"
+  const note = (details) =>
+    `\n\n[.claude/state.md is ${formatCount(text.length)} characters, over ` +
+    `the ${formatCount(MAX_LOADED_CHARACTERS)} that load. ${details}` +
+    "Read the file for the rest, and move finished entries word for word " +
+    "into .claude/state.archive.md.]";
+
+  const parsed = splitSections(text);
+  if (parsed === null) {
+    return text.slice(0, MAX_LOADED_CHARACTERS) + note("");
+  }
+
+  let remaining =
+    MAX_LOADED_CHARACTERS - CUT_NOTE_RESERVE - parsed.preamble.length;
+  const kept = new Map();
+  const cut = [];
+  const omitted = [];
+  const byPriority = [...parsed.sections].sort(
+    (first, second) =>
+      priorityOf(first.heading) - priorityOf(second.heading) ||
+      first.position - second.position,
   );
+  for (const section of byPriority) {
+    const cost = section.text.length + 2;
+    if (cost <= remaining) {
+      kept.set(section.position, section.text);
+      remaining -= cost;
+    } else if (remaining >= MINIMUM_CUT_SECTION) {
+      const head = headOf(section.text, remaining - 2);
+      kept.set(section.position, head);
+      cut.push(
+        `${section.heading} (first ${formatCount(head.length)} of ` +
+          `${formatCount(section.text.length)})`,
+      );
+      remaining -= head.length + 2;
+    } else {
+      omitted.push(
+        `${section.heading} (${formatCount(section.text.length)})`,
+      );
+    }
+  }
+
+  const body = parsed.sections
+    .filter((section) => kept.has(section.position))
+    .map((section) => kept.get(section.position))
+    .join("\n\n");
+  const details =
+    (cut.length > 0 ? `Cut: ${cut.join(", ")}. ` : "") +
+    (omitted.length > 0 ? `Left out: ${omitted.join(", ")}. ` : "");
+  return `${parsed.preamble.trimEnd()}\n\n${body}${note(details)}`;
 }
 
 function formatAge(milliseconds) {
@@ -133,7 +250,7 @@ function stateDigest(text) {
 /**
  * The text with each new line added at the end of the Unconfirmed section.
  *
- * No per-section cap: the 8,000-character load cap already keeps an overgrown
+ * No per-section cap: the load cap and the clear gate already keep an overgrown
  * file visible, and dropping the oldest capture here would lose an instruction
  * Claude has not yet confirmed.
  */
@@ -176,7 +293,9 @@ function writeStateFile(root, text) {
 
 module.exports = {
   STATE_FILE_RELATIVE,
+  ARCHIVE_FILE_RELATIVE,
   stateFilePath,
+  ignoreListed,
   stateFileIgnoreListed,
   MAX_LOADED_CHARACTERS,
   readStateFile,
@@ -186,6 +305,7 @@ module.exports = {
   hasContent,
   loadedText,
   formatAge,
+  formatCount,
   stateDigest,
   withUnconfirmed,
   writeStateFile,
