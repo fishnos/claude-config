@@ -1,7 +1,7 @@
 ---
 description: Split the current changes into self-contained commits and write messages in my conventions
 argument-hint: "[optional: path, scope, or instruction e.g. 'staged only']"
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git reset:*), Bash(git commit:*), Bash(git show:*), Bash(git rev-parse:*), Read, Write
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git reset:*), Bash(git commit:*), Bash(git rebase:*), Bash(git show:*), Bash(git rev-parse:*), Read, Write
 ---
 
 Commit the current work in my conventions. `$ARGUMENTS` may narrow the scope
@@ -22,17 +22,45 @@ to match, so use these rules.
 One commit is one self-contained change that builds and passes tests on its
 own. That is what makes `bisect` and `revert` work.
 
-Hard splits, never combined into one commit:
+Hard splits, never combined into one commit once the first half would hide the
+second from someone reading the diff:
 
 - a refactor and a behavior change
 - formatting and logic
 - a move/rename and an edit to the moved content
+
+A small move, rename or reformat that only prepares the change goes in the same
+commit as that change. The test is the reader: if the real change is still easy
+to find among the prep lines, one commit; if not, split.
+
+Small independent tweaks of one kind (test portability fixes, doc typos) may
+share a commit. Its subject names that kind, concretely enough to pass the
+subject rules below.
 
 Prefer fewer commits when changes are genuinely one unit. Do not manufacture
 granularity, and do not squash across a hard split to reduce the count.
 
 Stage precisely with `git add <path>` or `git add -p`. Verify each commit's
 content with `git diff --staged` before writing its message.
+
+## Step 2b: fold fix-ups into unpushed commits
+
+A change that corrects a commit not yet pushed is folded into that commit
+instead of landing on its own. Find the target in `git log --oneline @{u}..`;
+a commit outside that range is pushed and is never rewritten. A branch with no
+upstream gives no such range, so there the fix lands as its own commit.
+
+Show the fold in the plan like any other commit: the target's subject and sha,
+and the files the fix adds to it. After approval:
+
+```bash
+git commit --fixup <sha>
+git rebase --autosquash --autostash @{u}
+```
+
+`--autostash` sets aside uncommitted work the fix does not include and restores
+it afterwards. If the rebase stops on a conflict, run `git rebase --abort` and
+ask; never resolve a conflict in history on your own.
 
 ## Step 3: write the subject
 
