@@ -7801,6 +7801,207 @@ header("PreToolUse(Agent): the blind reviewer's prompt");
   fs.rmSync(blindRepo, { recursive: true, force: true });
 }
 
+header("Stop: the blind review hold");
+{
+  const HOLD = path.join(HOOKS, "review-hold.js");
+  const holdConfig = (verify) => {
+    const directory = fs.mkdtempSync(
+      path.join(os.tmpdir(), `crew-hold-${verify}-`),
+    );
+    fs.writeFileSync(
+      path.join(directory, "mode.lock"),
+      JSON.stringify({
+        mode: "test",
+        codename: "TESTER",
+        settings: { verify },
+        deniedTools: [],
+        subagents: null,
+      }),
+    );
+    return directory;
+  };
+  const provenHold = holdConfig("proven");
+  const testedHold = holdConfig("tested");
+  const seed = (directory, sessionId, lines) => {
+    const file = path.join(directory, "cache", "crew", `${sessionId}.jsonl`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(
+      file,
+      lines.map((line) => JSON.stringify(line)).join("\n") + "\n",
+    );
+  };
+  const changedRun = [
+    {
+      kind: "run",
+      token: "4444dddd",
+      role: "implementer",
+      scope: ["a.js"],
+      verify: "proven",
+      reviews: null,
+    },
+    { kind: "path", agentId: "impl-h", path: "a.js" },
+    { kind: "finish", agentId: "impl-h", token: "4444dddd" },
+  ];
+  const blockingReview = {
+    kind: "review",
+    token: "5555eeee",
+    reviews: ["4444dddd"],
+    findings: [{ severity: "Blocking", text: "leaks the handle" }],
+  };
+  const cleanReview = {
+    kind: "review",
+    token: "6666ffff",
+    reviews: ["4444dddd"],
+    findings: [],
+  };
+  const stop = (sessionId, message) => ({
+    hook_event_name: "Stop",
+    session_id: sessionId,
+    last_assistant_message: message || "Done.",
+    stop_hook_active: false,
+  });
+  const holdLines = (directory, sessionId) =>
+    readTextOrEmpty(path.join(directory, "cache", "crew", `${sessionId}.jsonl`))
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => JSON.parse(line));
+
+  seed(testedHold, "h1", changedRun);
+  check(
+    "nothing is held at verify: tested",
+    run(HOLD, stop("h1"), { CLAUDE_CONFIG_DIR: testedHold }).verdict,
+    "allow",
+  );
+
+  seed(provenHold, "h2", changedRun);
+  const unreviewed = run(HOLD, stop("h2"), { CLAUDE_CONFIG_DIR: provenHold });
+  check(
+    "an unreviewed run that changed files holds the turn",
+    unreviewed.verdict,
+    "BLOCK",
+  );
+  check(
+    "the hold says how to request the review",
+    String(unreviewed.reason).includes("Reviews: 4444dddd"),
+    true,
+  );
+
+  seed(provenHold, "h3", [changedRun[0], changedRun[2]]);
+  check(
+    "a run that changed nothing is not held",
+    run(HOLD, stop("h3"), { CLAUDE_CONFIG_DIR: provenHold }).verdict,
+    "allow",
+  );
+
+  seed(provenHold, "h4", [
+    { ...changedRun[0], verify: "tested" },
+    changedRun[1],
+    changedRun[2],
+  ]);
+  check(
+    "a run dispatched under another posture is not held",
+    run(HOLD, stop("h4"), { CLAUDE_CONFIG_DIR: provenHold }).verdict,
+    "allow",
+  );
+
+  seed(provenHold, "h5", [...changedRun, cleanReview]);
+  check(
+    "a clean review releases the turn",
+    run(HOLD, stop("h5"), { CLAUDE_CONFIG_DIR: provenHold }).verdict,
+    "allow",
+  );
+
+  seed(provenHold, "h6", [...changedRun, blockingReview]);
+  const blocked = run(HOLD, stop("h6"), { CLAUDE_CONFIG_DIR: provenHold });
+  check("a blocking review holds the turn", blocked.verdict, "BLOCK");
+  check(
+    "the hold quotes the blocking finding",
+    String(blocked.reason).includes("leaks the handle"),
+    true,
+  );
+
+  seed(provenHold, "h7", [...changedRun, blockingReview, cleanReview]);
+  check(
+    "the newest review wins",
+    run(HOLD, stop("h7"), { CLAUDE_CONFIG_DIR: provenHold }).verdict,
+    "allow",
+  );
+
+  seed(provenHold, "h8", [...changedRun, blockingReview]);
+  check(
+    "a Stands line with a reason releases a blocking review",
+    run(
+      HOLD,
+      stop(
+        "h8",
+        "Wrapped up.\nStands 4444dddd: the handle is closed by the caller",
+      ),
+      { CLAUDE_CONFIG_DIR: provenHold },
+    ).verdict,
+    "allow",
+  );
+  check(
+    "the reason is kept in the record",
+    holdLines(provenHold, "h8").some(
+      (line) =>
+        line.kind === "stands" && line.reason.includes("closed by the caller"),
+    ),
+    true,
+  );
+  check(
+    "a recorded Stands still counts at the next turn end",
+    run(HOLD, stop("h8"), { CLAUDE_CONFIG_DIR: provenHold }).verdict,
+    "allow",
+  );
+
+  seed(provenHold, "h9", [...changedRun, blockingReview]);
+  check(
+    "a Stands line with no reason does not release",
+    run(HOLD, stop("h9", "Stands 4444dddd:"), { CLAUDE_CONFIG_DIR: provenHold })
+      .verdict,
+    "BLOCK",
+  );
+
+  seed(provenHold, "h10", [
+    ...changedRun,
+    { kind: "stands", token: "4444dddd", reason: "old" },
+    blockingReview,
+  ]);
+  check(
+    "a Stands older than the verdict does not count",
+    run(HOLD, stop("h10"), { CLAUDE_CONFIG_DIR: provenHold }).verdict,
+    "BLOCK",
+  );
+
+  seed(provenHold, "h11", changedRun);
+  run(HOLD, stop("h11"), { CLAUDE_CONFIG_DIR: provenHold });
+  run(HOLD, stop("h11"), { CLAUDE_CONFIG_DIR: provenHold });
+  const third = runJson(HOLD, stop("h11"), { CLAUDE_CONFIG_DIR: provenHold });
+  check("the third turn end is not held", third.decision, undefined);
+  check(
+    "the third turn end warns the operator",
+    String(third.systemMessage).includes("4444dddd"),
+    true,
+  );
+
+  seed(provenHold, "h12", changedRun);
+  const fullRecord = path.join(provenHold, "cache", "crew", "h12.jsonl");
+  fs.appendFileSync(
+    fullRecord,
+    JSON.stringify({ kind: "pad", text: "x".repeat(520 * 1024) }) + "\n",
+  );
+  const full = runJson(HOLD, stop("h12"), { CLAUDE_CONFIG_DIR: provenHold });
+  check("a full record never holds", full.decision, undefined);
+  check(
+    "a full record says why it let the turn go",
+    String(full.systemMessage).includes("size ceiling"),
+    true,
+  );
+
+  fs.rmSync(provenHold, { recursive: true, force: true });
+  fs.rmSync(testedHold, { recursive: true, force: true });
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(testedConfig, { recursive: true, force: true });
 fs.rmSync(noneConfig, { recursive: true, force: true });
