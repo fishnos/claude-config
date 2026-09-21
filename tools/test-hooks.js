@@ -7494,6 +7494,159 @@ header("The run record: review lines");
   fs.rmSync(recordConfig, { recursive: true, force: true });
 }
 
+header("SubagentStop: the reviewer's verdict");
+{
+  const GATE_RUNNER = path.join(HOOKS, "subagent-gate.js");
+  const verdictConfig = fs.mkdtempSync(path.join(os.tmpdir(), "crew-verdict-"));
+  const verdictEnv = { CLAUDE_CONFIG_DIR: verdictConfig };
+  fs.writeFileSync(
+    path.join(verdictConfig, "mode.lock"),
+    JSON.stringify({
+      mode: "test",
+      codename: "TESTER",
+      settings: { verify: "proven", claims: "labeled" },
+      deniedTools: [],
+      subagents: null,
+    }),
+  );
+  // A copy of the real role file, so these cases test the role as it ships.
+  fs.mkdirSync(path.join(verdictConfig, "modes", "roles"), { recursive: true });
+  fs.copyFileSync(
+    path.join(__dirname, "..", "modes", "roles", "reviewer.md"),
+    path.join(verdictConfig, "modes", "roles", "reviewer.md"),
+  );
+  const verdictRecord = path.join(verdictConfig, "cache", "crew", "v1.jsonl");
+  fs.mkdirSync(path.dirname(verdictRecord), { recursive: true });
+  fs.writeFileSync(
+    verdictRecord,
+    [
+      {
+        kind: "run",
+        token: "1111aaaa",
+        role: "implementer",
+        scope: ["a.js"],
+        verify: "proven",
+        reviews: null,
+      },
+      {
+        kind: "run",
+        token: "2222bbbb",
+        role: "reviewer",
+        scope: ["(review)"],
+        verify: "proven",
+        reviews: ["1111aaaa"],
+      },
+    ]
+      .map((line) => JSON.stringify(line))
+      .join("\n") + "\n",
+  );
+  const reviewLines = () =>
+    readTextOrEmpty(verdictRecord)
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => JSON.parse(line))
+      .filter((line) => line.kind === "review");
+  const reviewerStop = (agentId, message) => ({
+    hook_event_name: "SubagentStop",
+    agent_id: agentId,
+    agent_type: "reviewer",
+    session_id: "v1",
+    last_assistant_message: message,
+    stop_hook_active: false,
+  });
+  const finishBlock =
+    "\n\nRUN 2222bbbb\nSTATE done\nTOUCHED (none)\nEVIDENCE (none)";
+
+  check(
+    "a review with no readable findings is sent back",
+    run(
+      GATE_RUNNER,
+      reviewerStop("rev-a", "Looks fine." + finishBlock),
+      verdictEnv,
+    ).verdict,
+    "BLOCK",
+  );
+  check("a refused review writes no verdict", reviewLines().length, 0);
+  check(
+    "the refusal names the line form",
+    run(
+      GATE_RUNNER,
+      reviewerStop("rev-b", "Looks fine." + finishBlock),
+      verdictEnv,
+    ).reason.includes("Findings: none"),
+    true,
+  );
+
+  check(
+    "a readable review passes",
+    run(
+      GATE_RUNNER,
+      reviewerStop(
+        "rev-c",
+        "Blocking: leaks the handle\nNit: rename" + finishBlock,
+      ),
+      verdictEnv,
+    ).verdict,
+    "allow",
+  );
+  const written = reviewLines()[0] || {};
+  check("a passing review writes one verdict", reviewLines().length, 1);
+  check(
+    "the verdict names the run it reviewed",
+    (written.reviews || []).join(","),
+    "1111aaaa",
+  );
+  check("the verdict names its reviewer run", written.token, "2222bbbb");
+  check(
+    "the verdict keeps the blocking finding",
+    ((written.findings || [])[0] || {}).severity,
+    "Blocking",
+  );
+
+  check(
+    "a passing report from a non-reviewer writes no verdict",
+    (run(
+      GATE_RUNNER,
+      {
+        ...reviewerStop(
+          "impl-a",
+          "Blocking: x\n\nRUN 1111aaaa\nSTATE done\nTOUCHED a.js\nEVIDENCE (none)",
+        ),
+        agent_type: "implementer",
+      },
+      verdictEnv,
+    ),
+    reviewLines().length),
+    1,
+  );
+
+  // Past its two refusals a report goes through unchecked, and a readable one
+  // is still the reviewer's verdict: dropping it would cost a whole second
+  // review of a diff that was already reviewed.
+  run(
+    GATE_RUNNER,
+    reviewerStop("rev-d", "Looks fine." + finishBlock),
+    verdictEnv,
+  );
+  run(
+    GATE_RUNNER,
+    reviewerStop("rev-d", "Still fine." + finishBlock),
+    verdictEnv,
+  );
+  run(
+    GATE_RUNNER,
+    reviewerStop("rev-d", "Optional: split the loop" + finishBlock),
+    verdictEnv,
+  );
+  check(
+    "a readable review past the refusal limit still writes its verdict",
+    ((reviewLines()[1] || {}).findings || [{}])[0].severity,
+    "Optional",
+  );
+
+  fs.rmSync(verdictConfig, { recursive: true, force: true });
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(testedConfig, { recursive: true, force: true });
 fs.rmSync(noneConfig, { recursive: true, force: true });
