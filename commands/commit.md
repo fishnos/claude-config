@@ -69,6 +69,15 @@ It completes "if applied, this commit will ___".
 - imperative mood, under 50 characters, no trailing period
 - names **what the change does**, not that it was made
 - opens with **the work, not the result**
+- makes sense **read cold**, by someone with only `git log` who never saw the
+  session
+
+Cold read, before the validator: list each noun in the subject. For every one
+this project coined, ask whether that reader would know it. If not, replace it
+with the plain thing it means. A coined term survives only as a file, command,
+or symbol they can grep, and then usually beside a plain word.
+`Record reviews, stands and holds in crew-record` fails; `Log reviewer verdicts
+in the subagent run record` passes.
 
 Rejected patterns (rewrite, do not ship):
 
