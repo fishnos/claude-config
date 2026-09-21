@@ -184,7 +184,7 @@ Server Components can't be rendered by Testing Library. Extract their logic into
 
 ## Review and commits
 
-One commit is one self-contained change that builds and passes tests on its own — that's what makes `bisect` and `revert` work. Never mix a refactor with a behavior change, or formatting with logic.
+One commit is one self-contained change that builds and passes tests on its own — that's what makes `bisect` and `revert` work. Never mix a refactor with a behavior change, or formatting with logic, once the refactor or formatting would hide the change from someone reading the diff; a small move, rename or reformat that only prepares the change goes in the same commit. Small independent tweaks of one kind may share a commit whose subject names that kind. A fix to a commit that has not been pushed is folded into that commit instead of landing on its own.
 
 Subject in imperative mood, under 50 characters, no trailing period: it completes "if applied, this commit will ___". Body wrapped at 72. Match the repo's existing convention over any general rule; check `git log` before the first commit in an unfamiliar repo.
 
