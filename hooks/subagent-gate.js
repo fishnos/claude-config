@@ -27,6 +27,7 @@ const fs = require("fs");
 const path = require("path");
 const io = require("./lib/hook-io");
 const record = require("./lib/crew-record");
+const blindReview = require("./lib/blind-review");
 const { loadRoles } = require("../tools/modes/roles.js");
 
 const HANDBACK = "SubagentHandback";
@@ -325,6 +326,26 @@ function workerTranscriptBeside(payload) {
   );
 }
 
+/**
+ * Record a reviewer's report as the verdict on the runs it was sent to review.
+ *
+ * The turn-end hold (hooks/review-hold.js) reads nothing else. Written by this
+ * runner because it is the one place that has both the report and the run it
+ * joins to. Only a reviewer's run carries `reviews`, so any other worker's
+ * report writes nothing; a report the parser cannot read writes nothing either,
+ * and the hold then treats that run as unreviewed.
+ */
+function writeVerdict(sessionId, matched, finish) {
+  if (!matched || !Array.isArray(matched.reviews)) return;
+  const findings = blindReview.parseFindings(finish.report);
+  if (findings === null) return;
+  record.appendReview(sessionId, {
+    token: matched.token,
+    reviews: matched.reviews,
+    findings,
+  });
+}
+
 const STATE_CHOICES = "done | blocked | rejected | input-required";
 
 function template(token) {
@@ -412,13 +433,22 @@ io.run(() => {
     return;
 
   const refusals = workerMarks.filter((mark) => mark.mark === "refusal").length;
-  if (refusals >= MAX_REFUSALS) return;
-
   const report =
     event === "SubagentStop"
       ? payload.last_assistant_message
       : (payload.tool_input || {}).message;
   const finish = parseFinish(report);
+
+  // Past its refusals a report goes through unchecked, but a readable review
+  // still counts: dropping it would cost a second review of the same diff.
+  if (refusals >= MAX_REFUSALS) {
+    writeVerdict(
+      payload.session_id,
+      record.findRun(payload.session_id, finish.run),
+      finish,
+    );
+    return;
+  }
   const point = event === "SubagentStop" ? "SubagentStop" : HANDBACK;
 
   // Every report this runner reads leaves a line, pass or refusal. It is what
@@ -490,6 +520,8 @@ io.run(() => {
     refusal = { gate: gate.id, reason: result.reason };
     break;
   }
+
+  if (refusal === null) writeVerdict(payload.session_id, matched, finish);
 
   if (refusal === null) {
     if (notes.length === 0) return;
