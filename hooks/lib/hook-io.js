@@ -116,6 +116,17 @@ function block(reason) {
   process.exit(0);
 }
 
+/**
+ * Say something to the operator and nothing to the model, and let the turn end.
+ *
+ * The one output a `Stop` hook has for "this is not being held, but you should
+ * know": `block` would hold, and `additionalContext` is not read at `Stop`.
+ */
+function tell(systemMessage) {
+  emit({ systemMessage });
+  process.exit(0);
+}
+
 /** Root of the tracked config, honouring CLAUDE_CONFIG_DIR like the other hooks. */
 function configDir() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
@@ -169,6 +180,7 @@ module.exports = {
   announce,
   rewrite,
   block,
+  tell,
   configDir,
   evidenceDir,
   git,
