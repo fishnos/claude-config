@@ -22,6 +22,7 @@ const fs = require("fs");
 const path = require("path");
 const io = require("./lib/hook-io");
 const record = require("./lib/crew-record");
+const blindReview = require("./lib/blind-review");
 
 const EVENT = "PreToolUse";
 const DISPATCH_TOOLS = ["Agent", "Task"];
@@ -32,6 +33,9 @@ const DISPATCH_TOOLS = ["Agent", "Task"];
 const STRICT_VERIFY = ["tested", "proven"];
 
 const UNDECLARED = "(undeclared)";
+
+const REVIEWER_ROLE = "reviewer";
+const REVIEW_SCOPE = "(review)";
 
 function readLock() {
   try {
@@ -57,6 +61,20 @@ function declaredScope(prompt) {
     .split(",")
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
+}
+
+/**
+ * The run tokens a reviewer dispatch asks to review, from its `Reviews:` line.
+ *
+ * Only well-formed tokens survive, so a stray word cannot be read as a run.
+ */
+function reviewedTokens(prompt) {
+  const line = /^[ \t]*Reviews:[ \t]*(.+)$/m.exec(prompt || "");
+  if (line === null) return [];
+  return line[1]
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => /^[0-9a-f]{8}$/.test(entry));
 }
 
 const DENIAL =
@@ -99,13 +117,20 @@ io.run(() => {
   const lock = readLock();
   const verify = (lock && lock.settings && lock.settings.verify) || "none";
   const scope = declaredScope(prompt);
+  const reviews =
+    input.subagent_type === REVIEWER_ROLE ? reviewedTokens(prompt) : [];
+  const isBlindReview = reviews.length > 0;
 
-  if (scope.length === 0 && STRICT_VERIFY.includes(verify)) {
+  if (scope.length === 0 && !isBlindReview && STRICT_VERIFY.includes(verify)) {
     io.deny(EVENT, DENIAL);
   }
 
   const token = crypto.randomBytes(4).toString("hex");
-  const effectiveScope = scope.length > 0 ? scope : [UNDECLARED];
+  const effectiveScope = isBlindReview
+    ? [REVIEW_SCOPE]
+    : scope.length > 0
+      ? scope
+      : [UNDECLARED];
 
   record.openRun({
     sessionId: payload.session_id,
@@ -113,21 +138,36 @@ io.run(() => {
     role: input.subagent_type || null,
     scope: effectiveScope,
     head: io.git(["rev-parse", "HEAD"], payload.cwd).trim() || null,
+    verify,
+    reviews,
   });
 
   const scopeLine =
     scope.length > 0 ? "" : `Scope: ${UNDECLARED}\n(no scope was declared)\n\n`;
 
+  // A blind review keeps none of the dispatcher's words: the diff is the whole
+  // prompt, which is what makes "the reviewer never sees the brief" true of the
+  // code rather than of whoever wrote the dispatch.
+  const body = isBlindReview
+    ? blindReview.buildPrompt({
+        diff: blindReview.reviewDiff({
+          sessionId: payload.session_id,
+          tokens: reviews,
+          cwd: payload.cwd,
+        }),
+      })
+    : `${scopeLine}${prompt}`;
+
   io.rewrite(
     EVENT,
     {
       ...input,
-      prompt: `${contract(token, effectiveScope)}\n\n${scopeLine}${prompt}`,
+      prompt: `${contract(token, effectiveScope)}\n\n${body}`,
     },
     // Said to the operator, not to the model: a dispatch that declared nothing
     // still goes through in this posture, and the transcript should show that
     // it did rather than leaving the operator to infer it.
-    scope.length > 0
+    scope.length > 0 || isBlindReview
       ? undefined
       : `Dispatch ${token} declared no scope; recorded as ${UNDECLARED}.`,
   );
