@@ -7647,6 +7647,160 @@ header("SubagentStop: the reviewer's verdict");
   fs.rmSync(verdictConfig, { recursive: true, force: true });
 }
 
+header("PreToolUse(Agent): the blind reviewer's prompt");
+{
+  const DISPATCH = path.join(HOOKS, "agent-dispatch.js");
+  const blindConfig = fs.mkdtempSync(path.join(os.tmpdir(), "crew-blind-"));
+  const blindEnv = { CLAUDE_CONFIG_DIR: blindConfig };
+  fs.writeFileSync(
+    path.join(blindConfig, "mode.lock"),
+    JSON.stringify({
+      mode: "test",
+      codename: "TESTER",
+      settings: { verify: "proven" },
+      deniedTools: [],
+      subagents: null,
+    }),
+  );
+  const blindRepo = makeRepository("crew-blind-repo-");
+  git(["config", "user.email", "t@t.t"], blindRepo);
+  git(["config", "user.name", "T"], blindRepo);
+  fs.writeFileSync(path.join(blindRepo, "tracked.js"), "const before = 1;\n");
+  git(["add", "."], blindRepo);
+  git(["commit", "-qm", "base"], blindRepo);
+  const head = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: blindRepo,
+    encoding: "utf8",
+  }).stdout.trim();
+  fs.writeFileSync(path.join(blindRepo, "tracked.js"), "const after = 2;\n");
+  fs.writeFileSync(path.join(blindRepo, "fresh.js"), "const brandNew = 3;\n");
+
+  const blindRecord = path.join(blindConfig, "cache", "crew", "b1.jsonl");
+  fs.mkdirSync(path.dirname(blindRecord), { recursive: true });
+  fs.writeFileSync(
+    blindRecord,
+    [
+      {
+        kind: "run",
+        token: "3333cccc",
+        role: "implementer",
+        scope: ["tracked.js", "fresh.js"],
+        head,
+        verify: "proven",
+        reviews: null,
+      },
+      { kind: "path", agentId: "impl-1", path: "tracked.js" },
+      { kind: "path", agentId: "impl-1", path: "fresh.js" },
+      { kind: "finish", agentId: "impl-1", token: "3333cccc" },
+    ]
+      .map((line) => JSON.stringify(line))
+      .join("\n") + "\n",
+  );
+
+  const reviewerDispatch = (prompt) => ({
+    tool_name: "Agent",
+    hook_event_name: "PreToolUse",
+    session_id: "b1",
+    cwd: blindRepo,
+    tool_input: { prompt, subagent_type: "reviewer" },
+  });
+  const promptOf = (reply) =>
+    ((reply.hookSpecificOutput || {}).updatedInput || {}).prompt || "";
+  const blindPrompt = promptOf(
+    runJson(
+      DISPATCH,
+      reviewerDispatch("Reviews: 3333cccc\nThe goal was BRIEF-SENTINEL-7731."),
+      blindEnv,
+    ),
+  );
+
+  check(
+    "a reviewer dispatch with Reviews is allowed without a scope line",
+    blindPrompt.length > 0,
+    true,
+  );
+  check(
+    "the reviewer never sees the dispatcher's text",
+    blindPrompt.includes("BRIEF-SENTINEL-7731"),
+    false,
+  );
+  check(
+    "the reviewer sees the change to a tracked file",
+    blindPrompt.includes("const after = 2;"),
+    true,
+  );
+  check(
+    "the reviewer sees an untracked new file",
+    blindPrompt.includes("const brandNew = 3;"),
+    true,
+  );
+  check(
+    "the reviewer prompt still carries a run token",
+    /RUN [0-9a-f]{8}/.test(blindPrompt),
+    true,
+  );
+  check(
+    "git's index is left alone",
+    spawnSync("git", ["diff", "--cached", "--name-only"], {
+      cwd: blindRepo,
+      encoding: "utf8",
+    }).stdout.trim(),
+    "",
+  );
+
+  const lastRun = () =>
+    readTextOrEmpty(blindRecord)
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+      .filter((line) => line.kind === "run")
+      .pop() || {};
+  check(
+    "the reviewer's run line records what it reviews",
+    (lastRun().reviews || []).join(","),
+    "3333cccc",
+  );
+  check("every run line records the posture", lastRun().verify, "proven");
+
+  const unknownPrompt = promptOf(
+    runJson(DISPATCH, reviewerDispatch("Reviews: 9999ffff"), blindEnv),
+  );
+  check(
+    "an unknown token is named as not found",
+    unknownPrompt.includes("9999ffff: not found in the run record"),
+    true,
+  );
+
+  fs.writeFileSync(path.join(blindRepo, "fresh.js"), "x".repeat(70000) + "\n");
+  const bigPrompt = promptOf(
+    runJson(DISPATCH, reviewerDispatch("Reviews: 3333cccc"), blindEnv),
+  );
+  check("an oversized diff is cut", bigPrompt.length < 64000, true);
+  check(
+    "a cut diff names every file in it",
+    bigPrompt.includes("truncated") &&
+      bigPrompt.includes("tracked.js") &&
+      bigPrompt.includes("fresh.js"),
+    true,
+  );
+
+  const adHoc = promptOf(
+    runJson(
+      DISPATCH,
+      reviewerDispatch("Scope: a.js\nLook over a.js please."),
+      blindEnv,
+    ),
+  );
+  check(
+    "a reviewer dispatch without Reviews keeps its own text",
+    adHoc.includes("Look over a.js please."),
+    true,
+  );
+
+  fs.rmSync(blindConfig, { recursive: true, force: true });
+  fs.rmSync(blindRepo, { recursive: true, force: true });
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(testedConfig, { recursive: true, force: true });
 fs.rmSync(noneConfig, { recursive: true, force: true });

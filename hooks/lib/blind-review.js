@@ -26,6 +26,11 @@
 // turn is held until the verdict is clean or answered (hooks/review-hold.js).
 // It binds wherever the mode sets `verify: proven`.
 
+const path = require("path");
+const { spawnSync } = require("child_process");
+const io = require("./hook-io");
+const record = require("./crew-record");
+
 // Severities a reviewer may label a finding with that leave the change
 // shippable, spelled as the reviewer role file spells them and matched without
 // regard to case. Everything else blocks, including an unlabelled finding and a
@@ -161,8 +166,77 @@ function interpret(review) {
   };
 }
 
+// A first guess, not a measurement: large enough for any change a single worker
+// should be making, small enough to leave the reviewer room to read around it.
+const MAX_DIFF_CHARACTERS = 60000;
+
+// `io.git` treats any non-zero exit as failure, and `git diff --no-index` exits
+// 1 whenever the two sides differ, which for a new file is always.
+function diffAgainstNothing(relative, root) {
+  const result = spawnSync(
+    "git",
+    ["diff", "--no-index", "--", "/dev/null", relative],
+    {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 10000,
+      windowsHide: true,
+    },
+  );
+  return result.status === 0 || result.status === 1 ? result.stdout || "" : "";
+}
+
+/**
+ * The diff a blind reviewer is given: every file each named run's worker wrote,
+ * against the commit that run started from.
+ *
+ * Read from the run record rather than from anything the dispatcher wrote, so
+ * the main session cannot choose what the reviewer sees. A token the record
+ * cannot resolve is named rather than dropped, so a review of nothing never
+ * reads as a review of everything.
+ */
+function reviewDiff({ sessionId, tokens, cwd }) {
+  const root = io.git(["rev-parse", "--show-toplevel"], cwd).trim() || cwd;
+  const sections = [];
+  const files = [];
+  for (const token of tokens) {
+    const run = record.findRun(sessionId, token);
+    const agentId = run ? record.agentForToken(sessionId, token) : null;
+    const paths = agentId
+      ? [...new Set(record.pathsFor(sessionId, agentId))]
+      : [];
+    if (paths.length === 0) {
+      sections.push(
+        `${token}: not found in the run record, or it changed no file. Say so in your findings.`,
+      );
+      continue;
+    }
+    for (const filePath of paths) {
+      const relative = path.isAbsolute(filePath)
+        ? path.relative(root, filePath)
+        : filePath;
+      files.push(relative);
+      const tracked = io.git(["ls-files", "--", relative], root).trim() !== "";
+      sections.push(
+        tracked
+          ? io.git(["diff", run.head || "HEAD", "--", relative], root)
+          : diffAgainstNothing(relative, root),
+      );
+    }
+  }
+  const diff = sections.join("\n");
+  if (diff.length <= MAX_DIFF_CHARACTERS) return diff;
+  return (
+    diff.slice(0, MAX_DIFF_CHARACTERS) +
+    `\n\n[diff truncated at ${MAX_DIFF_CHARACTERS} characters. Every file in it: ` +
+    `${[...new Set(files)].join(", ")}. Open the rest with Read.]`
+  );
+}
+
 module.exports = {
   buildPrompt,
+  reviewDiff,
+  MAX_DIFF_CHARACTERS,
   parseFindings,
   interpret,
   isAdvisory,
