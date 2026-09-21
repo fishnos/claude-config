@@ -301,10 +301,12 @@ unaffected, because its payloads carry no `agent_id`. This is the one place the
 design depends on the spike's `agent_id` measurement for a security property
 rather than for bookkeeping, and section 10 lists it as such.
 
-**`review` (only at `verify: proven`).** A reviewer worker receives the diff and
-nothing else, launched from the `reviewer` role whose `tools:` is `Read`, `Grep`,
-`Glob`. It never sees the brief, which is the point: a reviewer that knows the
-goal rationalises toward it.
+**`review` (only at `verify: proven`).** Not a gate on the worker's report: no
+reviewer can have run by the time that report arrives. The main session
+dispatches a `reviewer` by run token, the dispatch hook replaces its prompt with
+the diff alone, the verdict is written into the run record, and a `Stop` hook
+holds the main session's turn until it is clean or answered. The design is
+`docs/superpowers/specs/2026-09-19-blind-review-wiring-design.md`.
 
 **What the reviewer is not for, and this is the sharpest finding in the survey.**
 On false completion claims, where an agent asserts a success the environment
@@ -397,20 +399,23 @@ out from under this design.
 
 ## 8. Components
 
-| File                        | Event                                                                | What it does                                                                                                                 |
-| --------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `modes/roles/*.md`          | none                                                                 | The role corpus. New file adds a worker type.                                                                                |
-| `tools/modes/roles.js`      | none                                                                 | Parses a role file. Mirrors `tools/modes/rules.js`.                                                                          |
-| `tools/modes/crew.js`       | none                                                                 | Renders `~/.claude/agents/*.md` from roles plus the mode.                                                                    |
-| `tools/modes/apply.js`      | none                                                                 | Changed: calls the crew renderer beside `renderTo`.                                                                          |
-| `hooks/agent-dispatch.js`   | `PreToolUse` on `Agent`, `Task`                                      | Requires the scope line, staples the contract and run token, opens the run record.                                           |
-| `hooks/agent-guard.js`      | `PreToolUse` on every tool                                           | Denies any call from a worker whose target is the evidence log or the run record.                                            |
-| `hooks/subagent-brief.js`   | `SubagentStart`                                                      | Injects the brief band only, as `additionalContext`; the contract rides the prompt from `agent-dispatch.js`.                 |
-| `hooks/subagent-trace.js`   | `PostToolUse` on `Edit`, `Write`, `Bash`                             | Records which paths this `agent_id` touched.                                                                                 |
-| `hooks/subagent-gate.js`    | `SubagentStop`; `PreToolUse` and `PostToolUse` on `SubagentHandback` | Runs the gates wherever the report arrives, blocks or denies with a reason, records a delivered hand-back, bounds the retry. |
-| `hooks/subagent/gates/*.js` | none                                                                 | One gate per file. The directory is the registry.                                                                            |
-| `hooks/validate-config.js`  | none                                                                 | Changed: every rule carries a `worker:` classification.                                                                      |
-| `tools/ccfg.js`             | none                                                                 | Changed: `ccfg crew` prints the rendered crew, `ccfg conformance` prints the assumption table.                               |
+| File                                   | Event                                                                | What it does                                                                                                                               |
+| -------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `modes/roles/*.md`                     | none                                                                 | The role corpus. New file adds a worker type.                                                                                              |
+| `tools/modes/roles.js`                 | none                                                                 | Parses a role file. Mirrors `tools/modes/rules.js`.                                                                                        |
+| `tools/modes/crew.js`                  | none                                                                 | Renders `~/.claude/agents/*.md` from roles plus the mode.                                                                                  |
+| `tools/modes/apply.js`                 | none                                                                 | Changed: calls the crew renderer beside `renderTo`.                                                                                        |
+| `hooks/agent-dispatch.js`              | `PreToolUse` on `Agent`, `Task`                                      | Requires the scope line, staples the contract and run token, opens the run record.                                                         |
+| `hooks/agent-guard.js`                 | `PreToolUse` on every tool                                           | Denies any call from a worker whose target is the evidence log or the run record.                                                          |
+| `hooks/subagent-brief.js`              | `SubagentStart`                                                      | Injects the brief band only, as `additionalContext`; the contract rides the prompt from `agent-dispatch.js`.                               |
+| `hooks/subagent-trace.js`              | `PostToolUse` on `Edit`, `Write`, `Bash`                             | Records which paths this `agent_id` touched.                                                                                               |
+| `hooks/subagent-gate.js`               | `SubagentStop`; `PreToolUse` and `PostToolUse` on `SubagentHandback` | Runs the gates wherever the report arrives, blocks or denies with a reason, records a delivered hand-back, bounds the retry.               |
+| `hooks/subagent/gates/*.js`            | none                                                                 | One gate per file. The directory is the registry.                                                                                          |
+| `hooks/subagent/gates/review-shape.js` | none                                                                 | Refuses a reviewer's report whose findings cannot be read, so every verdict that reaches the record is parseable.                          |
+| `hooks/lib/blind-review.js`            | none                                                                 | Builds the reviewer's diff-only prompt, parses its findings, and says whether they block.                                                  |
+| `hooks/review-hold.js`                 | `Stop`                                                               | Holds the main session's turn while a run that changed files is unreviewed or has unanswered blocking findings; at most two holds per run. |
+| `hooks/validate-config.js`             | none                                                                 | Changed: every rule carries a `worker:` classification.                                                                                    |
+| `tools/ccfg.js`                        | none                                                                 | Changed: `ccfg crew` prints the rendered crew, `ccfg conformance` prints the assumption table.                                             |
 
 `~/.claude/agents/*.md` is generated and committed, the way `rules/_active.md`
 and `SKILL-INDEX.md` already are. `cache/crew/` is ignored.
