@@ -3,8 +3,8 @@
 Generated. Do not edit by hand. Rerun `node ~/.claude/scripts/build-skill-index.js`,
 or start a session and the SessionStart hook rebuilds it when it goes stale.
 
-Every skill on this machine and whether Claude can see it: 209 in all,
-81 of them from enabled plugins, named the way they are invoked
+Every skill on this machine and whether Claude can see it: 214 in all,
+85 of them from enabled plugins, named the way they are invoked
 (`plugin:skill`). 74 of these
 are invisible in the session listing but run right now when invoked by name. Only the
 **Disabled** section needs settings.json changed before use.
@@ -466,7 +466,7 @@ Activates on: `**/*.urdf,**/*.xacro`
 
 Create robot models using URDF with proper links, joints, visual geometry, collision shapes, and physical properties
 
-## Always listed (93)
+## Always listed (98)
 
 Already in the session listing with descriptions.
 
@@ -518,9 +518,17 @@ Use when the user wants to design, redesign, shape, critique, audit, polish, cla
 
 Testing React with Testing Library the way it's meant to be used — query priority, user-event, integration over unit, testing custom hooks, and mocking the network with MSW instead of fetch. Use when writing or reviewing React/Next.js tests, testing a component, custom hook, form, or async data flow, choosing between unit/integration/E2E for a frontend change, or fixing tests that break on every refactor.
 
+### `/tool-search`
+
+Finds the specific components, libraries, and services from a curated list of web resources (React Bits, Aceternity UI, 21st, Bklit, Motion, vgpu, Supabase, Vercel and others) that fit a website or app being planned, and returns checked links with install commands. Use when the user asks which components, tools, or technology to use for a site, wants links to UI components for a page, or runs /tool-search with a description of what they are building.
+
 ### `/superpowers:brainstorming`
 
 You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation.
+
+### `/superpowers:diagnosing-superpowers`
+
+Use when a superpowers session went wrong and your human partner wants to know why — repeated work, ignored plans, stumbles, poor results, a skill that didn't fire, "it took too long", "why is it so expensive", "what is it doing" — or wants to build a bug report for the superpowers maintainers, for the current session or a past one identified by id or path, on any harness.
 
 ### `/superpowers:dispatching-parallel-agents`
 
@@ -528,7 +536,7 @@ Use when facing 2+ independent tasks that can be worked on without shared state 
 
 ### `/superpowers:executing-plans`
 
-Use when you have a written implementation plan to execute in a separate session with review checkpoints
+Use when executing an implementation plan in the current session as the implementer yourself — your human partner chose inline execution, or no subagent tool is available
 
 ### `/superpowers:finishing-a-development-branch`
 
@@ -608,7 +616,7 @@ Vercel AI SDK expert guidance. Use when building AI-powered features — chat in
 
 ### `/vercel:auth`
 
-Authentication integration guidance — Clerk (native Vercel Marketplace), Descope, and Auth0 setup for Next.js applications. Covers middleware auth patterns, sign-in/sign-up flows, and Marketplace provisioning. Use when implementing user authentication.
+Authentication integration guidance — Clerk (native Vercel Marketplace), Descope, and Auth0 setup for Next.js applications, plus Sign in with Vercel, Vercel Passport, and Vercel KMS. Covers proxy.ts auth patterns, sign-in/sign-up flows, and Marketplace provisioning. Use when implementing user authentication or protecting deployments.
 
 ### `/vercel:bootstrap`
 
@@ -629,6 +637,10 @@ Vercel Chat SDK expert guidance. Use when building multi-platform chat bots — 
 ### `/vercel:create-a-backend`
 
 Backend architecture guidance. Use when planning, building, or migrating an API or backend; choosing between Functions, Services, containers, Workflow, Queues, and Marketplace databases; or selecting a supported backend framework or runtime.
+
+### `/vercel:custom-metrics`
+
+Emit and query Vercel Custom Metrics. Use when instrumenting application or business measurements in Vercel Functions, using metric() from @vercel/functions, choosing metric names and attributes, or querying emitted values with vc metrics.
 
 ### `/vercel:deployments-cicd`
 
@@ -674,6 +686,10 @@ Upgrade Next.js to the latest version following official migration guides and co
 
 Next.js App Router expert guidance. Use when building, debugging, or architecting Next.js applications — routing, Server Components, Server Actions, Cache Components, layouts, middleware/proxy, data fetching, rendering strategies, and deployment on Vercel.
 
+### `/vercel:queues`
+
+Vercel Queues guidance — durable topics with at-least-once delivery, independent consumer groups, retries, delays, and idempotency keys via @vercel/queue (JS) or vercel-queue (Python). Use when deferring background work, buffering traffic, fanning out events, or choosing between Queues and Workflows.
+
 ### `/vercel:react-best-practices`
 
 React best-practices reviewer for TSX files. Triggers after editing multiple TSX components to run a condensed quality checklist covering component structure, hooks usage, accessibility, performance, and TypeScript patterns.
@@ -696,7 +712,7 @@ Turbopack expert guidance. Use when configuring the Next.js bundler, optimizing 
 
 ### `/vercel:vercel-agent`
 
-Vercel Agent guidance — AI-powered code review, incident investigation, and SDK installation. Automates PR analysis and anomaly debugging. Use when configuring or understanding Vercel's AI development tools.
+Vercel Agent guidance — dashboard and Slack chat, code review, production investigation, approved actions, and product installation. Use when configuring or working with Vercel's AI assistant.
 
 ### `/vercel:vercel-cli`
 
@@ -796,15 +812,19 @@ This skill should be used when the user wants to "package an MCP server", "bundl
 
 ### `/neon:neon`
 
-Overview of Neon, a complete set of cloud backend primitives for apps and agents, spanning Lakebase Postgres, Auth, the Data API, Object Storage, Compute Functions, and the AI Gateway. Start here to route to the right Neon skill, set up the CLI or MCP server, and follow the branch-first workflow. Use when "Neon" or "Lakebase Postgres" is mentioned, or when any of its individual capabilities are the trigger: "object storage" or "S3", "buckets", "serverless functions", "AI gateway", "call an LLM", "logs", "branch logs", "query logs", "log export", "Loki", "Grafana", "observability", "telemetry", "postgres", "database", or "backend". Also use when there is no Neon account yet, the user cannot sign in or provide an API key right now and needs a project they can claim later, or the user asks for a throwaway DATABASE_URL, Claimable Neon, Claimable Postgres, neon.new, claimable.neon.tech, instant Postgres, a no-signup database, temporary postgres, quick postgres, a no credit card database, or npx neon-new.
+Overview of Neon, a complete set of cloud backend primitives around Lakebase Postgres: Auth, Object Storage, Functions, and the AI Gateway. Start here to choose Neon for undecided login, files, APIs, and LLM calls, set up the CLI or MCP server, and follow the branch-first workflow. Use when building an app or backend on Neon, or when "Neon" or "Lakebase Postgres" is mentioned. Child skill neon-postgres wins for an existing DATABASE_URL, SQL, schema, inspect, or search. Child skill neon-auth wins for login, users, sessions, identity routing, and Managed Better Auth setup. Also use for object storage, S3, buckets, serverless functions, function triggers, cron, AI gateway, LLM calls, logs, Loki, Grafana, observability, postgres, database, backend, Claimable Neon, neon.new, or a no-signup database.
 
 ### `/neon:neon-ai-gateway`
 
 One API and one credential for frontier and open-source LLMs, built into your Neon branch and powered by Databricks. Use when a user wants to call an LLM, add AI/chat/an agent to their app, route between model providers (OpenAI, Anthropic, Google/Gemini, Meta, Alibaba, and more), or avoid juggling separate provider API keys and accounts — especially when they already use Neon and want AI requests to branch with their project. Works with the OpenAI SDK, Anthropic SDK, google-genai, the Vercel AI SDK, and Mastra by changing only the base URL. Triggers include "call an LLM", "add AI to my app", "chat completion", "model routing", "LLM proxy/gateway", "one API for all models", "use Claude/GPT/Gemini", "AI SDK", "Mastra agent", "Neon AI Gateway", and "log/rate-limit AI calls".
 
+### `/neon:neon-auth`
+
+Add authentication to a new app. Use for "add auth", "add login", Neon Auth (Managed Better Auth), identity routing, sign-up, sign-in, password reset, email OTP, magic links, organizations, phone OTP, OAuth, passkeys, MFA, trusted domains, invalid domain, and @neondatabase/auth. No existing identity: default to Managed Better Auth. Keep working Better Auth, Clerk, Supabase Auth, or another IdP. User asked to migrate from Supabase Auth: Managed Better Auth. A required plugin outside Managed support: self-managed Better Auth on a Neon Function or the existing app host. Also use for auth APIs in @neondatabase/neon-js.
+
 ### `/neon:neon-functions`
 
-Long-running, serverless Node.js HTTP functions deployed onto your Neon branch, with DATABASE_URL injected automatically and compute that runs next to your data. Use when a user wants to host an API, an AI agent with long streaming responses, a WebSocket or server-sent-events (SSE) server, a webhook handler, a Discord bot, an MCP server, or any request/response workload that risks timing out on short, lambda-style serverless functions — and wants it to branch with their database. Triggers include "serverless function", "deploy an API", "long-running function", "streaming agent", "SSE server", "WebSocket server", "webhook handler", "MCP server", "run code next to my database", "function that won't time out", "function logs", "Neon Functions", and "Neon Compute".
+Long-running, serverless Node.js HTTP functions deployed onto your Neon branch, with DATABASE_URL injected automatically and compute that runs next to your data. Use when a user wants to host an API, an AI agent with long streaming responses, a WebSocket or server-sent-events (SSE) server, a webhook handler, a Discord bot, an MCP server, or any request/response workload that risks timing out on short, lambda-style serverless functions — and wants it to branch with their database. Also use for Function Triggers: a cron or an object-storage event that POSTs to a function. Triggers include "serverless function", "deploy an API", "long-running function", "streaming agent", "SSE server", "WebSocket server", "webhook handler", "MCP server", "cron", "function trigger", "scheduled function", "cron job", "object storage trigger", "on upload", "run code next to my database", "function that won't time out", "function logs", "Neon Functions", "Neon Compute", "DDoS protection", "rate limiting", and "production hardening".
 
 ### `/neon:neon-object-storage`
 
@@ -812,7 +832,7 @@ S3-compatible object storage that branches with your Neon project, so files and 
 
 ### `/neon:neon-postgres`
 
-Guides and best practices for working with Lakebase Postgres, the database behind Neon. Covers setup, connection methods and drivers, pooled vs direct connections, branching, schema migrations, autoscaling, scale-to-zero, instant restore, read replicas, connection pooling, IP allow lists, and logical replication. Also covers Lakebase Search: semantic vector search, full-text search with BM25 ranking, and hybrid search. Use when users ask about "Lakebase Postgres", "Neon setup", "connect to Neon", "Neon project", "DATABASE_URL", "serverless Postgres", "Neon CLI", "neon", "Neon MCP", "Neon Auth", "@neondatabase/serverless", "@neondatabase/neon-js", "scale to zero", "Neon autoscaling", "Neon read replica", "Neon connection pooling", "schema migrations", "semantic search", "vector search", "full-text search", "BM25", or "hybrid search".
+Guides and best practices for working with Lakebase Postgres on Neon: connections, pooled vs direct, schema migrations, branching, autoscaling, scale-to-zero, instant restore, read replicas, IP allow lists, logical replication, and Lakebase Search. Use when the work is an existing DATABASE_URL, SQL, schema, inspect, or search. New backends, Auth, files, Functions, and LLM calls go to the parent `neon` skill. Also use for "@neondatabase/serverless", "@neondatabase/neon-js", "neon inspect db", "semantic search", "vector search", "full-text search", "BM25", or "hybrid search".
 
 ### `/neon:neon-postgres-branches`
 
