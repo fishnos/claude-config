@@ -6,6 +6,9 @@
 // If Node/Prettier/npx is unavailable, it no-ops instead of failing the hook.
 
 const { spawn } = require("child_process");
+const path = require("path");
+const prettierCommand = require("./lib/prettier-command");
+const { isForeignRepository } = require("./lib/repository-trust");
 
 let payload = "";
 process.stdin.setEncoding("utf8");
@@ -20,11 +23,12 @@ process.stdin.on("end", () => {
     return; // malformed payload, nothing to format
   }
   if (!filePath) return;
+  // Prettier loads the config beside the file, and that config can be code.
+  // Nobody is at hand to ask after an edit, so a clone of someone else's
+  // repository is left unformatted.
+  if (isForeignRepository(path.dirname(path.resolve(filePath)))) return;
 
-  // On Windows the npm shim is `npx.cmd`; `spawn` needs the exact name.
-  const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-  const child = spawn(npx, ["prettier", "--write", filePath], {
-    stdio: "ignore",
-  });
+  const { command, args } = prettierCommand(filePath);
+  const child = spawn(command, args, { stdio: "ignore" });
   child.on("error", () => {}); // npx/prettier absent → silently skip
 });

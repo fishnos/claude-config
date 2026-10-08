@@ -60,6 +60,21 @@ function deny(hookEventName, reason) {
   process.exit(0);
 }
 
+/**
+ * Hand the decision to the operator: the permission prompt appears even when
+ * an allow rule would have let the call through. The reason is shown to them.
+ */
+function ask(hookEventName, reason) {
+  emit({
+    hookSpecificOutput: {
+      hookEventName,
+      permissionDecision: "ask",
+      permissionDecisionReason: reason,
+    },
+  });
+  process.exit(0);
+}
+
 /** Let the call through but inject context the model has to read. */
 function warn(hookEventName, additionalContext) {
   emit({ hookSpecificOutput: { hookEventName, additionalContext } });
@@ -176,6 +191,7 @@ function run(body) {
 module.exports = {
   readPayload,
   deny,
+  ask,
   warn,
   announce,
   rewrite,

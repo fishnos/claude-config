@@ -48,7 +48,7 @@
       "Bash(npx prettier:*)",
       "Bash(npx vitest:*)",
       "Bash(npx jest:*)",
-      "Bash(npx ctx7@latest:*)",
+      "Bash(npx ctx7@0.5.14:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
       "Bash(gh pr checks:*)",

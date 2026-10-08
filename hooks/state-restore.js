@@ -102,6 +102,18 @@ io.run(() => {
     );
     return;
   }
+  // A record git tracks arrives with every clone, so its text is whatever the
+  // repository's author wrote, and loading it would hand them the session. One
+  // written here is untracked: `/repo-setup context` git-ignores it.
+  if (io.git(["ls-files", "--", file], root).trim() !== "") {
+    reportNothingCarried(
+      payload.source,
+      `${file} is tracked by git, so it may have come with the repository ` +
+        "rather than from an earlier session here, and it was not loaded. " +
+        "If it is yours, untrack it (`git rm --cached`) and git-ignore it.",
+    );
+    return;
+  }
   if (!stateFile.hasContent(state.text)) {
     reportNothingCarried(
       payload.source,

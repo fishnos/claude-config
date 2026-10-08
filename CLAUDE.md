@@ -76,6 +76,8 @@ The first five stages are carried by the mode corpus, because how much of each a
 
 **Land.** `google-cl-author` for how the work splits; `git-workflow` for the message and mechanics.
 
+One more thing does not vary: **a slow command never holds up the work.** Any command likely to run longer than about a minute (a test suite, a build, an install, a probe run, a download, a training job) starts in the background, through the Bash tool's `run_in_background` flag, and you carry on with whatever does not depend on its result. When unsure how long it takes, background it. The harness tells you when it exits, so do not poll it, sleep on it, or rerun it in the foreground. For a command that runs for hours, send its output to a log file and say where the file is. Two things still hold: never start two background commands that write the same files, and read the finished command's output before claiming anything about it. If nothing else can move until it finishes, say that and wait.
+
 ## Claims and evidence
 
 How a claim gets labelled (measured against assumed, what a report must carry, when to stop and show output) is the `claims` dial, and those rules live in the mode corpus. One thing about them does not vary by mode.
