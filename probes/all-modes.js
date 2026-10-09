@@ -19,38 +19,75 @@ const settings = require("../tools/modes/settings.js");
 const CONFIG_DIR =
   process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
 
+// `nomad`, the eleventh mode, is left out on purpose: it is almost never used,
+// and each arm adds to what a run costs.
 const MODE_NAMES = [
-  "spike", "build", "ship", "paper", "research",
-  "review", "debug", "design", "unattended", "pair",
+  "spike",
+  "build",
+  "ship",
+  "paper",
+  "research",
+  "review",
+  "debug",
+  "design",
+  "unattended",
+  "pair",
 ];
 
 function renderMode(name) {
-  const corpus = rules.loadCorpus(path.join(CONFIG_DIR, "modes", "rules")).rules;
+  const corpus = rules.loadCorpus(
+    path.join(CONFIG_DIR, "modes", "rules"),
+  ).rules;
   const mode = modes.parseMode(
-    JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, "modes", `${name}.json`), "utf8")),
+    JSON.parse(
+      fs.readFileSync(path.join(CONFIG_DIR, "modes", `${name}.json`), "utf8"),
+    ),
     `${name}.json`,
   );
-  return render.renderActive(corpus, { ...settings.DEFAULTS, ...mode.settings }, name);
+  return render.renderActive(
+    corpus,
+    { ...settings.DEFAULTS, ...mode.settings },
+    name,
+  );
 }
 
 /** How many of the seven settings two modes answer differently. */
 function settingDistance(left, right) {
   const load = (name) =>
     modes.parseMode(
-      JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, "modes", `${name}.json`), "utf8")),
+      JSON.parse(
+        fs.readFileSync(path.join(CONFIG_DIR, "modes", `${name}.json`), "utf8"),
+      ),
       name,
     ).settings;
   const a = load(left);
   const b = load(right);
-  return Object.keys(settings.SETTINGS).filter((key) => a[key] !== b[key]).length;
+  return Object.keys(settings.SETTINGS).filter((key) => a[key] !== b[key])
+    .length;
 }
 
 // Kept identical to mode-divergence so its spike and ship cells stay comparable.
 const TASKS = [
-  { id: "slugify", prompt: "Write a JavaScript function that turns a title string into a URL slug: lowercase, spaces to hyphens, punctuation stripped, no leading or trailing hyphen." },
-  { id: "retry", prompt: "Write a JavaScript function that retries an async operation up to three times with exponential backoff." },
-  { id: "parse-duration", prompt: 'Write a JavaScript function that parses a duration string like "2h30m" into milliseconds.' },
-  { id: "chunk", prompt: "Write a JavaScript function that splits an array into chunks of at most n elements." },
+  {
+    id: "slugify",
+    prompt:
+      "Write a JavaScript function that turns a title string into a URL slug: lowercase, spaces to hyphens, punctuation stripped, no leading or trailing hyphen.",
+  },
+  {
+    id: "retry",
+    prompt:
+      "Write a JavaScript function that retries an async operation up to three times with exponential backoff.",
+  },
+  {
+    id: "parse-duration",
+    prompt:
+      'Write a JavaScript function that parses a duration string like "2h30m" into milliseconds.',
+  },
+  {
+    id: "chunk",
+    prompt:
+      "Write a JavaScript function that splits an array into chunks of at most n elements.",
+  },
 ];
 
 const TEST_MARKER = /\b(test|it|describe|assert|expect)\s*\(|#\[test\]/;
@@ -58,7 +95,8 @@ const TEST_MARKER = /\b(test|it|describe|assert|expect)\s*\(|#\[test\]/;
 module.exports = {
   name: "all-modes",
   kind: "model",
-  question: "Do all ten modes produce distinguishable work, or only the extremes?",
+  question:
+    "Do all ten modes produce distinguishable work, or only the extremes?",
   why: "Eight of the ten have never been measured. Ten modes is ten claims, and two of them are checked.",
 
   control: "spike",
