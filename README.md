@@ -16,13 +16,30 @@ adopt-in-place path and the Windows equivalents.
 
 ## Documentation
 
-| Page                                 | What is in it                                                       |
-| ------------------------------------ | ------------------------------------------------------------------- |
-| [Install](docs/install.md)           | New machine, prerequisites, `claude-sol`, avoiding merge conflicts  |
-| [Hooks](docs/hooks.md)               | All thirteen hooks, what the git guard blocks, portability, the suite    |
-| [Security](docs/security.md)         | Where keys live, the credential broker, the evidence log            |
-| [ccfg](docs/ccfg.md)                 | Command reference for the config CLI                                |
-| [Skills](docs/skills.md)             | The engineering standards, and sharing skills via `~/.agents`       |
+| Page                         | What is in it                                                         |
+| ---------------------------- | --------------------------------------------------------------------- |
+| [Install](docs/install.md)   | New machine, prerequisites, `claude-sol`, avoiding merge conflicts    |
+| [Hooks](docs/hooks.md)       | All thirteen hooks, what the git guard blocks, portability, the suite |
+| [Security](docs/security.md) | Where keys live, the credential broker, the evidence log              |
+| [ccfg](docs/ccfg.md)         | Command reference for the config CLI                                  |
+| [Skills](docs/skills.md)     | The engineering standards, and sharing skills via `~/.agents`         |
+
+## Modes, the crew and probes
+
+The same rules apply to a throwaway experiment and to a release, in a different
+order. A **mode** is a named working posture (`build`, `debug`, `review`, `ship`
+and seven more) that puts the rules it cares about most first and can gate tools
+and skills. `ccfg mode` shows the one in force; `ccfg mode NAME` switches.
+
+The **crew** is the set of subagent roles a mode provides. A subagent's report
+passes checks before it is accepted: that the files it touched were the ones it
+was given, and that a claim of working code names a command that ran.
+
+A **probe** is a scripted experiment that answers one question about what this
+configuration actually does, such as whether two modes produce measurably
+different work. `ccfg probe list` prints them.
+
+All three are described in [docs/ccfg.md](docs/ccfg.md).
 
 ## Install the skills without the config
 
@@ -34,11 +51,11 @@ you want without adopting anyone else's `CLAUDE.md`:
 /plugin install google-engineering@fishnos
 ```
 
-| Plugin                | Contains                                                                                  |
-| --------------------- | ----------------------------------------------------------------------------------------- |
-| `google-engineering`  | `google-style`, `google-testing`, `google-code-review`, `google-cl-author`, `git-workflow` |
-| `frontend-standards`  | `impeccable`, `react-testing`, `shape`                                                     |
-| `repo-agent-setup`    | `graphify`, `repo-setup`, `repo-schedule`, `find-docs`                                     |
+| Plugin               | Contains                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `google-engineering` | `google-style`, `google-testing`, `google-code-review`, `google-cl-author`, `git-workflow` |
+| `frontend-standards` | `impeccable`, `react-testing`, `shape`                                                     |
+| `repo-agent-setup`   | `graphify`, `repo-setup`, `repo-schedule`, `find-docs`                                     |
 
 Each plugin under `marketplace/` is a self-contained root carrying its own copy
 of the skills it advertises. That is not redundancy: Claude Code always scans a
@@ -63,6 +80,8 @@ repository is listed in [NOTICE](NOTICE), and the build refuses to publish one.
 | `CLAUDE.md`             | Global instructions                     |
 | `settings.json`         | Permissions, hooks, plugins, statusline |
 | `rules/`                | Global rule files                       |
+| `modes/`                | Modes, their rules and subagent roles   |
+| `probes/`               | Experiments run by `ccfg probe`         |
 | `skills/`               | Custom skills                           |
 | `commands/`             | Slash commands                          |
 | `hooks/`                | Hook scripts                            |
