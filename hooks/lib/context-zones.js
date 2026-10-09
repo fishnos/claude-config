@@ -59,6 +59,18 @@ function writeGaugeState(configDir, sessionIdentifier, record) {
   }
 }
 
+/**
+ * Turns of edits the record has not caught up with; 0 means it is current.
+ *
+ * The count on the record is as of the last prompt. A record that has changed
+ * since then has caught up, whatever the count says, and the gauge will zero
+ * the count when the next prompt arrives.
+ */
+function turnsBehind(record, currentDigest) {
+  if (currentDigest !== record.stateDigest) return 0;
+  return record.unrecordedEditTurns || 0;
+}
+
 module.exports = {
   AMBER_TOKENS,
   RED_TOKENS,
@@ -66,4 +78,5 @@ module.exports = {
   zoneOf,
   readGaugeState,
   writeGaugeState,
+  turnsBehind,
 };

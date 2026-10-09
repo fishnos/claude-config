@@ -4666,6 +4666,235 @@ header(
     "",
   );
 
+  // The edit hold. A live session keeps one transcript, so these turns do too:
+  // the gauge notes where the turn starts and the gate reads what came after.
+  // All of it at 1,000 tokens, because a typed /clear can come at any size.
+  const assistantEntry = (content) =>
+    JSON.stringify({
+      type: "assistant",
+      isSidechain: false,
+      message: {
+        role: "assistant",
+        content,
+        usage: {
+          input_tokens: 2,
+          cache_read_input_tokens: 998,
+          cache_creation_input_tokens: 0,
+        },
+      },
+    }) + "\n";
+  const editOf = (filePath) =>
+    assistantEntry([
+      { type: "tool_use", name: "Edit", input: { file_path: filePath } },
+    ]);
+  const newTranscript = (sessionIdentifier) => {
+    const file = path.join(gateHome, `${sessionIdentifier}.jsonl`);
+    fs.writeFileSync(file, assistantEntry([{ type: "text", text: "ok" }]));
+    return file;
+  };
+  const promptArrives = (sessionIdentifier, transcript) =>
+    run(
+      gaugeHook,
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionIdentifier,
+        transcript_path: transcript,
+        cwd: gateRoot,
+        prompt: "next",
+      },
+      environment,
+    );
+  const replyEnds = (sessionIdentifier, transcript) =>
+    run(
+      gateHook,
+      {
+        hook_event_name: "Stop",
+        session_id: sessionIdentifier,
+        transcript_path: transcript,
+        cwd: gateRoot,
+        last_assistant_message: "Done.",
+      },
+      environment,
+    );
+  const editedFile = path.join(gateRoot, "hooks", "example.js");
+
+  const heldTranscript = newTranscript("edit-held");
+  promptArrives("edit-held", heldTranscript);
+  fs.appendFileSync(heldTranscript, editOf(editedFile));
+  const editHold = replyEnds("edit-held", heldTranscript);
+  check(
+    "holds a reply that ends a turn of edits with the record unchanged",
+    editHold.verdict,
+    "BLOCK",
+    editHold.reason,
+  );
+  check(
+    "the edit hold names the edited file",
+    String(editHold.reason).includes(path.join("hooks", "example.js")),
+    true,
+    editHold.reason,
+  );
+  check(
+    "the edit hold asks for the record, not for a clear",
+    String(editHold.reason).includes(".claude/state.md") &&
+      !String(editHold.reason).includes("suggest the clear"),
+    true,
+    editHold.reason,
+  );
+  check(
+    "never holds twice for one turn of edits",
+    replyEnds("edit-held", heldTranscript).verdict,
+    "allow",
+    "",
+  );
+  check(
+    "a turn of edits left unrecorded is counted",
+    zones.readGaugeState(gateHome, "edit-held").unrecordedEditTurns,
+    1,
+    "",
+  );
+
+  promptArrives("edit-held", heldTranscript);
+  check(
+    "an edit from an earlier turn does not hold this one",
+    replyEnds("edit-held", heldTranscript).verdict,
+    "allow",
+    "",
+  );
+  check(
+    "the count survives a turn with no edits",
+    zones.readGaugeState(gateHome, "edit-held").unrecordedEditTurns,
+    1,
+    "",
+  );
+
+  promptArrives("edit-held", heldTranscript);
+  fs.appendFileSync(heldTranscript, editOf(editedFile));
+  replyEnds("edit-held", heldTranscript);
+  replyEnds("edit-held", heldTranscript);
+  check(
+    "a second unrecorded turn of edits is counted once",
+    zones.readGaugeState(gateHome, "edit-held").unrecordedEditTurns,
+    2,
+    "",
+  );
+
+  fs.appendFileSync(statePath, "\n- Recorded after two turns of edits.\n");
+  promptArrives("edit-held", heldTranscript);
+  check(
+    "updating the record clears the count",
+    zones.readGaugeState(gateHome, "edit-held").unrecordedEditTurns,
+    0,
+    "",
+  );
+
+  const recordedTranscript = newTranscript("edit-recorded");
+  promptArrives("edit-recorded", recordedTranscript);
+  fs.appendFileSync(recordedTranscript, editOf(editedFile));
+  fs.appendFileSync(statePath, "\n- Recorded in the same turn.\n");
+  check(
+    "lets a turn of edits through when the record changed in it",
+    replyEnds("edit-recorded", recordedTranscript).verdict,
+    "allow",
+    "",
+  );
+
+  const recordOnlyTranscript = newTranscript("edit-record-only");
+  promptArrives("edit-record-only", recordOnlyTranscript);
+  fs.appendFileSync(recordOnlyTranscript, editOf(statePath));
+  fs.appendFileSync(
+    recordOnlyTranscript,
+    editOf(path.join(gateRoot, ".claude", "state.archive.md")),
+  );
+  check(
+    "an edit to the record or its archive is not work to record",
+    replyEnds("edit-record-only", recordOnlyTranscript).verdict,
+    "allow",
+    "",
+  );
+
+  const outsideTranscript = newTranscript("edit-outside");
+  promptArrives("edit-outside", outsideTranscript);
+  fs.appendFileSync(
+    outsideTranscript,
+    editOf(path.join(gateHome, "scratch.md")),
+  );
+  check(
+    "an edit outside the repository is not work to record",
+    replyEnds("edit-outside", outsideTranscript).verdict,
+    "allow",
+    "",
+  );
+
+  const unmarkedTranscript = newTranscript("edit-unmarked");
+  fs.appendFileSync(unmarkedTranscript, editOf(editedFile));
+  zones.writeGaugeState(gateHome, "edit-unmarked", {
+    turn: 1,
+    stateDigest: require(path.join(HOOKS, "lib", "state-file.js")).stateDigest(
+      fs.readFileSync(statePath, "utf8"),
+    ),
+  });
+  check(
+    "a record that never noted where the turn starts does not hold",
+    replyEnds("edit-unmarked", unmarkedTranscript).verdict,
+    "allow",
+    "",
+  );
+
+  // The status line segment reads the same record, so the operator sees the
+  // standing before typing /clear rather than after.
+  const standing = (sessionIdentifier, cwd = gateRoot) =>
+    spawnSync(process.execPath, [path.join(HOOKS, "record-status.js")], {
+      input: JSON.stringify({ session_id: sessionIdentifier, cwd }),
+      encoding: "utf8",
+      env: { ...process.env, ...environment, NO_COLOR: "1" },
+    }).stdout;
+
+  const behindTranscript = newTranscript("standing-behind");
+  promptArrives("standing-behind", behindTranscript);
+  check(
+    "the status line says the record is current before any edit",
+    standing("standing-behind"),
+    "record current",
+    "",
+  );
+  fs.appendFileSync(behindTranscript, editOf(editedFile));
+  replyEnds("standing-behind", behindTranscript);
+  check(
+    "the status line counts one unrecorded turn of edits",
+    standing("standing-behind"),
+    "record 1 turn behind",
+    "",
+  );
+  promptArrives("standing-behind", behindTranscript);
+  fs.appendFileSync(behindTranscript, editOf(editedFile));
+  replyEnds("standing-behind", behindTranscript);
+  check(
+    "the status line counts two",
+    standing("standing-behind"),
+    "record 2 turns behind",
+    "",
+  );
+  fs.appendFileSync(statePath, "\n- Caught up.\n");
+  check(
+    "the status line says current as soon as the record changes",
+    standing("standing-behind"),
+    "record current",
+    "",
+  );
+  check(
+    "the status line is empty where there is no state file",
+    standing("standing-behind", noStateRoot),
+    "",
+    "",
+  );
+  check(
+    "the status line is empty before the gauge has seen a prompt",
+    standing("standing-never-started"),
+    "",
+    "",
+  );
+
   for (const directory of [gateRoot, noStateRoot, gateHome])
     fs.rmSync(directory, { recursive: true, force: true });
 }

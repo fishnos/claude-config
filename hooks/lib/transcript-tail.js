@@ -12,6 +12,12 @@ const path = require("path");
 // A whole transcript passes 10 MB, and the gauge runs in front of every prompt.
 const TAIL_BYTES = 256 * 1024;
 
+// One turn can write megabytes, because every Write repeats the file it wrote.
+// Past this the reader takes the turn's newest part and misses its oldest edits.
+const TURN_BYTES = 4 * 1024 * 1024;
+
+const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
+
 function parseLines(text) {
   const entries = [];
   for (const line of text.split("\n")) {
@@ -125,6 +131,47 @@ function latestAssistantText(transcriptPath, byteCount = TAIL_BYTES) {
   return "";
 }
 
+/** Size of a transcript in bytes, or 0 when it cannot be read. */
+function transcriptBytes(transcriptPath) {
+  try {
+    return fs.statSync(transcriptPath).size;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Paths the main thread's edit tools were given after a byte offset, each once.
+ *
+ * The offset is the transcript's size when the prompt arrived, so what follows
+ * it is this turn and nothing else. A transcript shorter than the offset is a
+ * different file from the one measured (a resumed or forked session), and is
+ * read from its start.
+ */
+function editedFilesSince(transcriptPath, byteOffset) {
+  if (!transcriptPath) return [];
+  const size = transcriptBytes(transcriptPath);
+  const start = byteOffset > size ? 0 : byteOffset || 0;
+  const entries = parseLines(
+    readTail(transcriptPath, Math.min(size - start, TURN_BYTES)),
+  );
+  const files = new Set();
+  for (const entry of entries) {
+    if (!entry || entry.type !== "assistant" || entry.isSidechain === true)
+      continue;
+    const content = entry.message && entry.message.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (!block || block.type !== "tool_use" || !EDIT_TOOLS.has(block.name))
+        continue;
+      const input = block.input || {};
+      const filePath = input.file_path || input.notebook_path;
+      if (typeof filePath === "string" && filePath !== "") files.add(filePath);
+    }
+  }
+  return [...files];
+}
+
 /**
  * The working directory a transcript was recorded in, or null.
  *
@@ -155,6 +202,8 @@ module.exports = {
   latestContextTokens,
   summarize,
   latestAssistantText,
+  transcriptBytes,
+  editedFilesSince,
   sessionCwd,
   isUnderDirectory,
 };

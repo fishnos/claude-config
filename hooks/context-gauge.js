@@ -35,12 +35,16 @@ io.run(() => {
   };
   const turn = previous.turn + 1;
   const digest = stateFile.stateDigest(state.text);
-  const digestChangedTurn =
-    digest === previous.stateDigest ? previous.digestChangedTurn : turn;
+  const unchanged = digest === previous.stateDigest;
+  const digestChangedTurn = unchanged ? previous.digestChangedTurn : turn;
   zones.writeGaugeState(io.configDir(), payload.session_id, {
     turn,
     stateDigest: digest,
     digestChangedTurn,
+    // For the clear gate and the status line: where this turn starts in the
+    // transcript, and how many turns of edits the file has yet to catch up with.
+    turnStartBytes: transcriptTail.transcriptBytes(payload.transcript_path),
+    unrecordedEditTurns: unchanged ? previous.unrecordedEditTurns || 0 : 0,
   });
 
   const tokens = transcriptTail.latestContextTokens(payload.transcript_path);

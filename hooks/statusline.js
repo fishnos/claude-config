@@ -1,6 +1,7 @@
 "use strict";
 
-// The status line: the active mode, then whatever the operator already had.
+// The status line: the active mode, whether the working record has caught up
+// with the session, then whatever the operator already had.
 //
 // Claude Code allows exactly one statusLine command, and this configuration
 // already ran ccstatusline. Replacing it to show the mode would have traded one
@@ -32,19 +33,23 @@ function readStdin() {
   }
 }
 
-function modeSegment(payload) {
+function scriptSegment(script, payload) {
   try {
-    const result = spawnSync(
-      process.execPath,
-      [path.join(__dirname, "mode-status.js")],
-      { input: payload, encoding: "utf8", timeout: 3000 },
-    );
-    const text = (result.stdout || "").trim();
-    // "no mode" is the resting state and would be noise on every line.
-    return text === "" || text === "no mode" ? "" : text;
+    const result = spawnSync(process.execPath, [path.join(__dirname, script)], {
+      input: payload,
+      encoding: "utf8",
+      timeout: 3000,
+    });
+    return (result.stdout || "").trim();
   } catch {
     return "";
   }
+}
+
+function modeSegment(payload) {
+  const text = scriptSegment("mode-status.js", payload);
+  // "no mode" is the resting state and would be noise on every line.
+  return text === "no mode" ? "" : text;
 }
 
 function wrappedSegment(payload) {
@@ -61,7 +66,9 @@ function wrappedSegment(payload) {
 }
 
 const payload = readStdin();
-const parts = [modeSegment(payload), wrappedSegment(payload)].filter(
-  (piece) => piece !== "",
-);
+const parts = [
+  modeSegment(payload),
+  scriptSegment("record-status.js", payload),
+  wrappedSegment(payload),
+].filter((piece) => piece !== "");
 process.stdout.write(parts.join("  "));
