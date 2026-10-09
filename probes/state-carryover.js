@@ -28,9 +28,9 @@
 // abbreviated a name. As first written the grader scored compact 1/6, because its
 // go #3 proposed stream.pipeline without naming 'drain'; widening the grader to
 // accept pipeline and inflected 'drain' moved that cell to clean. The grader then
-// went sentence-level in both directions — a proposal counts only in a sentence
+// went sentence-level in both directions: a proposal counts only in a sentence
 // carrying no rejection, the next step only in a sentence that names it without
-// refusing it — checked against 41 phrasings; the counts above did not move.
+// refusing it. Checked against 41 phrasings; the counts above did not move.
 //
 // The summary here condenses 6,036 characters. Real compaction summaries in this
 // config run a median 19,889 characters over sessions whose auto-compaction

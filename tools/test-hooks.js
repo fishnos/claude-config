@@ -3023,7 +3023,7 @@ header(
 {
   // Background task notifications, slash-command echoes and bash blocks all
   // arrive in the user-message position, so the hook sees them as prompts. Their
-  // prose is somebody else's — a subagent's report, a command's output — and
+  // prose is somebody else's (a subagent's report, a command's output) and
   // storing it under Unconfirmed files it as an instruction the operator gave.
   const captureHook = path.join(HOOKS, "constraint-capture.js");
   const restoreHook = path.join(HOOKS, "state-restore.js");
@@ -3078,7 +3078,7 @@ header(
 
   // Deviation 8's guard: an untouched template says nothing on startup. A single
   // captured line used to defeat it, so every later session opened on a banner
-  // reading "(no goal recorded)" — built from prose the operator never wrote.
+  // reading "(no goal recorded)", built from prose the operator never wrote.
   check(
     "the notification leaves the template untouched",
     readTextOrEmpty(statePath) === readTextOrEmpty(template),

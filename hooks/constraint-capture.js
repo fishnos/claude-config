@@ -29,22 +29,22 @@ const stateFile = require("./lib/state-file");
 //
 // A hyphen in the tag name is what separates them from prose. Measured over the
 // 40 most recent transcripts in ~/.claude/projects (2026-08-15 to 2026-09-14):
-// 381 closed outermost blocks, every one hyphenated — task-notification,
+// 381 closed outermost blocks, every one hyphenated: task-notification,
 // command-name, command-message, command-args, bash-input, bash-stdout,
-// bash-stderr, local-command-caveat, local-command-stdout, local-command-stderr
-// — and the single hyphen-free block at that level was an operator's own pasted
+// bash-stderr, local-command-caveat, local-command-stdout, local-command-stderr.
+// The single hyphen-free block at that level was an operator's own pasted
 // <script>. A harness message type spelled without a hyphen would reopen this,
 // so re-run that scan after an upgrade rather than trusting the list.
 //
 // The blocks are cut out and the rest of the message is kept, rather than the
 // whole prompt being skipped, because the harness wraps its blocks around a real
 // prompt: an instruction typed straight after a slash command is still the
-// operator's. Inner tags need no rule of their own — <result> and <summary> sit
+// operator's. Inner tags need no rule of their own: <result> and <summary> sit
 // inside <task-notification> and leave with it.
 //
 // A tag with no closing partner is left where it stands. All 16 unclosed ones in
-// that same scan were placeholders in ordinary prose — <feature-name>,
-// <session-id>, <repo-root>, <plan-basename>, <one-liner>, <full-path> — so
+// that same scan were placeholders in ordinary prose (<feature-name>,
+// <session-id>, <repo-root>, <plan-basename>, <one-liner>, <full-path>), so
 // cutting from one to the end of the message would throw away what the operator
 // actually typed.
 const HARNESS_BLOCK = /<([a-z][a-z0-9]*(?:-[a-z0-9]+)+)>[\s\S]*?<\/\1>/g;

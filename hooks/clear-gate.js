@@ -48,7 +48,7 @@ const paths = require("./lib/paths");
 // "then run /clear." has to keep firing.
 //
 // This hook's own name is the case that bites, because the session most likely
-// to write /clear-gate in a reply is the one editing this file — which is how
+// to write /clear-gate in a reply is the one editing this file, which is how
 // the defect was found, and why it costs whoever is fixing it a blocked stop.
 //
 // Underscore sits outside every class on purpose, because \b counts it as a word

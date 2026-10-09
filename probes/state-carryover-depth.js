@@ -12,13 +12,13 @@
 // Three arms at six reps, not six arms at three, decided 2026-09-15. Two reasons.
 // Power: at three reps the only result this probe's twoProportion can call
 // significant is a clean 3/3 against 0/3, and even that is p=0.014 on a normal
-// approximation where Fisher's exact says 0.10 — so five of the six arms could
+// approximation where Fisher's exact says 0.10, so five of the six arms could
 // only ever report "no difference". At six reps a 6/6 against 0/6 is p=0.0005
 // and partial separation can register at all. Scope: the red threshold is not
 // actually in play. settings.json sets autoCompactWindow to 220,000, so red at
 // 200K already leaves about one turn of runway and cannot usefully move up;
 // amber is the only number a measurement can change. Bracketing amber at 100K
-// and 200K answers that question on 1.8M tokens of prompt against 2.4M — which
+// and 200K answers that question on 1.8M tokens of prompt against 2.4M, which
 // is the prompt total across all cells, not the run's cost; for that, apply the
 // per-cell multiplier recorded below.
 //
@@ -42,7 +42,7 @@
 //
 // Cost, from the same smoke call: a cell is an agent loop, not one exchange.
 // `claude -p` carries no turn limit here, and the 300K arm took 14 turns and
-// 2,067,133 tokens in total (417,687 written to cache, 1,649,316 read back) —
+// 2,067,133 tokens in total (417,687 written to cache, 1,649,316 read back),
 // about 6.9 times its own prompt. Budget against that multiplier, not against
 // the arm sizes. depth-200k is now the largest arm and was never smoked at three
 // characters a token; its turn count is assumed, not measured.
