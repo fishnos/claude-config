@@ -43,6 +43,10 @@
 # Long-form docs. README is the landing page; each concern has a page here.
 !docs/
 !docs/**
+# Except the design specs, plans and notes the superpowers skills write while a
+# piece of work is under way. They are working papers for one session's task,
+# not documentation of the config, so they stay on the machine that wrote them.
+docs/superpowers/
 
 # Terminal themes referenced by settings.json.
 !themes/
