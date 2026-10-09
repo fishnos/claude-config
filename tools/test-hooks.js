@@ -8834,6 +8834,144 @@ header("Stop: the blind review hold");
   fs.rmSync(testedHold, { recursive: true, force: true });
 }
 
+header("mode-lock: the repository's own record answers first");
+{
+  const modeLock = require(path.join(HOOKS, "lib", "mode-lock.js"));
+  const lookupConfig = fs.mkdtempSync(
+    path.join(os.tmpdir(), "modelock-config-"),
+  );
+  const firstRepository = makeRepository("modelock-first-");
+  const secondRepository = makeRepository("modelock-second-");
+  const noRepository = fs.mkdtempSync(path.join(os.tmpdir(), "modelock-none-"));
+  const firstReal = fs.realpathSync(firstRepository);
+
+  const writeRecord = (root, text) => {
+    const directory = modeLock.repoDirectory(lookupConfig, root);
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(path.join(directory, "mode.lock"), text);
+    return directory;
+  };
+
+  check(
+    "with no record anywhere the scope is none",
+    modeLock.resolveLock(lookupConfig, firstRepository).scope,
+    "none",
+  );
+
+  fs.writeFileSync(
+    path.join(lookupConfig, "mode.lock"),
+    JSON.stringify({ mode: "build" }),
+  );
+  check(
+    "a repository with no record of its own follows the machine record",
+    modeLock.resolveLock(lookupConfig, firstRepository).scope,
+    "machine",
+  );
+
+  const firstDirectory = writeRecord(
+    firstRepository,
+    JSON.stringify({ mode: "spike", root: firstReal }),
+  );
+  const answered = modeLock.resolveLock(lookupConfig, firstRepository);
+  check("a repository's own record answers", answered.scope, "repo");
+  check("and names its own mode", answered.lock.mode, "spike");
+  check("and names the repository root", answered.root, firstReal);
+  check("and says where its files live", answered.directory, firstDirectory);
+  check(
+    "a second repository still follows the machine record",
+    modeLock.resolveLock(lookupConfig, secondRepository).lock.mode,
+    "build",
+  );
+
+  const nested = path.join(firstRepository, "src", "deep");
+  fs.mkdirSync(nested, { recursive: true });
+  check(
+    "a subdirectory answers with its repository's record",
+    modeLock.resolveLock(lookupConfig, nested).lock.mode,
+    "spike",
+  );
+  check(
+    "the unresolved and the real path share one key",
+    modeLock.repositoryKey(firstRepository),
+    modeLock.repositoryKey(firstReal),
+  );
+  check(
+    "the key is sixteen hex characters",
+    /^[0-9a-f]{16}$/.test(modeLock.repositoryKey(firstReal)),
+    true,
+  );
+
+  check(
+    "the repository scope reads rules from its own folder",
+    modeLock.rulesPath(answered),
+    path.join(firstDirectory, "rules.md"),
+  );
+  check(
+    "the machine scope reads the machine-wide rules file",
+    modeLock.rulesPath(modeLock.resolveLock(lookupConfig, secondRepository)),
+    path.join(lookupConfig, "rules", "_active.md"),
+  );
+
+  writeRecord(
+    secondRepository,
+    JSON.stringify({ mode: "review", root: firstReal }),
+  );
+  check(
+    "a record whose root names another repository is ignored",
+    modeLock.resolveLock(lookupConfig, secondRepository).lock.mode,
+    "build",
+  );
+
+  writeRecord(secondRepository, "{ not json");
+  check(
+    "an unreadable record falls through to the machine record",
+    modeLock.resolveLock(lookupConfig, secondRepository).scope,
+    "machine",
+  );
+
+  fs.mkdirSync(path.join(noRepository, ".claude"), { recursive: true });
+  const shipped = makeRepository("modelock-shipped-");
+  fs.mkdirSync(path.join(shipped, ".claude"), { recursive: true });
+  fs.writeFileSync(
+    path.join(shipped, ".claude", "mode.lock"),
+    JSON.stringify({ mode: "unattended", root: fs.realpathSync(shipped) }),
+  );
+  check(
+    "a mode.lock inside a repository's own .claude is ignored",
+    modeLock.resolveLock(lookupConfig, shipped).lock.mode,
+    "build",
+  );
+
+  const outside = modeLock.resolveLock(lookupConfig, noRepository);
+  check(
+    "outside any repository the machine record answers",
+    outside.scope,
+    "machine",
+  );
+  check("and there is no repository root", outside.root, null);
+  check(
+    "a payload's working directory is the one resolved",
+    modeLock.resolveForPayload(lookupConfig, { cwd: nested }).lock.mode,
+    "spike",
+  );
+  check(
+    "a status-line payload's workspace directory is used when cwd is absent",
+    modeLock.resolveForPayload(lookupConfig, {
+      workspace: { current_dir: nested },
+    }).lock.mode,
+    "spike",
+  );
+
+  for (const directory of [
+    lookupConfig,
+    firstRepository,
+    secondRepository,
+    noRepository,
+    shipped,
+  ])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(testedConfig, { recursive: true, force: true });
 fs.rmSync(noneConfig, { recursive: true, force: true });

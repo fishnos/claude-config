@@ -123,6 +123,7 @@ plugins/plugin-catalog-cache.json
 /backups/
 /downloads/
 /ide/
+/modes/repos/
 stats-cache.json
 mcp-needs-auth-cache.json
 credentials
