@@ -9213,6 +9213,100 @@ header("hook runner: a hook the mode in force turns off stays quiet");
     fs.rmSync(directory, { recursive: true, force: true });
 }
 
+header("mode-session: a repository's own rules are sent at session start");
+{
+  const modeLock = require(path.join(HOOKS, "lib", "mode-lock.js"));
+  const MODE_SESSION = path.join(HOOKS, "mode-session.js");
+  const sessionConfig = fs.mkdtempSync(path.join(os.tmpdir(), "modesession-config-"));
+  const ownRepository = makeRepository("modesession-own-");
+  const plainRepository = makeRepository("modesession-plain-");
+  const environment = { CLAUDE_CONFIG_DIR: sessionConfig };
+
+  fs.mkdirSync(path.join(sessionConfig, "rules"), { recursive: true });
+  fs.writeFileSync(
+    path.join(sessionConfig, "rules", "_active.md"),
+    "MACHINE-RULES-MARK\n",
+  );
+  fs.writeFileSync(path.join(sessionConfig, "settings.json"), "{}\n");
+  fs.writeFileSync(
+    path.join(sessionConfig, "mode.lock"),
+    JSON.stringify({ mode: "build", codename: "RUNNER", hardHash: "machinehash" }),
+  );
+  const ownDirectory = modeLock.repoDirectory(sessionConfig, ownRepository);
+  fs.mkdirSync(ownDirectory, { recursive: true });
+  fs.writeFileSync(
+    path.join(ownDirectory, "mode.lock"),
+    JSON.stringify({
+      mode: "spike",
+      codename: "RECON",
+      root: fs.realpathSync(ownRepository),
+      hardHash: "repohash",
+    }),
+  );
+  const rulesFile = path.join(ownDirectory, "rules.md");
+  fs.writeFileSync(rulesFile, "REPO-RULES-MARK\n");
+
+  const start = (sessionId, cwd) =>
+    runJson(
+      MODE_SESSION,
+      { session_id: sessionId, cwd, hook_event_name: "SessionStart", source: "startup" },
+      environment,
+    );
+  const contextOf = (reply) =>
+    String((reply.hookSpecificOutput || {}).additionalContext || "");
+
+  const inOwn = contextOf(start("own-1", ownRepository));
+  check("the repository's mode is the one announced", inOwn.includes("RECON"), true, inOwn);
+  check("the repository's rules are sent", inOwn.includes("REPO-RULES-MARK"), true, inOwn);
+  check(
+    "under a sentence saying they replace the machine-wide mode rules",
+    inOwn.includes("replace the mode rules loaded from the machine-wide file"),
+    true,
+    inOwn,
+  );
+  check(
+    "the session records the repository mode's fingerprint",
+    JSON.parse(
+      fs.readFileSync(
+        path.join(sessionConfig, "cache", "mode-session", "own-1"),
+        "utf8",
+      ),
+    ).hardHash,
+    "repohash",
+  );
+
+  const inPlain = contextOf(start("plain-1", plainRepository));
+  check("a repository on the machine mode is told the machine mode", inPlain.includes("RUNNER"), true, inPlain);
+  check(
+    "and is sent nothing extra",
+    inPlain.includes("replace the mode rules"),
+    false,
+    inPlain,
+  );
+
+  fs.writeFileSync(rulesFile, "MACHINE-RULES-MARK\n");
+  check(
+    "rules identical to the machine-wide file are not sent twice",
+    contextOf(start("own-2", ownRepository)).includes("replace the mode rules"),
+    false,
+  );
+
+  fs.writeFileSync(rulesFile, "R".repeat(9000));
+  const capped = contextOf(start("own-3", ownRepository));
+  check("oversized rules are cut at the cap", capped.includes("[rules truncated]"), true);
+  check("and the cut text is no longer than the cap allows", capped.length < 8600, true, capped.length);
+
+  fs.rmSync(rulesFile);
+  check(
+    "a repository record with no rules file still announces its mode",
+    contextOf(start("own-4", ownRepository)).includes("RECON"),
+    true,
+  );
+
+  for (const directory of [sessionConfig, ownRepository, plainRepository])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(testedConfig, { recursive: true, force: true });
 fs.rmSync(noneConfig, { recursive: true, force: true });

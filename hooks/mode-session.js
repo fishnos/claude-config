@@ -25,6 +25,50 @@ const modeLock = require("./lib/mode-lock");
 
 const EVENT = "SessionStart";
 
+// A cap, not a budget, and the same 8000 as hooks/mode-inject.js for the same
+// reason: an oversized render means the corpus grew wrong, and truncating keeps
+// that from flooding the context while leaving the fault visible.
+const MAX_INJECTED = 8000;
+
+/**
+ * A repository's own rules, worded for the session's context, or "" when
+ * there is nothing to add.
+ *
+ * The machine-wide rules file is loaded into every session by the harness and
+ * no hook can stop that. A repository with its own mode therefore gets its
+ * rules sent on top, with a sentence saying which set wins. This event also
+ * fires after a clear and after a compaction, so they are sent again at both.
+ */
+function repositoryRules(resolution, label) {
+  if (resolution.scope !== "repo") return "";
+  let own;
+  try {
+    own = fs.readFileSync(modeLock.rulesPath(resolution), "utf8");
+  } catch {
+    return "";
+  }
+  let machineWide = null;
+  try {
+    machineWide = fs.readFileSync(
+      path.join(io.configDir(), "rules", "_active.md"),
+      "utf8",
+    );
+  } catch {
+    machineWide = null;
+  }
+  if (own === machineWide) return "";
+
+  const body =
+    own.length > MAX_INJECTED
+      ? own.slice(0, MAX_INJECTED) + "\n\n[rules truncated]"
+      : own;
+  return (
+    `\n\nThis repository has its own mode (${label}). The rules below are in ` +
+    `force for this repository and replace the mode rules loaded from the ` +
+    `machine-wide file.\n\n${body}`
+  );
+}
+
 function sessionFile(sessionId) {
   const directory = path.join(io.configDir(), "cache", "mode-session");
   try {
@@ -58,7 +102,8 @@ function baselineHash() {
 
 io.run(() => {
   const payload = io.readPayload();
-  const lock = modeLock.resolveForPayload(io.configDir(), payload).lock;
+  const resolution = modeLock.resolveForPayload(io.configDir(), payload);
+  const lock = resolution.lock;
 
   const loaded = {
     // The fingerprint of the frozen half, as it stood when this session began.
@@ -103,16 +148,20 @@ io.run(() => {
   // is delivered to the model and shown to nobody, which made a session that
   // had loaded its mode correctly look like one where nothing had happened.
   const icon = lock.icon || "■";
+  const here = resolution.scope === "repo" ? "this repository" : "this session";
   const visible =
-    `${icon} ${label}` + (detail.length > 0 ? `  ${detail.join(" · ")}` : "");
+    `${icon} ${label}` +
+    (resolution.scope === "repo" ? " (repo)" : "") +
+    (detail.length > 0 ? `  ${detail.join(" · ")}` : "");
 
   io.announce(
     EVENT,
-    `Mode ${label} is in force for this session` +
+    `Mode ${label} is in force for ${here}` +
       (detail.length > 0 ? ` (${detail.join(", ")})` : "") +
       `. Switching modes now changes the rules immediately, but the skill ` +
       `list, model and effort are fixed until the next session; ` +
-      `\`ccfg mode\` reports that state as CORRUPTED.`,
+      `\`ccfg mode\` reports that state as CORRUPTED.` +
+      repositoryRules(resolution, label),
     visible,
   );
 });
