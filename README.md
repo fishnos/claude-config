@@ -29,7 +29,8 @@ adopt-in-place path and the Windows equivalents.
 The same rules apply to a throwaway experiment and to a release, in a different
 order. A **mode** is a named working posture (`build`, `debug`, `review`, `ship`
 and seven more) that puts the rules it cares about most first and can gate tools
-and skills. `ccfg mode` shows the one in force; `ccfg mode NAME` switches.
+and skills. `ccfg mode` shows the one in force; `ccfg mode NAME` switches,
+for the repository you are in, or for the whole machine with `--global`.
 
 The **crew** is the set of subagent roles a mode provides. A subagent's report
 passes checks before it is accepted: that the files it touched were the ones it
@@ -97,7 +98,7 @@ Everything else is ignored via allowlist `.gitignore` (`*` first, then explicit 
 Two commands, both of which should pass before anything is committed:
 
 ```sh
-node ~/.claude/tools/test-hooks.js       # 328 cases across the thirteen hooks
+node ~/.claude/tools/test-hooks.js       # 970 cases across the thirteen hooks
 node ~/.claude/hooks/validate-config.js  # the config as a whole
 ```
 

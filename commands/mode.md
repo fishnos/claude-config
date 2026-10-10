@@ -16,6 +16,11 @@ plain from the output:
   dials whose values changed. Those are the lines with an arrow; a line
   without one did not move. Then follow the new posture for the rest of this session,
   starting with your next reply.
+- **The scope line.** A switch and a status report both carry a `scope` line.
+  `this repository only` means the mode applies to this repository and every
+  other repository keeps the machine default. Say which it was when it was a
+  switch, in a few words. `~/.claude` is itself a git repository, so a switch
+  run from there is repository-only too; `--global` sets the machine default.
 - **A status report** (dials with no banner). Say which mode is in force, or that
   none is, and stop. Nothing has changed.
 - **A comparison** (`diff`). Say what working under the second mode would change
