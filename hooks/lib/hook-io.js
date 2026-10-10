@@ -8,21 +8,32 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
-/** Read the hook payload from stdin. Returns {} when stdin is empty or malformed. */
+let keptPayload;
+
+/**
+ * Read the hook payload from stdin. Returns {} when stdin is empty or malformed.
+ *
+ * Kept after the first read. Standard input can be read once, and the runner
+ * reads it before the hook body does, to learn which repository the call is in.
+ */
 function readPayload() {
+  if (keptPayload !== undefined) return keptPayload;
   let raw = "";
   try {
     // fd 0 is a pipe when the harness invokes a hook, which reads reliably on
     // Windows as well; a TTY or closed stdin throws and is treated as no input.
     raw = fs.readFileSync(0, "utf8");
   } catch {
-    return {};
+    keptPayload = {};
+    return keptPayload;
   }
   try {
-    return JSON.parse(raw);
+    keptPayload = JSON.parse(raw);
   } catch {
-    return {};
+    keptPayload = {};
   }
+  if (keptPayload === null || typeof keptPayload !== "object") keptPayload = {};
+  return keptPayload;
 }
 
 /**
@@ -176,12 +187,50 @@ function git(args, cwd) {
 }
 
 /**
+ * Whether the mode in force for this call has turned the named hook off.
+ *
+ * A mode used to turn a hook off by deleting its entry from settings.json. A
+ * repository's settings file can add a hook and cannot remove a machine-wide
+ * one, so that could never be done for one repository. The hook now decides
+ * for itself, here.
+ *
+ * The protected hooks are checked at read time as well as at switch time, so a
+ * record edited by hand cannot turn them off. Every failure answers "not turned
+ * off": a hook that runs when it should have been quiet is an annoyance, and a
+ * guardrail that goes quiet by accident is the failure this system exists to
+ * prevent.
+ */
+function turnedOff(scriptPath) {
+  try {
+    const name = path.basename(String(scriptPath));
+    const { resolveForPayload } = require("./mode-lock");
+    const { lock } = resolveForPayload(configDir(), readPayload());
+    if (lock === null || !Array.isArray(lock.disabledHooks)) return false;
+    const listed = lock.disabledHooks.some(
+      (entry) =>
+        typeof entry === "string" && entry !== "" && name.includes(entry),
+    );
+    if (!listed) return false;
+    const { CORE_HOOKS } = require(
+      path.join(__dirname, "..", "..", "tools", "modes", "modes.js"),
+    );
+    return !CORE_HOOKS.includes(name);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Run a hook body, swallowing every error. A broken guard is an inconvenience;
  * a guard that crashes the tool call it was meant to inspect is an outage.
+ *
+ * A hook that a mode may turn off passes its own `__filename`. It cannot be
+ * read off the process: a hook is started as `node -e "require(...)"`, which
+ * leaves no script name behind. A hook that passes nothing is never skipped.
  */
-function run(body) {
+function run(body, scriptPath) {
   try {
-    body();
+    if (scriptPath === undefined || !turnedOff(scriptPath)) body();
   } catch {
     // Deliberately silent, for the reason in the docblock above.
   }

@@ -134,4 +134,4 @@ io.run(() => {
   if (!touchedSource(payload.transcript_path)) return;
   if (alreadyFired(payload.session_id)) return;
   io.block(buildReminder(payload.session_id));
-});
+}, __filename);

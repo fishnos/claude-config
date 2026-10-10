@@ -104,6 +104,35 @@ for (const command of hookCommands) {
   check(`hooks/${named[1]} exists`, fs.existsSync(target));
 }
 
+section("Hooks a mode turns off name themselves to the runner");
+// A mode turns a hook off through the shared runner (io.run in
+// hooks/lib/hook-io.js), which skips only a hook that passed its own file
+// name. A hook listed by a mode that does not pass it would keep running with
+// no error anywhere.
+const NAMES_ITSELF = /\},\s*__filename\s*\)\s*;/;
+const hookFiles = fs
+  .readdirSync(path.join(ROOT, "hooks"))
+  .filter((name) => name.endsWith(".js"));
+for (const modeFile of fs
+  .readdirSync(path.join(ROOT, "modes"))
+  .filter((name) => name.endsWith(".json"))
+  .sort()) {
+  const declared = JSON.parse(read(path.join("modes", modeFile))).disableHooks;
+  for (const entry of Array.isArray(declared) ? declared : []) {
+    const matched = hookFiles.filter((name) => name.includes(entry));
+    check(
+      `${modeFile} turns off ${entry}, which names a hook file`,
+      matched.length > 0,
+    );
+    for (const name of matched)
+      check(
+        `hooks/${name} passes __filename to io.run`,
+        NAMES_ITSELF.test(read(path.join("hooks", name))),
+        "close the hook with `}, __filename);` so the runner can skip it",
+      );
+  }
+}
+
 section("Hook behaviour end to end (through the real bootstrap)");
 function invoke(script, payload) {
   const boot =

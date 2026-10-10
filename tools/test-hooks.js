@@ -8977,7 +8977,9 @@ header("mode hooks: gates and rules follow the repository's own mode");
   const modeLock = require(path.join(HOOKS, "lib", "mode-lock.js"));
   const MODE_GUARD = path.join(HOOKS, "mode-guard.js");
   const MODE_INJECT = path.join(HOOKS, "mode-inject.js");
-  const scopedConfig = fs.mkdtempSync(path.join(os.tmpdir(), "modescope-config-"));
+  const scopedConfig = fs.mkdtempSync(
+    path.join(os.tmpdir(), "modescope-config-"),
+  );
   const gatedRepository = makeRepository("modescope-gated-");
   const openRepository = makeRepository("modescope-open-");
   const environment = { CLAUDE_CONFIG_DIR: scopedConfig };
@@ -9069,6 +9071,103 @@ header("mode hooks: gates and rules follow the repository's own mode");
   );
 
   for (const directory of [scopedConfig, gatedRepository, openRepository])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
+header("hook runner: a hook the mode in force turns off stays quiet");
+{
+  const modeLock = require(path.join(HOOKS, "lib", "mode-lock.js"));
+  const runnerConfig = fs.mkdtempSync(path.join(os.tmpdir(), "runner-config-"));
+  const quietRepository = makeRepository("runner-quiet-");
+  const fixtures = fs.mkdtempSync(path.join(os.tmpdir(), "runner-fixtures-"));
+  const environment = { CLAUDE_CONFIG_DIR: runnerConfig };
+  const hookIo = JSON.stringify(path.join(HOOKS, "lib", "hook-io.js"));
+
+  const writeFixture = (name) => {
+    const file = path.join(fixtures, name);
+    fs.writeFileSync(
+      file,
+      `const io = require(${hookIo});\n` +
+        "io.run(() => {\n" +
+        '  io.block("ran:" + io.readPayload().marker);\n' +
+        "}, __filename);\n",
+    );
+    return file;
+  };
+  const optional = writeFixture("fixture-hook.js");
+  const protectedHook = writeFixture("git-guard.js");
+  const anonymous = path.join(fixtures, "anonymous-hook.js");
+  fs.writeFileSync(
+    anonymous,
+    `const io = require(${hookIo});\nio.run(() => {\n  io.block("ran");\n});\n`,
+  );
+
+  const writeMachineRecord = (disabledHooks) =>
+    fs.writeFileSync(
+      path.join(runnerConfig, "mode.lock"),
+      JSON.stringify({ mode: "spike", disabledHooks }),
+    );
+  const payload = { marker: "m1", cwd: fixtures };
+
+  const untouched = run(optional, payload, environment);
+  check("with no mode applied the hook runs", untouched.verdict, "BLOCK");
+  check(
+    "the body reads the payload the runner already read",
+    untouched.reason,
+    "ran:m1",
+  );
+
+  writeMachineRecord(["fixture-hook.js"]);
+  const skipped = run(optional, payload, environment);
+  check(
+    "a hook the machine mode turns off says nothing",
+    skipped.verdict,
+    "allow",
+  );
+  check("and exits clean", skipped.code, 0);
+  check(
+    "a hook that does not name itself is never skipped",
+    run(anonymous, payload, environment).verdict,
+    "BLOCK",
+  );
+
+  writeMachineRecord(["git-guard.js", "fixture-hook.js"]);
+  check(
+    "a protected hook listed in a hand-edited record still runs",
+    run(protectedHook, payload, environment).verdict,
+    "BLOCK",
+  );
+
+  writeMachineRecord(["", 7, null]);
+  check(
+    "an empty or non-text entry turns nothing off",
+    run(optional, payload, environment).verdict,
+    "BLOCK",
+  );
+
+  writeMachineRecord([]);
+  const quietDirectory = modeLock.repoDirectory(runnerConfig, quietRepository);
+  fs.mkdirSync(quietDirectory, { recursive: true });
+  fs.writeFileSync(
+    path.join(quietDirectory, "mode.lock"),
+    JSON.stringify({
+      mode: "spike",
+      root: fs.realpathSync(quietRepository),
+      disabledHooks: ["fixture-hook.js"],
+    }),
+  );
+  check(
+    "a hook the repository's mode turns off says nothing there",
+    run(optional, { marker: "m2", cwd: quietRepository }, environment).verdict,
+    "allow",
+  );
+  check(
+    "and still runs in a directory on the machine mode",
+    run(optional, payload, environment).verdict,
+    "BLOCK",
+  );
+
+  for (const directory of [runnerConfig, quietRepository, fixtures])
     fs.rmSync(directory, { recursive: true, force: true });
 }
 

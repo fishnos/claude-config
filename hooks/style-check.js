@@ -116,4 +116,4 @@ io.run(() => {
         "an example, say so and move on rather than editing it.",
     );
   }
-});
+}, __filename);
