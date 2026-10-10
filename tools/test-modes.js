@@ -1541,6 +1541,17 @@ const listRealRepoRecords = () => {
   }
 };
 const realRepoRecordsBefore = listRealRepoRecords();
+// The suite can run from a checkout that is not ~/.claude (a worktree), and a
+// stray switch there would be written under that checkout's own modes/.
+const SUITE_REPO_RECORDS = path.join(__dirname, "..", "modes", "repos");
+const listSuiteRepoRecords = () => {
+  try {
+    return fs.readdirSync(SUITE_REPO_RECORDS).sort().join(",");
+  } catch {
+    return "";
+  }
+};
+const suiteRepoRecordsBefore = listSuiteRepoRecords();
 
 function runCcfg(args) {
   return spawnSync(process.execPath, [CCFG, ...args], {
@@ -2946,9 +2957,10 @@ const ENVIRONMENT = process.env;
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-// With nothing edited by hand, a switch writes the byte copy back untouched.
-// Recovering the baseline from disk must not reorder or rewrite a settings file
-// that nobody has touched, which is every switch in ordinary use.
+// A switch leaves the hook entries in settings.json as found, in the order
+// they were in. A hook a mode turns off is skipped by the shared runner and
+// never taken out of the file, so across two switches there is nothing to
+// remove and nothing to put back.
 {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hand-none-"));
   fs.mkdirSync(path.join(root, "rules"), { recursive: true });
@@ -2996,9 +3008,9 @@ const ENVIRONMENT = process.env;
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-// A skill override the operator sets by hand survives the next switch, for the
-// same reason and by the same route: the baseline is what is on disk now, minus
-// only the skills the mode in force hid.
+// A skill override the operator sets by hand while a mode is in force is
+// carried into the next mode. That mode starts from the overrides on disk now,
+// minus only the skills the mode in force hid.
 {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hand-skill-"));
   fs.mkdirSync(path.join(root, "rules"), { recursive: true });
@@ -3898,6 +3910,246 @@ function switchRefusal(config, definition, destination) {
   fs.rmSync(outside, { recursive: true, force: true });
 }
 
+// The generated comment does not make a role file the mode's. A project can
+// commit a file carrying it, so in a repository only the files the record
+// names are the mode's to remove.
+{
+  const { config, repository } = repoSandbox();
+  const destination = targets.repoTarget(config, repository);
+  const committed = path.join(destination.agentsDirectory, "house-style.md");
+  fs.mkdirSync(destination.agentsDirectory, { recursive: true });
+  fs.writeFileSync(committed, `${crew.GENERATED}\n\ncommitted by the project\n`);
+  gitIn(repository, ["add", ".claude/agents/house-style.md"]);
+  gitIn(repository, [
+    "-c",
+    "user.name=suite",
+    "-c",
+    "user.email=suite@example.invalid",
+    "commit",
+    "-q",
+    "-m",
+    "a role file of the project's own",
+  ]);
+  const statusOfCommitted = () =>
+    gitIn(repository, [
+      "status",
+      "--porcelain",
+      "--",
+      ".claude/agents/house-style.md",
+    ]).stdout;
+
+  check(
+    "the committed role file is clean in git before the switch",
+    statusOfCommitted(),
+    "",
+  );
+  check(
+    "and git tracks it",
+    gitIn(repository, ["ls-files", "--", ".claude/agents/house-style.md"]).stdout,
+    ".claude/agents/house-style.md\n",
+  );
+
+  apply.applyMode(
+    config,
+    modes.parseMode({ name: "one", settings: {} }, "one.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  check(
+    "a committed role file carrying the generated comment survives a repository switch",
+    fs.existsSync(committed),
+    true,
+  );
+  check("and git sees it as unchanged after the switch", statusOfCommitted(), "");
+  check(
+    "the switch records the role files it wrote",
+    String(JSON.parse(fs.readFileSync(destination.lockFile, "utf8")).installedRoles),
+    "implementer,investigator,reviewer",
+  );
+
+  apply.revert(config, destination);
+  check(
+    "a committed role file carrying the generated comment survives revert",
+    fs.existsSync(committed),
+    true,
+  );
+  check("and git still sees it as unchanged", statusOfCommitted(), "");
+  check(
+    "revert still removes a role file the switch wrote",
+    fs.existsSync(path.join(destination.agentsDirectory, "implementer.md")),
+    false,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// The next switch takes out the role files the last one recorded, and a
+// record written before role files were recorded names none.
+{
+  const { config, repository } = repoSandbox();
+  const destination = targets.repoTarget(config, repository);
+  const implementerFile = path.join(destination.agentsDirectory, "implementer.md");
+  apply.applyMode(
+    config,
+    modes.parseMode({ name: "team", settings: {} }, "team.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  apply.applyMode(
+    config,
+    modes.parseMode(
+      { name: "solo", settings: {}, glitch: { subagents: "none" } },
+      "solo.json",
+    ),
+    CORPUS,
+    {},
+    destination,
+  );
+  check(
+    "a repository switch to a mode that runs alone removes the role files the last switch recorded",
+    fs.existsSync(implementerFile),
+    false,
+  );
+
+  apply.applyMode(
+    config,
+    modes.parseMode({ name: "team", settings: {} }, "team.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  const olderRecord = JSON.parse(fs.readFileSync(destination.lockFile, "utf8"));
+  delete olderRecord.installedRoles;
+  fs.writeFileSync(destination.lockFile, JSON.stringify(olderRecord));
+  check(
+    "revert of a record that names no role files still succeeds",
+    apply.revert(config, destination),
+    true,
+  );
+  check(
+    "and removes no role file, because none was recorded",
+    fs.existsSync(implementerFile),
+    true,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// The local ignore list can itself be a symbolic link. Adding to it would
+// write wherever the link points, so the switch leaves it and says so.
+{
+  const { config, repository } = repoSandbox();
+  const destination = targets.repoTarget(config, repository);
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-repo-outside-"));
+  const linkedTo = path.join(outside, "shared-exclude");
+  const excludeFile = path.join(repository, ".git", "info", "exclude");
+  fs.writeFileSync(linkedTo, "# shared between checkouts\n");
+  fs.mkdirSync(path.dirname(excludeFile), { recursive: true });
+  fs.rmSync(excludeFile, { force: true });
+  fs.symlinkSync(linkedTo, excludeFile);
+
+  const said = [];
+  const added = require("./modes/repo-files.js").addToExclude(
+    destination,
+    [destination.settingsFile],
+    (message) => said.push(message),
+  );
+  check(
+    "a local ignore list that is a symbolic link is not written through",
+    fs.readFileSync(linkedTo, "utf8"),
+    "# shared between checkouts\n",
+  );
+  check("and no path is reported as added to it", added.length, 0);
+  check(
+    "and the notice names the linked ignore list",
+    said.filter((message) => message.includes(excludeFile)).length,
+    1,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+}
+
+// Two switches and one revert: the settings file ends exactly as it stood
+// before the first, with both modes' values and added keys taken back out.
+{
+  const { config, repository } = repoSandbox();
+  const destination = targets.repoTarget(config, repository);
+  const beforeAnyMode =
+    JSON.stringify(
+      {
+        effortLevel: "medium",
+        model: "the-operators-own",
+        permissions: { allow: ["Bash(ls:*)"], deny: ["WebFetch"] },
+        skillOverrides: { gamma: "off" },
+      },
+      null,
+      2,
+    ) + "\n";
+  fs.mkdirSync(path.dirname(destination.settingsFile), { recursive: true });
+  fs.writeFileSync(destination.settingsFile, beforeAnyMode);
+
+  apply.applyMode(
+    config,
+    modes.parseMode(
+      {
+        name: "first",
+        settings: {},
+        projects: {
+          effortLevel: "low",
+          model: "first-model",
+          alwaysThinkingEnabled: true,
+          permissions: { deny: ["Edit"] },
+        },
+        glitch: { skills: { off: ["alpha"] } },
+      },
+      "first.json",
+    ),
+    CORPUS,
+    {},
+    destination,
+  );
+  apply.applyMode(
+    config,
+    modes.parseMode(
+      {
+        name: "second",
+        settings: {},
+        projects: {
+          effortLevel: "high",
+          outputStyle: "second-style",
+          permissions: { deny: ["Write"] },
+        },
+        glitch: { skills: { off: ["beta"] } },
+      },
+      "second.json",
+    ),
+    CORPUS,
+    {},
+    destination,
+  );
+  check(
+    "the second mode's own value is in force before the revert",
+    JSON.parse(fs.readFileSync(destination.settingsFile, "utf8")).outputStyle,
+    "second-style",
+  );
+
+  apply.revert(config, destination);
+  check(
+    "after two switches, revert leaves the settings file exactly as it stood before the first",
+    fs.readFileSync(destination.settingsFile, "utf8"),
+    beforeAnyMode,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
 // A settings file whose shape cannot be merged into is refused before the
 // rules and role files are written.
 {
@@ -4485,10 +4737,101 @@ function runCcfgIn(directory, config, args) {
   fs.rmSync(repository, { recursive: true, force: true });
 }
 
+// `ccfg crew` answers for the place it is run from: the repository's own mode
+// and role files inside one, the machine's outside. The machine mode here
+// runs alone and renders no role file, so a crew read from the machine's
+// agents/ would show the repository's roles as not rendered.
+{
+  const { config, repository } = binarySandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-scope-none-"));
+  runCcfgIn(repository, config, ["mode", "spike", "--global"]);
+  runCcfgIn(repository, config, ["mode", "ship"]);
+
+  const inRepository = runCcfgIn(repository, config, ["crew"]);
+  check(
+    "crew inside a repository with its own mode names that mode",
+    inRepository.stdout.includes("FIXER LOADED"),
+    true,
+  );
+  check(
+    "and finds the role files in the repository's own agents directory",
+    inRepository.stdout.includes("not rendered"),
+    false,
+  );
+
+  const outsideAny = runCcfgIn(outside, config, ["crew"]);
+  check(
+    "crew outside any repository names the machine mode",
+    outsideAny.stdout.includes("RECON LOADED"),
+    true,
+  );
+  check(
+    "and says the machine mode runs alone",
+    outsideAny.stdout.includes("not rendered: this mode runs alone"),
+    true,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+}
+
+// A revert that skipped a linked path says so where it says it reverted, so
+// the outcome line is never read as "everything was taken back".
+{
+  const { config, repository } = binarySandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-scope-outside-"));
+  const agentsDirectory = path.join(repository, ".claude", "agents");
+  runCcfgIn(repository, config, ["mode", "ship"]);
+  fs.rmSync(agentsDirectory, { recursive: true });
+  fs.symlinkSync(outside, agentsDirectory);
+
+  const reverted = runCcfgIn(repository, config, ["mode", "revert"]);
+  check("revert past a linked directory exits clean", reverted.status, 0);
+  check(
+    "revert prints the linked directory it skipped beside the outcome",
+    reverted.stdout.includes(`${agentsDirectory} is a symbolic link`),
+    true,
+  );
+  check(
+    "and the outcome line says a path was left as found",
+    reverted.stdout.includes("1 path left as found"),
+    true,
+  );
+
+  // The link has to go first: a switch refuses a repository that has one.
+  fs.rmSync(agentsDirectory);
+  check(
+    "with the link gone the repository takes a mode again",
+    runCcfgIn(repository, config, ["mode", "ship"]).status,
+    0,
+  );
+  const plainRevert = runCcfgIn(repository, config, ["mode", "revert"]);
+  check(
+    "a revert that skipped nothing still says it reverted",
+    plainRevert.stdout.includes("reverted ship for this repository"),
+    true,
+  );
+  check(
+    "and mentions no path left as found",
+    plainRevert.stdout.includes("left as found"),
+    false,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+}
+
 check(
   "the suite wrote no repository record into the real configuration",
   listRealRepoRecords(),
   realRepoRecordsBefore,
+);
+check(
+  "nor into the checkout the suite itself runs from",
+  listSuiteRepoRecords(),
+  suiteRepoRecordsBefore,
 );
 fs.rmSync(OUTSIDE_ANY_REPOSITORY, { recursive: true, force: true });
 

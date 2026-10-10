@@ -8,10 +8,15 @@
 // and rules that out.
 //
 // The line carries the glyph, the name, and a ` (repo)` mark when the mode
-// belongs to this repository alone rather than to the machine. Nothing else:
-// everything a mode does is already one keystroke away in `/mode`, and a
+// belongs to this repository alone rather than to the machine. It shows nothing
+// else: everything a mode does is already one keystroke away in `/mode`, and a
 // status line long enough to list the dials stops being read at all. The
 // glyph comes first because a reader recognises a shape faster than a word.
+//
+// To draw that it reads the record in force for the session's directory, which
+// is the repository's own under modes/repos/ when there is one and the
+// machine's otherwise, then the mode file for the glyph and hue, and the
+// session's startup record for the corruption mark.
 
 const path = require("path");
 const io = require("./lib/hook-io");

@@ -8962,6 +8962,45 @@ header("mode-lock: the repository's own record answers first");
     "spike",
   );
 
+  // A working directory reached through a symbolic link belongs to the
+  // repository the link leads into, never to the one the link is written in.
+  const secondReal = fs.realpathSync(secondRepository);
+  const insideSecond = path.join(secondRepository, "packages", "tool");
+  fs.mkdirSync(insideSecond, { recursive: true });
+  writeRecord(
+    secondRepository,
+    JSON.stringify({ mode: "ship", root: secondReal }),
+  );
+  const linkInsideFirst = path.join(firstRepository, "vendored");
+  fs.symlinkSync(insideSecond, linkInsideFirst);
+  check(
+    "a link inside one repository into another resolves to the other",
+    modeLock.repositoryRoot(linkInsideFirst),
+    secondReal,
+  );
+  check(
+    "and the record that answers there is the other repository's",
+    modeLock.resolveLock(lookupConfig, linkInsideFirst).lock.mode,
+    "ship",
+  );
+  const linkOutsideAny = path.join(noRepository, "shortcut");
+  fs.symlinkSync(insideSecond, linkOutsideAny);
+  check(
+    "a link from outside any repository into one resolves to that one",
+    modeLock.repositoryRoot(linkOutsideAny),
+    secondReal,
+  );
+
+  // True on a disk that tells the two spellings apart, where the upper-cased
+  // path does not exist, and on one that does not, where both name one place.
+  const upperCased = firstReal.toUpperCase();
+  check(
+    "a differently cased spelling that exists shares the repository's key",
+    !fs.existsSync(upperCased) ||
+      modeLock.repositoryKey(upperCased) === modeLock.repositoryKey(firstReal),
+    true,
+  );
+
   for (const directory of [
     lookupConfig,
     firstRepository,

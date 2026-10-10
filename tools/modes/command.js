@@ -655,10 +655,23 @@ function commandRevert(io, machineWide) {
       );
       process.exit(2);
     }
-    apply.revert(io.CONFIG_DIR, targets.repoTarget(io.CONFIG_DIR, root));
+    // Collected and printed beside the outcome, so a revert that left a
+    // linked path alone is never read as one that took everything back.
+    const skipped = [];
+    apply.revert(
+      io.CONFIG_DIR,
+      targets.repoTarget(io.CONFIG_DIR, root),
+      (message) => skipped.push(message),
+    );
+    for (const message of skipped) io.warn(message);
+    const left =
+      skipped.length === 0
+        ? ""
+        : `; ${skipped.length} path${skipped.length === 1 ? "" : "s"} left ` +
+          `as found, named above`;
     io.ok(
       `reverted ${resolution.lock.mode} for this repository (${root}); ` +
-        `it follows the machine mode again`,
+        `it follows the machine mode again${left}`,
     );
     return;
   }
@@ -675,13 +688,26 @@ function commandRevert(io, machineWide) {
  * `ccfg crew`: each worker the mode in force puts to work, the tools its agent
  * file allows and the gates its finish must pass.
  *
+ * The mode in force is the one for the directory it is run from: inside a
+ * repository with a mode of its own, that mode and the role files in the
+ * repository's .claude/agents; anywhere else, the machine's.
+ *
  * Read-only, like `ccfg mode` with no argument. It is how the operator checks
  * the crew without dispatching a worker, so it reports what is actually on disk:
  * a role the switch has not rendered yet says so rather than looking ready.
  */
 function commandCrew(argv, io) {
   const plain = isPlain(argv);
-  const lock = apply.readLock(io.CONFIG_DIR);
+  // The same lookup the hooks use, so the crew shown is the one a worker
+  // dispatched from this directory would actually be given.
+  const resolution = modeLock.resolveLock(io.CONFIG_DIR, process.cwd());
+  const lock = resolution.lock;
+  const agentsDirectory =
+    resolution.scope === "repo"
+      ? targets.repoTarget(io.CONFIG_DIR, resolution.root).agentsDirectory
+      : targets.machineTarget(io.CONFIG_DIR).agentsDirectory;
+  const shownDirectory =
+    resolution.scope === "repo" ? ".claude/agents" : "agents";
   const chrome = ink.painter(plain, lock === null ? null : lock.color);
   const corpus = roles.loadRoles(path.join(modesDir(io.CONFIG_DIR), "roles"));
   const deniedTools = lock === null ? [] : lock.deniedTools || [];
@@ -710,10 +736,12 @@ function commandCrew(argv, io) {
 
   for (const role of corpus.roles) {
     const tools = crew.allowedTools(role, deniedTools);
-    const file = path.join(io.CONFIG_DIR, "agents", `${role.id}.md`);
+    const file = path.join(agentsDirectory, `${role.id}.md`);
     let state = "";
     if (fs.existsSync(file) && !crew.isGenerated(file))
-      state = chrome.yellow(`agents/${role.id}.md is your own file, left alone`);
+      state = chrome.yellow(
+        `${shownDirectory}/${role.id}.md is your own file, left alone`,
+      );
     else if (lock === null) state = chrome.dim("not rendered: no mode applied");
     else if (!roster.includes(role))
       state = chrome.dim("not rendered: this mode runs alone");

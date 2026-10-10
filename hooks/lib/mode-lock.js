@@ -20,18 +20,33 @@ const repoAudit = require("./repo-audit");
 const LOCK_NAME = "mode.lock";
 const KEY_LENGTH = 16;
 
+/**
+ * The one spelling of a path that every caller keys on.
+ *
+ * The native call and not the JavaScript one: on a disk that ignores case it
+ * answers with the spelling stored on disk, so two spellings of one repository
+ * give one key. A path that does not exist has no stored spelling to ask for.
+ */
 function realPath(directory) {
   try {
-    return fs.realpathSync(directory);
+    return fs.realpathSync.native(directory);
   } catch {
     return path.resolve(String(directory));
   }
 }
 
-/** The repository a working directory sits in, or null when it sits in none. */
+/**
+ * The repository a working directory sits in, or null when it sits in none.
+ *
+ * The directory is resolved before the walk up to .git. Walked as spelled, a
+ * symbolic link into another repository climbs the tree the link is written
+ * in and answers with the wrong repository, or with none.
+ */
 function repositoryRoot(workingDirectory) {
   try {
-    const root = repoAudit.findRepositoryRoot(workingDirectory);
+    const root = repoAudit.findRepositoryRoot(
+      realPath(workingDirectory || process.cwd()),
+    );
     return root === null ? null : realPath(root);
   } catch {
     return null;

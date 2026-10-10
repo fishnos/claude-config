@@ -369,8 +369,18 @@ function restoreRepoSettings(target, lock, report) {
   fs.writeFileSync(target.settingsFile, JSON.stringify(restored, null, 2) + "\n");
 }
 
-/** Add paths to the repository's local ignore list, each once. */
-function addToExclude(target, files) {
+/**
+ * Add paths to the repository's local ignore list, each once.
+ *
+ * A list that is a symbolic link is left as found and `report` is told: the
+ * write would land wherever the link points, which can be a file shared with
+ * other checkouts or one outside the repository altogether.
+ */
+function addToExclude(
+  target,
+  files,
+  report = (message) => console.error(message),
+) {
   const reported = git(target.root, [
     "rev-parse",
     "--git-path",
@@ -378,6 +388,13 @@ function addToExclude(target, files) {
   ]).trim();
   if (reported === "") return [];
   const excludeFile = path.resolve(target.root, reported);
+  if (isLink(excludeFile)) {
+    report(
+      `${excludeFile} is a symbolic link, so the files this mode wrote were ` +
+        `not added to it and will show in git status`,
+    );
+    return [];
+  }
 
   let text = "";
   try {

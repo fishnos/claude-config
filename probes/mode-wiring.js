@@ -61,8 +61,11 @@ module.exports = {
       } catch {
         continue; // Not a git checkout; nothing to verify.
       }
+      // modes/repos/ is ignored on purpose: it holds each repository's mode
+      // record, which belongs to this machine and is never committed.
       for (const file of untracked.split("\n").filter(Boolean))
-        missing.push(`${file} is on disk but git ignores it`);
+        if (!file.startsWith("modes/repos/"))
+          missing.push(`${file} is on disk but git ignores it`);
     }
 
     return {

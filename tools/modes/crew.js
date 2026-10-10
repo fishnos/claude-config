@@ -104,6 +104,12 @@ function isGenerated(file) {
  * Ownership is decided by the generated marker, never by name: a file in
  * agents/ that this renderer did not write is the operator's own, and is
  * neither removed nor overwritten, even when it carries a role's name.
+ *
+ * `recordedRoles` is given for a repository, as the role ids the last switch
+ * recorded writing there. The marker alone cannot decide ownership in a
+ * repository, because a project can commit a file that carries it, so there
+ * a file is removed only when it is both recorded and still marked. Left null,
+ * as it is for the machine's own agents/, every marked file is the renderer's.
  */
 function writeCrew(
   configDir,
@@ -112,6 +118,7 @@ function writeCrew(
   deniedTools,
   briefBand,
   directory = path.join(configDir, "agents"),
+  recordedRoles = null,
 ) {
   const written = [];
   const keep = new Set();
@@ -127,7 +134,15 @@ function writeCrew(
   }
 
   if (!fs.existsSync(directory)) return written;
-  for (const entry of fs.readdirSync(directory)) {
+  const candidates =
+    recordedRoles === null
+      ? fs.readdirSync(directory)
+      : recordedRoles
+          // A recorded id is used to build a path, so one that names anything
+          // but a file in this directory is passed over.
+          .filter((id) => typeof id === "string" && path.basename(id) === id)
+          .map((id) => `${id}.md`);
+  for (const entry of candidates) {
     if (!entry.endsWith(".md") || keep.has(entry)) continue;
     const file = path.join(directory, entry);
     if (isGenerated(file)) fs.rmSync(file, { force: true });

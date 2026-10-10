@@ -61,6 +61,19 @@ function readRecord(file) {
   }
 }
 
+/**
+ * The role files a repository record says its switch wrote.
+ *
+ * A record written before role files were recorded names none, and nothing is
+ * then removed: leaving a generated file behind is recoverable, and deleting
+ * one the project committed is not.
+ */
+function recordedRoles(record) {
+  return record && Array.isArray(record.installedRoles)
+    ? record.installedRoles
+    : [];
+}
+
 /** A byte copy of the settings file, kept as the undo target. */
 function backupSettings(configDir) {
   const source = settingsPath(configDir);
@@ -231,6 +244,7 @@ function applyMode(
     layer.tools,
     crew.briefBand(primaryBand),
     target.agentsDirectory,
+    target.scope === "repo" ? recordedRoles(existing) : null,
   );
   let skillsHidden = 0;
   let hadSettings = false;
@@ -374,6 +388,10 @@ function applyMode(
     // stood there before, so that revert and the next switch take back exactly
     // that and leave whatever was added to the file since.
     lock.settingsChanges = settingsChanges;
+    // The role files this switch wrote into the repository. Recorded for the
+    // reason installedCommands is: the next switch and revert remove exactly
+    // these, and a file the project committed there is never one of them.
+    lock.installedRoles = writtenRoles.map((file) => path.basename(file, ".md"));
   }
   fs.mkdirSync(path.dirname(target.lockFile), { recursive: true });
   fs.writeFileSync(target.lockFile, JSON.stringify(lock, null, 2) + "\n");
@@ -423,7 +441,15 @@ function revert(
         target.commandsDirectory,
       );
     if (!reachedThroughLink(target.agentsDirectory))
-      crew.writeCrew(configDir, [], {}, [], "", target.agentsDirectory);
+      crew.writeCrew(
+        configDir,
+        [],
+        {},
+        [],
+        "",
+        target.agentsDirectory,
+        recordedRoles(lock),
+      );
     // The record, its rules and its byte copy go together. The repository then
     // has no record of its own and the lookup answers with the machine's.
     fs.rmSync(target.directory, { recursive: true, force: true });
