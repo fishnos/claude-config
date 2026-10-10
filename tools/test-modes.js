@@ -1526,12 +1526,35 @@ fs.rmSync(sessionSandbox, { recursive: true, force: true });
 const { spawnSync } = require("child_process");
 const CCFG = path.join(__dirname, "ccfg.js");
 
+// The binary is run from a directory in no repository. Run from the suite's
+// own directory it would answer for ~/.claude, which is a git repository, and
+// a switch there would be written into the real configuration.
+const OUTSIDE_ANY_REPOSITORY = fs.mkdtempSync(
+  path.join(os.tmpdir(), "ccfg-outside-"),
+);
+const REAL_REPO_RECORDS = path.join(REAL_CONFIG, "modes", "repos");
+const listRealRepoRecords = () => {
+  try {
+    return fs.readdirSync(REAL_REPO_RECORDS).sort().join(",");
+  } catch {
+    return "";
+  }
+};
+const realRepoRecordsBefore = listRealRepoRecords();
+
 function runCcfg(args) {
   return spawnSync(process.execPath, [CCFG, ...args], {
+    cwd: OUTSIDE_ANY_REPOSITORY,
     encoding: "utf8",
     env: { ...process.env, CLAUDE_CONFIG_DIR: REAL_CONFIG, NO_COLOR: "1" },
   });
 }
+
+check(
+  "the directory the binary is run from is in no repository",
+  require("../hooks/lib/mode-lock.js").repositoryRoot(OUTSIDE_ANY_REPOSITORY),
+  null,
+);
 
 const listed = runCcfg(["mode", "list"]);
 check("mode list exits clean", listed.status, 0);
@@ -1630,7 +1653,14 @@ check(
     require("child_process").spawnSync(
       process.execPath,
       [path.join(root, "tools", "ccfg.js"), "mode", ...args],
-      { encoding: "utf8", env: { ...process.env, CLAUDE_CONFIG_DIR: root } },
+      // Run from the temporary config directory, which is in no repository:
+      // run from the suite's own directory the switch would be scoped to the
+      // real repository the suite lives in.
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, CLAUDE_CONFIG_DIR: root },
+      },
     );
   const settingsNow = () =>
     JSON.parse(fs.readFileSync(path.join(root, "settings.json"), "utf8"));
@@ -2577,6 +2607,7 @@ const ENVIRONMENT = process.env;
       process.execPath,
       [path.join(__dirname, "ccfg.js"), "mode", name],
       {
+        cwd: root,
         encoding: "utf8",
         env: { ...ENVIRONMENT, CLAUDE_CONFIG_DIR: root, NO_COLOR: "1" },
       },
@@ -3694,6 +3725,287 @@ const QUIET_REPO_MODE = {
   fs.rmSync(config, { recursive: true, force: true });
   fs.rmSync(repository, { recursive: true, force: true });
 }
+
+// ----------------------------------------------- ccfg mode chooses the scope
+
+/** A config directory the real binary can switch in, with the real modes. */
+function binarySandbox() {
+  const config = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-scope-config-"));
+  const realModes = path.join(__dirname, "..", "modes");
+  fs.mkdirSync(path.join(config, "modes"), { recursive: true });
+  // Entry by entry and never the directory itself: see repoSandbox.
+  for (const entry of fs.readdirSync(realModes)) {
+    if (entry === "repos") continue;
+    fs.symlinkSync(path.join(realModes, entry), path.join(config, "modes", entry));
+  }
+  fs.mkdirSync(path.join(config, "rules"), { recursive: true });
+  fs.writeFileSync(path.join(config, "settings.json"), "{}\n");
+  const repository = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-scope-work-"));
+  gitIn(repository, ["init", "-q", "."]);
+  return { config, repository: fs.realpathSync(repository) };
+}
+
+function runCcfgIn(directory, config, args) {
+  return spawnSync(process.execPath, [CCFG, ...args], {
+    cwd: directory,
+    encoding: "utf8",
+    env: { ...process.env, CLAUDE_CONFIG_DIR: config, NO_COLOR: "1" },
+  });
+}
+
+{
+  const { config, repository } = binarySandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-scope-none-"));
+  const machineRecord = () =>
+    JSON.parse(fs.readFileSync(path.join(config, "mode.lock"), "utf8")).mode;
+
+  check(
+    "a switch outside any repository sets the machine default",
+    runCcfgIn(outside, config, ["mode", "build"]).status,
+    0,
+  );
+  check("and records it machine-wide", machineRecord(), "build");
+  const machineBefore = ["mode.lock", "settings.json", "rules/_active.md"].map(
+    (file) => fs.readFileSync(path.join(config, file), "utf8"),
+  );
+
+  const switched = runCcfgIn(repository, config, ["mode", "spike"]);
+  check("a switch inside a repository exits clean", switched.status, 0);
+  check(
+    "and says it changed this repository only",
+    switched.stdout.includes("this repository only"),
+    true,
+  );
+  check(
+    "and leaves the machine record, settings and rules byte-identical",
+    ["mode.lock", "settings.json", "rules/_active.md"]
+      .map((file) => fs.readFileSync(path.join(config, file), "utf8"))
+      .join("\u0000"),
+    machineBefore.join("\u0000"),
+  );
+  check(
+    "the repository answers with its own mode",
+    modeLock.resolveLock(config, repository).lock.mode,
+    "spike",
+  );
+
+  const shownInside = runCcfgIn(repository, config, ["mode"]).stdout;
+  check("the status view inside names the repository's mode", shownInside.includes("RECON"), true);
+  check(
+    "and marks the scope as this repository, naming the machine default",
+    shownInside.includes(
+      `scope      this repository only (${repository}); machine default is RUNNER\n`,
+    ),
+    true,
+  );
+  // The line ends straight after the words. Inside a repository with no mode
+  // of its own the same words are followed by a parenthesis, so a bare
+  // "machine default" would pass for either.
+  check(
+    "the status view outside any repository says machine default and no more",
+    runCcfgIn(outside, config, ["mode"]).stdout.includes(
+      "scope      machine default\n",
+    ),
+    true,
+  );
+
+  check(
+    "--global from inside a repository exits clean",
+    runCcfgIn(repository, config, ["mode", "ship", "--global"]).status,
+    0,
+  );
+  check("and changes the machine record", machineRecord(), "ship");
+  check(
+    "and not the repository's",
+    modeLock.resolveLock(config, repository).lock.mode,
+    "spike",
+  );
+
+  const listed = runCcfgIn(outside, config, ["mode", "list", "--repos"]);
+  check("list --repos exits clean", listed.status, 0);
+  check("and names the repository", listed.stdout.includes(repository), true);
+  check("and its mode", listed.stdout.includes("spike"), true);
+
+  const reverted = runCcfgIn(repository, config, ["mode", "revert"]);
+  check("revert inside a repository with its own mode exits clean", reverted.status, 0);
+  check(
+    "and the repository follows the machine mode again",
+    modeLock.resolveLock(config, repository).lock.mode,
+    "ship",
+  );
+  check("and the machine mode is still applied", machineRecord(), "ship");
+  check(
+    "the status view inside a repository with no mode of its own says so",
+    runCcfgIn(repository, config, ["mode"]).stdout.includes(
+      "scope      machine default (this repository has no mode of its own)\n",
+    ),
+    true,
+  );
+
+  const refused = runCcfgIn(repository, config, ["mode", "revert"]);
+  check("revert inside a repository with no mode of its own is refused", refused.status, 2);
+  check("and points at --global", refused.stderr.includes("--global"), true);
+  check("and leaves the machine mode applied", machineRecord(), "ship");
+
+  check(
+    "revert --global from inside a repository takes the machine mode off",
+    runCcfgIn(repository, config, ["mode", "revert", "--global"]).status,
+    0,
+  );
+  check(
+    "and no machine record is left",
+    fs.existsSync(path.join(config, "mode.lock")),
+    false,
+  );
+  check(
+    "list --repos says so when no repository has a mode",
+    runCcfgIn(outside, config, ["mode", "list", "--repos"]).stdout.includes(
+      "no repository has a mode of its own",
+    ),
+    true,
+  );
+
+  for (const directory of [config, repository, outside])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
+// Ad hoc setting overrides belong to the record a switch replaces. No command
+// sets one yet, so each is written into the record the way a later command
+// would leave it.
+{
+  const { config, repository } = binarySandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-scope-none-"));
+  const machineFile = path.join(config, "mode.lock");
+  const repositoryFile = path.join(
+    modeLock.repoDirectory(config, repository),
+    "mode.lock",
+  );
+  const recordIn = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
+  const overrideVoiceIn = (file) =>
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ ...recordIn(file), adhoc: { voice: "prose" } }),
+    );
+
+  runCcfgIn(outside, config, ["mode", "build"]);
+  overrideVoiceIn(machineFile);
+  runCcfgIn(repository, config, ["mode", "spike"]);
+  check(
+    "a repository's first switch does not inherit the machine's ad hoc override",
+    "voice" in recordIn(repositoryFile).adhoc,
+    false,
+  );
+  check(
+    "and takes the setting from its own mode",
+    recordIn(repositoryFile).settings.voice,
+    "caveman",
+  );
+
+  overrideVoiceIn(repositoryFile);
+  runCcfgIn(repository, config, ["mode", "ship"]);
+  check(
+    "a repository's next switch keeps the repository's own ad hoc override",
+    recordIn(repositoryFile).adhoc.voice,
+    "prose",
+  );
+  check(
+    "and the override still wins over the new mode's setting",
+    recordIn(repositoryFile).settings.voice,
+    "prose",
+  );
+
+  runCcfgIn(outside, config, ["mode", "ship"]);
+  check(
+    "the machine's next switch keeps the machine's ad hoc override the same way",
+    recordIn(machineFile).adhoc.voice,
+    "prose",
+  );
+
+  for (const directory of [config, repository, outside])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
+// --global is read wherever it sits, and names the machine from inside a
+// repository in both directions.
+{
+  const { config, repository } = binarySandbox();
+  const machineFile = path.join(config, "mode.lock");
+  const repositoryFile = path.join(
+    modeLock.repoDirectory(config, repository),
+    "mode.lock",
+  );
+  // A record that is missing reads as null, so a switch that went to the
+  // wrong scope fails its check instead of stopping the suite.
+  const modeRecordedIn = (file) => {
+    try {
+      return JSON.parse(fs.readFileSync(file, "utf8")).mode;
+    } catch {
+      return null;
+    }
+  };
+
+  check(
+    "--global before the mode name exits clean inside a repository",
+    runCcfgIn(repository, config, ["mode", "--global", "ship"]).status,
+    0,
+  );
+  check("and sets the machine record", modeRecordedIn(machineFile), "ship");
+  check(
+    "and writes no repository record",
+    fs.existsSync(repositoryFile),
+    false,
+  );
+
+  runCcfgIn(repository, config, ["mode", "spike"]);
+  check(
+    "revert --global inside a repository with its own mode exits clean",
+    runCcfgIn(repository, config, ["mode", "revert", "--global"]).status,
+    0,
+  );
+  check(
+    "and takes the machine mode off",
+    fs.existsSync(machineFile),
+    false,
+  );
+  check(
+    "and leaves the repository's own record in place",
+    modeRecordedIn(repositoryFile),
+    "spike",
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// The half-applied check answers for the session's own repository: a machine
+// switch does not mark a session in a repository with its own mode.
+{
+  const { config, repository } = binarySandbox();
+  const command = require("./modes/command.js");
+  runCcfgIn(repository, config, ["mode", "spike"]);
+  const repoHash = modeLock.resolveLock(config, repository).lock.hardHash;
+  fs.mkdirSync(path.join(config, "cache", "mode-session"), { recursive: true });
+  fs.writeFileSync(
+    path.join(config, "cache", "mode-session", "scope-session"),
+    JSON.stringify({ hardHash: repoHash, mode: "spike" }),
+  );
+  runCcfgIn(repository, config, ["mode", "ship", "--global"]);
+  check(
+    "a machine switch does not mark a repository-mode session half-applied",
+    command.integrity(config, "scope-session", repository).state,
+    "clean",
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+check(
+  "the suite wrote no repository record into the real configuration",
+  listRealRepoRecords(),
+  realRepoRecordsBefore,
+);
+fs.rmSync(OUTSIDE_ANY_REPOSITORY, { recursive: true, force: true });
 
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 

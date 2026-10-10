@@ -7,10 +7,11 @@
 // than like a posture you chose. One line, always on screen, costs nothing
 // and rules that out.
 //
-// The line carries the glyph, the name, and nothing else. Everything a mode
-// does is already one keystroke away in `/mode`, and a status line long
-// enough to list the dials stops being read at all. The glyph comes first
-// because a reader recognises a shape faster than a word.
+// The line carries the glyph, the name, and a ` (repo)` mark when the mode
+// belongs to this repository alone rather than to the machine. Nothing else:
+// everything a mode does is already one keystroke away in `/mode`, and a
+// status line long enough to list the dials stops being read at all. The
+// glyph comes first because a reader recognises a shape faster than a word.
 
 const path = require("path");
 const io = require("./lib/hook-io");
@@ -42,7 +43,7 @@ function modeLook(lock) {
 }
 
 /** Whether the mode on disk is only half in force in THIS session. */
-function corruptionMark(sessionId) {
+function corruptionMark(sessionId, workingDirectory) {
   try {
     // Resolved from this file, not from the config directory: the hook always
     // lives beside the tools it needs, and a config dir pointed elsewhere would
@@ -50,7 +51,7 @@ function corruptionMark(sessionId) {
     const { integrity } = require(
       path.join(__dirname, "..", "tools", "modes", "command.js"),
     );
-    const state = integrity(io.configDir(), sessionId).state;
+    const state = integrity(io.configDir(), sessionId, workingDirectory).state;
     return state === "corrupted" ? " ~CORRUPTED" : "";
   } catch {
     // A status line that throws leaves the operator with no indicator at all,
@@ -67,7 +68,8 @@ io.run(() => {
   const payload = io.readPayload();
   const sessionId = payload.session_id || process.env.CLAUDE_SESSION_ID || "";
 
-  const lock = modeLock.resolveForPayload(io.configDir(), payload).lock;
+  const resolution = modeLock.resolveForPayload(io.configDir(), payload);
+  const lock = resolution.lock;
   if (lock === null) {
     process.stdout.write("no mode");
     return;
@@ -75,8 +77,14 @@ io.run(() => {
   const look = modeLook(lock);
   const paint = ink.painter(Boolean(process.env.NO_COLOR), look.color);
   const icon = look.icon || "■";
-  const label = lock.codename || lock.mode;
-  const mark = corruptionMark(sessionId);
+  // A repository's own mode is marked, so a glance cannot mistake it for the
+  // machine default it replaces in this repository.
+  const label =
+    (lock.codename || lock.mode) + (resolution.scope === "repo" ? " (repo)" : "");
+  const mark = corruptionMark(
+    sessionId,
+    resolution.root === null ? undefined : resolution.root,
+  );
   process.stdout.write(
     paint.accent(`${icon} ${label}`) + (mark === "" ? "" : paint.yellow(mark)),
   );

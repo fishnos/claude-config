@@ -1,6 +1,6 @@
 "use strict";
 
-// `ccfg mode`: what posture is active, what the ten modes are, and what
+// `ccfg mode`: what posture is active, what the eleven modes are, and what
 // switching between two of them would change.
 //
 // Reading is separated from switching on purpose. `ccfg mode` with no argument
@@ -21,6 +21,8 @@ const glitch = require("./glitch.js");
 const ink = require("./ink.js");
 const roles = require("./roles.js");
 const crew = require("./crew.js");
+const targets = require("./target.js");
+const modeLock = require("../../hooks/lib/mode-lock.js");
 
 const LOCK_NAME = "mode.lock";
 const CODENAME_COLUMN = 11;
@@ -166,27 +168,9 @@ function knownModeNames(configDir) {
     .join(", ");
 }
 
-/**
- * The posture in force: whatever the lock recorded, or the defaults under the
- * name `(none)` when nothing has been switched to yet.
- *
- * Falling back rather than failing matters because every other command that
- * wants to know the posture calls this, and a missing lock is the ordinary
- * state of a fresh checkout, not an error.
- */
-function activeMode(configDir) {
-  const lock = path.join(configDir, LOCK_NAME);
-  try {
-    const recorded = JSON.parse(fs.readFileSync(lock, "utf8"));
-    return {
-      name: typeof recorded.mode === "string" ? recorded.mode : "(none)",
-      codename:
-        typeof recorded.codename === "string" ? recorded.codename : "(none)",
-      settings: { ...settings.DEFAULTS, ...(recorded.settings || {}) },
-      layers: Array.isArray(recorded.layers) ? recorded.layers : [],
-      adhoc: recorded.adhoc || {},
-    };
-  } catch {
+/** A record, or the lack of one, in the shape every mode surface draws from. */
+function describeRecord(recorded) {
+  if (recorded === null)
     return {
       name: "(none)",
       codename: "(none)",
@@ -194,7 +178,31 @@ function activeMode(configDir) {
       layers: [],
       adhoc: {},
     };
-  }
+  return {
+    name: typeof recorded.mode === "string" ? recorded.mode : "(none)",
+    codename:
+      typeof recorded.codename === "string" ? recorded.codename : "(none)",
+    settings: { ...settings.DEFAULTS, ...(recorded.settings || {}) },
+    layers: Array.isArray(recorded.layers) ? recorded.layers : [],
+    adhoc: recorded.adhoc || {},
+  };
+}
+
+/**
+ * The posture in force for a working directory: its repository's own mode,
+ * else the machine's, else the defaults under the name `(none)`.
+ *
+ * Falling back rather than failing matters because every other command that
+ * wants to know the posture calls this, and a missing record is the ordinary
+ * state of a fresh checkout, not an error.
+ */
+function activeMode(configDir, workingDirectory = process.cwd()) {
+  const resolution = modeLock.resolveLock(configDir, workingDirectory);
+  return {
+    ...describeRecord(resolution.lock),
+    scope: resolution.scope,
+    root: resolution.root,
+  };
 }
 
 /**
@@ -206,10 +214,13 @@ function activeMode(configDir) {
  * the mode meant to hide are still loaded. Comparing the fingerprint the lock
  * carries against the one the session recorded is what makes that visible.
  *
+ * The record compared is the one in force for the session's own repository, so
+ * a machine switch does not mark a session whose repository has its own mode.
+ *
  * Returns "clean", "corrupted", or "unknown" when no session recorded itself.
  */
-function integrity(configDir, sessionId) {
-  const lock = apply.readLock(configDir);
+function integrity(configDir, sessionId, workingDirectory = process.cwd()) {
+  const lock = modeLock.resolveLock(configDir, workingDirectory).lock;
   if (lock === null) return { state: "clean", stale: [] };
 
   const directory = path.join(configDir, "cache", "mode-session");
@@ -260,6 +271,23 @@ function bandCounts(configDir, resolvedSettings) {
 }
 
 /**
+ * Which record answered, in words. Printed on the status view and after a
+ * switch, because the two scopes look identical otherwise and the mistake it
+ * prevents (believing a repository switch changed the machine) is silent.
+ */
+function scopeLine(configDir, resolution) {
+  if (resolution.scope === "repo") {
+    const machine = apply.readLock(configDir);
+    return (
+      `this repository only (${resolution.root}); machine default is ` +
+      (machine === null ? "none" : machine.codename || machine.mode)
+    );
+  }
+  if (resolution.root === null) return "machine default";
+  return "machine default (this repository has no mode of its own)";
+}
+
+/**
  * The one-screen answer to "what am I in right now?".
  *
  * Each dial is drawn with a bar showing where its value sits on its own scale,
@@ -268,8 +296,9 @@ function bandCounts(configDir, resolvedSettings) {
  * with no ladder between them, and a bar would invent a ranking.
  */
 function commandShow(argv, io) {
-  const active = activeMode(io.CONFIG_DIR);
-  const lock = apply.readLock(io.CONFIG_DIR);
+  const resolution = modeLock.resolveLock(io.CONFIG_DIR, process.cwd());
+  const active = describeRecord(resolution.lock);
+  const lock = resolution.lock;
   const file = lock === null ? null : loadMode(io.CONFIG_DIR, lock.mode);
   const look = activeLook(io.CONFIG_DIR, lock);
   const paint = ink.painter(isPlain(argv), look.color);
@@ -329,6 +358,7 @@ function commandShow(argv, io) {
       `\n    rules      ${counts.primary} primary, ${counts.standing} standing (none dropped)`,
     ),
   );
+  console.log(paint.dim(`    scope      ${scopeLine(io.CONFIG_DIR, resolution)}`));
   const gates =
     lock === null
       ? []
@@ -370,6 +400,7 @@ function commandShow(argv, io) {
  * switch banner, the status line and the notice at session start.
  */
 function commandList(argv, io) {
+  if (argv.includes("--repos")) return commandListRepos(io);
   const plain = isPlain(argv);
   const active = activeMode(io.CONFIG_DIR);
   const all = loadModes(io.CONFIG_DIR);
@@ -411,6 +442,54 @@ function commandList(argv, io) {
         (gates.length > 0 ? paint.dim(`  [${gates.join(", ")}]`) : ""),
     );
   }
+  console.log("");
+}
+
+/**
+ * Every repository with a mode of its own.
+ *
+ * A record outlives its repository when the directory is moved or deleted,
+ * and nothing removes it. It is listed and marked, so it can be removed by
+ * hand.
+ */
+function commandListRepos(io) {
+  const directory = path.join(modesDir(io.CONFIG_DIR), "repos");
+  let keys = [];
+  try {
+    keys = fs.readdirSync(directory).sort();
+  } catch {
+    keys = [];
+  }
+  const records = keys
+    .map((key) => {
+      try {
+        return {
+          key,
+          ...JSON.parse(
+            fs.readFileSync(path.join(directory, key, LOCK_NAME), "utf8"),
+          ),
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((record) => record !== null && typeof record.root === "string");
+
+  if (records.length === 0) {
+    console.log("no repository has a mode of its own");
+    return;
+  }
+  console.log("");
+  for (const record of records)
+    console.log(
+      "    " +
+        String(record.codename || record.mode).padEnd(CODENAME_COLUMN) +
+        String(record.mode).padEnd(NAME_COLUMN) +
+        record.root +
+        (fs.existsSync(record.root)
+          ? ""
+          : `  (directory is gone; remove modes/repos/${record.key} by hand)`),
+    );
   console.log("");
 }
 
@@ -468,34 +547,58 @@ function commandMode(argv, io) {
   const [subcommand] = argv.filter((word) => !word.startsWith("--"));
   const rest =
     subcommand === undefined ? argv : argv.slice(argv.indexOf(subcommand) + 1);
+  // Read from the whole argument list: `rest` holds only what follows the
+  // subcommand, and `ccfg mode --global spike` has to work too.
+  const machineWide = argv.includes("--global");
 
   if (subcommand === undefined || subcommand === "show")
     return commandShow(argv, io);
   if (subcommand === "list") return commandList(argv, io);
   if (subcommand === "diff") return commandDiff(rest, io);
 
-  if (subcommand === "revert") return commandRevert(io);
+  if (subcommand === "revert") return commandRevert(io, machineWide);
 
   const target = loadMode(io.CONFIG_DIR, subcommand);
-  if (target !== null) return commandSwitch(target, rest, io);
+  if (target !== null) return commandSwitch(target, rest, io, machineWide);
 
   console.error(`unknown mode: ${subcommand}`);
   console.error(`try one of: ${knownModeNames(io.CONFIG_DIR)}`);
   process.exit(2);
 }
 
-function commandSwitch(target, argv, io) {
+function commandSwitch(target, argv, io, machineWide) {
   if (target.error) {
     console.error(target.error);
     process.exit(2);
   }
 
-  const before = activeMode(io.CONFIG_DIR);
-  // Read before the switch rewrites the lock. Read after, it would be the
-  // arriving mode's glyph shown on both sides of the arrow.
-  const leavingLock = apply.readLock(io.CONFIG_DIR);
+  // Inside a repository a switch changes that repository and nothing else.
+  // Outside one, or with --global, it sets the machine default.
+  const root = machineWide ? null : modeLock.repositoryRoot(process.cwd());
+  const destination =
+    root === null
+      ? targets.machineTarget(io.CONFIG_DIR)
+      : targets.repoTarget(io.CONFIG_DIR, root);
+
+  // Read before the switch rewrites the record. Read after, it would be the
+  // arriving mode's glyph shown on both sides of the arrow. Inside a
+  // repository the mode being left is whichever was in force there, which is
+  // the machine's when the repository had none of its own.
+  const leavingLock =
+    root === null
+      ? apply.readLock(io.CONFIG_DIR)
+      : modeLock.resolveLock(io.CONFIG_DIR, root).lock;
+  const before = describeRecord(leavingLock);
   const leavingIcon =
     leavingLock === null ? "" : activeLook(io.CONFIG_DIR, leavingLock).icon;
+  // Ad-hoc dial changes belong to the record being replaced, so a
+  // repository's first switch does not inherit the machine's.
+  const ownRecord =
+    root === null
+      ? leavingLock
+      : modeLock.resolveLock(io.CONFIG_DIR, root).scope === "repo"
+        ? leavingLock
+        : null;
   const corpus = rules.loadCorpus(path.join(modesDir(io.CONFIG_DIR), "rules"));
   if (corpus.errors.length > 0) {
     for (const problem of corpus.errors) console.error(problem);
@@ -508,7 +611,8 @@ function commandSwitch(target, argv, io) {
       io.CONFIG_DIR,
       target,
       corpus.rules,
-      before.adhoc,
+      (ownRecord && ownRecord.adhoc) || {},
+      destination,
     );
   } catch (error) {
     console.error(error.message);
@@ -530,9 +634,35 @@ function commandSwitch(target, argv, io) {
       plain: isPlain(argv),
     }),
   );
+  console.log(
+    root === null
+      ? "    scope      machine default"
+      : `    scope      this repository only (${root}); new sessions here pick up its skills and effort`,
+  );
 }
 
-function commandRevert(io) {
+function commandRevert(io, machineWide) {
+  const root = machineWide ? null : modeLock.repositoryRoot(process.cwd());
+
+  if (root !== null) {
+    const resolution = modeLock.resolveLock(io.CONFIG_DIR, root);
+    // Taking the machine mode off from inside a repository by accident is the
+    // same leak in the other direction, so it has to be asked for by name.
+    if (resolution.scope !== "repo") {
+      console.error(
+        "this repository has no mode of its own, so nothing was changed. " +
+          "`ccfg mode revert --global` takes the machine mode off",
+      );
+      process.exit(2);
+    }
+    apply.revert(io.CONFIG_DIR, targets.repoTarget(io.CONFIG_DIR, root));
+    io.ok(
+      `reverted ${resolution.lock.mode} for this repository (${root}); ` +
+        `it follows the machine mode again`,
+    );
+    return;
+  }
+
   const lock = apply.readLock(io.CONFIG_DIR);
   if (!apply.revert(io.CONFIG_DIR)) {
     console.error("no mode is applied");

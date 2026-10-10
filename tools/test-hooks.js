@@ -9070,6 +9070,48 @@ header("mode hooks: gates and rules follow the repository's own mode");
     announced.reason,
   );
 
+  const statusLine = spawnSync(
+    process.execPath,
+    [path.join(HOOKS, "mode-status.js")],
+    {
+      input: JSON.stringify({ session_id: "scope-1", cwd: gatedRepository }),
+      encoding: "utf8",
+      env: { ...process.env, ...environment, NO_COLOR: "1" },
+    },
+  ).stdout;
+  check(
+    "the status line marks a repository's own mode",
+    statusLine.includes("APPRAISER (repo)"),
+    true,
+    statusLine,
+  );
+
+  const outsideAnyRepository = fs.mkdtempSync(
+    path.join(os.tmpdir(), "modescope-outside-"),
+  );
+  const machineStatusLine = spawnSync(
+    process.execPath,
+    [path.join(HOOKS, "mode-status.js")],
+    {
+      input: JSON.stringify({ session_id: "scope-2", cwd: outsideAnyRepository }),
+      encoding: "utf8",
+      env: { ...process.env, ...environment, NO_COLOR: "1" },
+    },
+  ).stdout;
+  check(
+    "the status line outside any repository names the machine mode",
+    machineStatusLine.includes("build"),
+    true,
+    machineStatusLine,
+  );
+  check(
+    "and carries no repository mark",
+    machineStatusLine.includes("(repo)"),
+    false,
+    machineStatusLine,
+  );
+  fs.rmSync(outsideAnyRepository, { recursive: true, force: true });
+
   for (const directory of [scopedConfig, gatedRepository, openRepository])
     fs.rmSync(directory, { recursive: true, force: true });
 }

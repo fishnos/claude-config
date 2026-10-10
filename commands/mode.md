@@ -1,6 +1,6 @@
 ---
 description: Show or switch the active glitched mode without leaving the session
-argument-hint: "[nothing | list | <mode> | diff A B | revert] [--color]"
+argument-hint: "[nothing | list [--repos] | <mode> [--global] | diff A B | revert [--global]] [--color]"
 allowed-tools: Bash(node:*), Bash(ccfg:*)
 ---
 
