@@ -435,15 +435,15 @@ check(
   null,
 );
 
-// The gate has to match hooks the same way the stripping does, or it is not a
-// gate.
+// The gate has to match hooks the same way the shared runner does when it
+// decides which hook to skip, or it is not a gate.
 //
 // coreHookViolation compared the declared string to the protected filenames
-// exactly, while stripHooks removes any hook entry whose command *contains*
-// that string. A mode declaring "guard" therefore passed the gate untouched and
-// then took `node hooks/git-guard.js` out of settings.json, which is the
-// privilege escalation the gate exists to stop: git-guard is what refuses a
-// push, a commit, and a staged secret.
+// exactly, while the runner skips any hook whose file name *contains*
+// that string. A mode declaring "guard" would therefore pass an exact-match
+// gate untouched and still name `hooks/git-guard.js` as a hook to turn off,
+// which is the privilege escalation the gate exists to stop: git-guard is what
+// refuses a push, a commit, and a staged secret.
 check(
   "a mode naming only part of a core hook is still refused",
   modes.coreHookViolation({ name: "sneaky", disableHooks: ["guard"] }),
@@ -732,9 +732,9 @@ check(
   true,
 );
 check(
-  "the hook the mode disables is gone",
+  "the hook the mode turns off stays in settings, for the runner to skip",
   JSON.stringify(afterSwitch.hooks.Stop || []).includes("review-reminder.js"),
-  false,
+  true,
 );
 
 check(
@@ -2604,22 +2604,21 @@ const ENVIRONMENT = process.env;
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-// A hook a mode turned off comes back when a mode that does not turn it off is
-// applied.
-//
-// Hooks used to be stripped from the live settings rather than rebuilt from the
-// operator's own, so the removal compounded: RECON turns off the self-review
-// reminder, and every mode applied afterwards inherited a config with the hook
-// already gone. Nothing ever put it back. A guardrail silently missing is the
-// exact failure the subtract-only design exists to prevent, and it survived a
-// switch, a revert and a restart.
+// A mode that turns a hook off leaves settings.json's hooks exactly as they
+// were. The entry used to be deleted here and merged back at the next switch;
+// the shared runner (io.run in hooks/lib/hook-io.js) skips the hook instead,
+// which is the only form that can be scoped to one repository.
 {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hook-restore-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hook-kept-"));
   fs.mkdirSync(path.join(root, "rules"), { recursive: true });
   fs.mkdirSync(path.join(root, "modes"), { recursive: true });
   const reminder = {
     matcher: "*",
     hooks: [{ type: "command", command: "node hooks/review-reminder.js" }],
+  };
+  const byHand = {
+    matcher: "*",
+    hooks: [{ type: "command", command: "node hooks/my-own.js" }],
   };
   fs.writeFileSync(
     path.join(root, "settings.json"),
@@ -2630,47 +2629,248 @@ const ENVIRONMENT = process.env;
     { name: "quiet", settings: {}, disableHooks: ["review-reminder.js"] },
     "quiet.json",
   );
-  const plain = modes.parseMode({ name: "plain", settings: {} }, "plain.json");
-
-  apply.applyMode(root, silencer, CORPUS, {});
+  const applied = apply.applyMode(root, silencer, CORPUS, {});
   const gagged = JSON.parse(
     fs.readFileSync(path.join(root, "settings.json"), "utf8"),
   );
   check(
-    "a mode that turns a hook off takes it out of settings",
-    JSON.stringify(gagged.hooks).includes("review-reminder"),
-    false,
+    "a mode that turns a hook off leaves settings.json's hooks as they were",
+    JSON.stringify(gagged.hooks),
+    JSON.stringify({ Stop: [reminder] }),
+  );
+  check(
+    "the record names the hook for the runner to skip",
+    applied.lock.disabledHooks.join(","),
+    "review-reminder.js",
+  );
+  check(
+    "the record says its hooks are skipped by the runner",
+    applied.lock.hooksInRunner,
+    true,
   );
 
-  apply.applyMode(root, plain, CORPUS, {});
-  const restored = JSON.parse(
+  fs.writeFileSync(
+    path.join(root, "settings.json"),
+    JSON.stringify({ hooks: { Stop: [reminder], Notification: [byHand] } }, null, 2) +
+      "\n",
+  );
+  apply.applyMode(
+    root,
+    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
+    CORPUS,
+    {},
+  );
+  const after = JSON.parse(
     fs.readFileSync(path.join(root, "settings.json"), "utf8"),
   );
   check(
-    "the next mode puts the hook back",
-    JSON.stringify(restored.hooks).includes("review-reminder"),
-    true,
+    "a hook added by hand while a mode is in force survives the next switch",
+    JSON.stringify(after.hooks),
+    JSON.stringify({ Stop: [reminder], Notification: [byHand] }),
   );
 
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-// A hook the operator writes into settings.json by hand, while a mode is in
-// force, is still there after the next switch.
-//
-// The operator's own settings were read from a byte copy taken before the first
-// mode was ever applied, so every edit made after that moment was invisible to
-// every later switch and got written back out of existence. The baseline is now
-// recovered from the file on disk by putting back whatever the mode in force
-// removed, which leaves anything else on the line where the operator left it.
+// A record written before the runner took over may have left settings.json
+// with entries deleted. The first switch after the change puts them back from
+// the byte copy the record points at, once.
 {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hand-add-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hook-migrate-"));
   fs.mkdirSync(path.join(root, "rules"), { recursive: true });
+  fs.mkdirSync(path.join(root, "modes"), { recursive: true });
+  fs.mkdirSync(path.join(root, "backups"), { recursive: true });
+  const reminder = {
+    matcher: "*",
+    hooks: [{ type: "command", command: "node hooks/review-reminder.js" }],
+  };
+  const backup = path.join(root, "backups", "settings.before.json");
+  fs.writeFileSync(
+    backup,
+    JSON.stringify({ hooks: { Stop: [reminder] } }, null, 2) + "\n",
+  );
+  fs.writeFileSync(path.join(root, "settings.json"), "{}\n");
+  fs.writeFileSync(
+    path.join(root, "mode.lock"),
+    JSON.stringify({
+      mode: "quiet",
+      disabledHooks: ["review-reminder.js"],
+      settingsBackup: backup,
+    }),
+  );
+
+  apply.applyMode(
+    root,
+    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
+    CORPUS,
+    {},
+  );
+  const restored = JSON.parse(
+    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
+  );
+  check(
+    "a hook an older switch deleted is put back by the first switch after",
+    JSON.stringify(restored.hooks),
+    JSON.stringify({ Stop: [reminder] }),
+  );
+
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// The same one-time restore, when the event the older switch thinned is still
+// standing and the operator has added a hook to it since. The entry goes back
+// at the index it held in the byte copy, so a hook that ran first runs first
+// again, and what the operator added stays where it was put.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hook-live-"));
+  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
+  fs.mkdirSync(path.join(root, "modes"), { recursive: true });
+  fs.mkdirSync(path.join(root, "backups"), { recursive: true });
   const reminder = {
     type: "command",
     command: "node hooks/review-reminder.js",
   };
-  const logger = { type: "command", command: "node hooks/evidence-log.js" };
+  const logger ={ type: "command", command: "node hooks/evidence-log.js" };
+  const byHand = { type: "command", command: "node hooks/my-own.js" };
+  const backup = path.join(root, "backups", "settings.before.json");
+  fs.writeFileSync(
+    backup,
+    JSON.stringify(
+      { hooks: { Stop: [{ matcher: "*", hooks: [reminder, logger] }] } },
+      null,
+      2,
+    ) + "\n",
+  );
+  fs.writeFileSync(
+    path.join(root, "settings.json"),
+    JSON.stringify(
+      { hooks: { Stop: [{ matcher: "*", hooks: [logger, byHand] }] } },
+      null,
+      2,
+    ) + "\n",
+  );
+  fs.writeFileSync(
+    path.join(root, "mode.lock"),
+    JSON.stringify({
+      mode: "quiet",
+      disabledHooks: ["review-reminder.js"],
+      settingsBackup: backup,
+    }),
+  );
+
+  apply.applyMode(
+    root,
+    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
+    CORPUS,
+    {},
+  );
+  const after = JSON.parse(
+    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
+  );
+  check(
+    "a hook an older switch deleted goes back at the index it held",
+    after.hooks.Stop[0].hooks[0].command,
+    "node hooks/review-reminder.js",
+  );
+  check(
+    "the hook put back and the one added by hand since each appear once",
+    after.hooks.Stop[0].hooks.map((entry) => entry.command).join(" | "),
+    "node hooks/review-reminder.js | node hooks/evidence-log.js | " +
+      "node hooks/my-own.js",
+  );
+
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// The restore runs once. The first switch here goes to a mode that still turns
+// the hook off, so the record it writes lists the hook again; the switch after
+// that must not read the list as entries to put back a second time.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hook-twice-"));
+  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
+  fs.mkdirSync(path.join(root, "modes"), { recursive: true });
+  fs.mkdirSync(path.join(root, "backups"), { recursive: true });
+  const reminder = {
+    type: "command",
+    command: "node hooks/review-reminder.js",
+  };
+  const logger ={ type: "command", command: "node hooks/evidence-log.js" };
+  const byHand = { type: "command", command: "node hooks/my-own.js" };
+  const backup = path.join(root, "backups", "settings.before.json");
+  fs.writeFileSync(
+    backup,
+    JSON.stringify(
+      { hooks: { Stop: [{ matcher: "*", hooks: [reminder, logger] }] } },
+      null,
+      2,
+    ) + "\n",
+  );
+  fs.writeFileSync(
+    path.join(root, "settings.json"),
+    JSON.stringify(
+      { hooks: { Stop: [{ matcher: "*", hooks: [logger, byHand] }] } },
+      null,
+      2,
+    ) + "\n",
+  );
+  fs.writeFileSync(
+    path.join(root, "mode.lock"),
+    JSON.stringify({
+      mode: "quiet",
+      disabledHooks: ["review-reminder.js"],
+      settingsBackup: backup,
+    }),
+  );
+
+  apply.applyMode(
+    root,
+    modes.parseMode(
+      { name: "hush", settings: {}, disableHooks: ["review-reminder.js"] },
+      "hush.json",
+    ),
+    CORPUS,
+    {},
+  );
+  apply.applyMode(
+    root,
+    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
+    CORPUS,
+    {},
+  );
+  const after = JSON.parse(
+    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
+  );
+  check(
+    "a second switch does not put the restored hook back twice",
+    after.hooks.Stop[0].hooks.filter(
+      (entry) => entry.command === "node hooks/review-reminder.js",
+    ).length,
+    1,
+  );
+  check(
+    "the hook added by hand is still there after the second switch",
+    after.hooks.Stop[0].hooks.filter(
+      (entry) => entry.command === "node hooks/my-own.js",
+    ).length,
+    1,
+  );
+
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// A hook entry the operator deletes by hand stays deleted, even when it is the
+// very hook the mode in force turns off. A record written by the current code
+// says nothing was taken out of settings.json, so a missing entry can only be
+// the operator's doing and is not anyone's to put back.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hook-gone-"));
+  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
+  fs.mkdirSync(path.join(root, "modes"), { recursive: true });
+  const reminder = {
+    type: "command",
+    command: "node hooks/review-reminder.js",
+  };
+  const logger ={ type: "command", command: "node hooks/evidence-log.js" };
   fs.writeFileSync(
     path.join(root, "settings.json"),
     JSON.stringify(
@@ -2680,126 +2880,38 @@ const ENVIRONMENT = process.env;
     ) + "\n",
   );
 
-  const silencer = modes.parseMode(
-    { name: "quiet", settings: {}, disableHooks: ["review-reminder.js"] },
-    "quiet.json",
+  apply.applyMode(
+    root,
+    modes.parseMode(
+      { name: "quiet", settings: {}, disableHooks: ["review-reminder.js"] },
+      "quiet.json",
+    ),
+    CORPUS,
+    {},
   );
-  const plain = modes.parseMode({ name: "plain", settings: {} }, "plain.json");
-
-  apply.applyMode(root, silencer, CORPUS, {});
-
-  const live = JSON.parse(
-    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
-  );
-  live.hooks.PreToolUse = [
-    {
-      matcher: "Bash",
-      hooks: [{ type: "command", command: "node hooks/my-own-guard.js" }],
-    },
-  ];
-  live.hooks.Stop[0].hooks.push({
-    type: "command",
-    command: "node hooks/my-own-stop.js",
-  });
-  fs.writeFileSync(
-    path.join(root, "settings.json"),
-    JSON.stringify(live, null, 2) + "\n",
-  );
-
-  apply.applyMode(root, plain, CORPUS, {});
-  const after = JSON.parse(
-    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
-  );
-  const hookText = JSON.stringify(after.hooks);
-
-  check(
-    "a hook added by hand under a whole new event survives the switch",
-    hookText.includes("my-own-guard"),
-    true,
-  );
-  check(
-    "a hook added by hand to an existing group survives the switch",
-    hookText.includes("my-own-stop"),
-    true,
-  );
-  check(
-    "the hook the mode had turned off comes back alongside the hand-added ones",
-    hookText.includes("review-reminder"),
-    true,
-  );
-  check(
-    "the returning hook lands back in its original position",
-    after.hooks.Stop[0].hooks.map((entry) => entry.command).join(" | "),
-    "node hooks/review-reminder.js | node hooks/evidence-log.js | " +
-      "node hooks/my-own-stop.js",
-  );
-  fs.rmSync(root, { recursive: true, force: true });
-}
-
-// A hook the operator deletes by hand stays deleted. Only what the mode in
-// force removed is put back, so recovering the baseline cannot resurrect
-// something the operator threw away on purpose.
-{
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hand-delete-"));
-  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
   fs.writeFileSync(
     path.join(root, "settings.json"),
     JSON.stringify(
-      {
-        hooks: {
-          Stop: [
-            {
-              matcher: "*",
-              hooks: [
-                { type: "command", command: "node hooks/review-reminder.js" },
-              ],
-            },
-          ],
-          PostToolUse: [
-            {
-              matcher: "Write",
-              hooks: [
-                { type: "command", command: "node hooks/style-check.js" },
-              ],
-            },
-          ],
-        },
-      },
+      { hooks: { Stop: [{ matcher: "*", hooks: [logger] }] } },
       null,
       2,
     ) + "\n",
   );
-
-  const silencer = modes.parseMode(
-    { name: "quiet", settings: {}, disableHooks: ["review-reminder.js"] },
-    "quiet.json",
+  apply.applyMode(
+    root,
+    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
+    CORPUS,
+    {},
   );
-  const plain = modes.parseMode({ name: "plain", settings: {} }, "plain.json");
-
-  apply.applyMode(root, silencer, CORPUS, {});
-  const live = JSON.parse(
-    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
-  );
-  delete live.hooks.PostToolUse;
-  fs.writeFileSync(
-    path.join(root, "settings.json"),
-    JSON.stringify(live, null, 2) + "\n",
-  );
-
-  apply.applyMode(root, plain, CORPUS, {});
   const after = JSON.parse(
     fs.readFileSync(path.join(root, "settings.json"), "utf8"),
   );
   check(
-    "a hook the operator deleted by hand stays deleted",
-    JSON.stringify(after.hooks).includes("style-check"),
-    false,
+    "a hook the operator deleted by hand stays deleted at the next switch",
+    after.hooks.Stop[0].hooks.map((entry) => entry.command).join(" | "),
+    "node hooks/evidence-log.js",
   );
-  check(
-    "a hook the mode turned off still returns after a hand deletion elsewhere",
-    JSON.stringify(after.hooks).includes("review-reminder"),
-    true,
-  );
+
   fs.rmSync(root, { recursive: true, force: true });
 }
 
@@ -2905,239 +3017,6 @@ const ENVIRONMENT = process.env;
     "a skill the mode hid is visible again after the switch",
     (after.skillOverrides || {}).beta,
     undefined,
-  );
-  fs.rmSync(root, { recursive: true, force: true });
-}
-
-// A mode that turns off the only hook in an event leaves no group and no event
-// behind, so recovering the baseline has to rebuild both.
-//
-// stripHooks drops a group once its last hook is removed and drops the event
-// once its last group is. Merging the operator's hand edit back in therefore
-// cannot assume there is a group waiting to receive the hook it puts back.
-{
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hand-rebuild-"));
-  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
-  fs.writeFileSync(
-    path.join(root, "settings.json"),
-    JSON.stringify(
-      {
-        hooks: {
-          Stop: [
-            {
-              matcher: "*",
-              hooks: [
-                { type: "command", command: "node hooks/review-reminder.js" },
-              ],
-            },
-          ],
-        },
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-
-  apply.applyMode(
-    root,
-    modes.parseMode(
-      { name: "quiet", settings: {}, disableHooks: ["review-reminder.js"] },
-      "quiet.json",
-    ),
-    CORPUS,
-    {},
-  );
-  const gagged = JSON.parse(
-    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
-  );
-  check(
-    "turning off the only hook in an event removes the event",
-    gagged.hooks.Stop,
-    undefined,
-  );
-
-  gagged.hooks.PreToolUse = [
-    {
-      matcher: "Bash",
-      hooks: [{ type: "command", command: "node hooks/my-own-guard.js" }],
-    },
-  ];
-  fs.writeFileSync(
-    path.join(root, "settings.json"),
-    JSON.stringify(gagged, null, 2) + "\n",
-  );
-
-  apply.applyMode(
-    root,
-    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
-    CORPUS,
-    {},
-  );
-  const after = JSON.parse(
-    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
-  );
-  check(
-    "the emptied event is rebuilt around the hook that comes back",
-    (((after.hooks || {}).Stop || [])[0] || {}).matcher,
-    "*",
-  );
-  check(
-    "the rebuilt event carries the hook that came back",
-    JSON.stringify((after.hooks || {}).Stop || []).includes("review-reminder"),
-    true,
-  );
-  check(
-    "the hand-added event is still standing after the rebuild",
-    JSON.stringify(after.hooks).includes("my-own-guard"),
-    true,
-  );
-  fs.rmSync(root, { recursive: true, force: true });
-}
-
-// An event whose value is not the list of groups the settings format describes
-// is carried through a switch untouched.
-//
-// Both halves of the hook rule refuse to interpret a shape they do not
-// recognise, because a settings file written by a future version of Claude Code
-// is likelier than a corrupt one, and silently rewriting it into the shape this
-// code expects would destroy whatever it meant.
-{
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hook-shape-"));
-  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
-  fs.writeFileSync(
-    path.join(root, "settings.json"),
-    JSON.stringify(
-      {
-        hooks: {
-          Stop: { shape: "not a list of groups, and not iterable either" },
-          PostToolUse: [
-            {
-              matcher: "Write",
-              hooks: [
-                { type: "command", command: "node hooks/review-reminder.js" },
-              ],
-            },
-          ],
-        },
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-
-  apply.applyMode(
-    root,
-    modes.parseMode(
-      { name: "quiet", settings: {}, disableHooks: ["review-reminder.js"] },
-      "quiet.json",
-    ),
-    CORPUS,
-    {},
-  );
-  const gagged = JSON.parse(
-    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
-  );
-  check(
-    "an unrecognised event shape survives being stripped",
-    JSON.stringify(gagged.hooks.Stop),
-    JSON.stringify({ shape: "not a list of groups, and not iterable either" }),
-  );
-
-  gagged.hooks.PreToolUse = [
-    {
-      matcher: "Bash",
-      hooks: [{ type: "command", command: "node hooks/my-own-guard.js" }],
-    },
-  ];
-  fs.writeFileSync(
-    path.join(root, "settings.json"),
-    JSON.stringify(gagged, null, 2) + "\n",
-  );
-
-  apply.applyMode(
-    root,
-    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
-    CORPUS,
-    {},
-  );
-  const after = JSON.parse(
-    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
-  );
-  check(
-    "an unrecognised event shape survives being merged back",
-    JSON.stringify(after.hooks.Stop),
-    JSON.stringify({ shape: "not a list of groups, and not iterable either" }),
-  );
-  check(
-    "the recognised event beside it still gets its hook back",
-    JSON.stringify(after.hooks.PostToolUse).includes("review-reminder"),
-    true,
-  );
-  fs.rmSync(root, { recursive: true, force: true });
-}
-
-// The operator replaces a recognised event with a shape this code does not
-// know, while the mode in force is holding one of that event's hooks back.
-//
-// Putting the hook back would mean deciding what the operator's new shape
-// meant. Leaving the event alone loses the hook until the shape is a list of
-// groups again, and that is the safer of the two: the operator can see the hook
-// is gone, but cannot see a structure quietly rewritten underneath them.
-{
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-hook-reshape-"));
-  fs.mkdirSync(path.join(root, "rules"), { recursive: true });
-  fs.writeFileSync(
-    path.join(root, "settings.json"),
-    JSON.stringify(
-      {
-        hooks: {
-          Stop: [
-            {
-              matcher: "*",
-              hooks: [
-                { type: "command", command: "node hooks/review-reminder.js" },
-                { type: "command", command: "node hooks/evidence-log.js" },
-              ],
-            },
-          ],
-        },
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-
-  apply.applyMode(
-    root,
-    modes.parseMode(
-      { name: "quiet", settings: {}, disableHooks: ["review-reminder.js"] },
-      "quiet.json",
-    ),
-    CORPUS,
-    {},
-  );
-  const reshaped = JSON.parse(
-    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
-  );
-  reshaped.hooks.Stop = { shape: "the operator rewrote this by hand" };
-  fs.writeFileSync(
-    path.join(root, "settings.json"),
-    JSON.stringify(reshaped, null, 2) + "\n",
-  );
-
-  apply.applyMode(
-    root,
-    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
-    CORPUS,
-    {},
-  );
-  const after = JSON.parse(
-    fs.readFileSync(path.join(root, "settings.json"), "utf8"),
-  );
-  check(
-    "a reshaped event is handed back exactly as the operator left it",
-    JSON.stringify(after.hooks.Stop),
-    JSON.stringify({ shape: "the operator rewrote this by hand" }),
   );
   fs.rmSync(root, { recursive: true, force: true });
 }

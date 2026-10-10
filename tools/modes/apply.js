@@ -65,48 +65,14 @@ function backupSettings(configDir) {
 }
 
 /**
- * Whether a hook entry names one of the files a mode turned off.
+ * Whether a hook entry names one of the files an older switch deleted.
  *
- * Spelled out once because stripHooks and restoreHooks are the two halves of
- * one rule. Two copies would drift, and the drift would be silent: a hook the
- * strip half removed that the restore half no longer recognises never comes
- * back, which is the failure this whole path exists to prevent.
+ * Kept, with restoreHooks below, for one job: putting back the entries a switch
+ * made before the runner took over (see `hooksInRunner` in applyMode). Both go
+ * once no record written by that code can still be in force.
  */
 function namesDisabledHook(entry, disabled) {
   return disabled.some((file) => String(entry.command || "").includes(file));
-}
-
-/** Every hook entry whose command names one of the given files, removed. */
-function stripHooks(hooks, disabled) {
-  if (!hooks || disabled.length === 0) return hooks;
-  const kept = {};
-  for (const [event, groups] of Object.entries(hooks)) {
-    if (!Array.isArray(groups)) {
-      kept[event] = groups;
-      continue;
-    }
-    const survivors = groups
-      .map((group) => ({
-        ...group,
-        hooks: (group.hooks || []).filter(
-          (entry) => !namesDisabledHook(entry, disabled),
-        ),
-      }))
-      .filter((group) => group.hooks.length > 0);
-    if (survivors.length > 0) kept[event] = survivors;
-  }
-  return kept;
-}
-
-/**
- * Whether two hook trees are the same tree.
- *
- * Compared as text, so a difference in key order counts as a difference. That
- * is safe in the one place this is used: a false "they differ" only routes the
- * caller to the merge path, which reaches the same answer by a longer road.
- */
-function sameHooks(left, right) {
-  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 }
 
 /**
@@ -116,8 +82,8 @@ function sameHooks(left, right) {
  * guardrail that ran first before a mode turned it off runs first again.
  *
  * The group and the event may both be gone rather than merely thinner, because
- * stripHooks drops a group once its last hook is removed and drops an event
- * once its last group is, so both are rebuilt here when needed.
+ * the older switch dropped a group once its last hook was removed and dropped
+ * an event once its last group was, so both are rebuilt here when needed.
  *
  * An event whose shape is not the array of groups the settings format describes
  * is left exactly as found, because there is nothing safe to merge into. A hook
@@ -263,29 +229,23 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
       else delete next[key];
     }
     Object.assign(next, pinning);
-    // The operator's own hooks, recovered from the file as it stands now.
-    //
-    // Stripping the live hooks compounded: RECON turns the self-review reminder
-    // off, and every mode applied afterwards inherited a settings file with the
-    // hook already gone, so nothing ever put it back. A guardrail silently
-    // missing is the exact failure the subtract-only design exists to prevent.
-    // Reading the hooks from the byte copy instead fixed that and introduced
-    // the mirror of it, because that copy is taken before the first mode and
-    // never refreshed: a hook added by hand afterwards was invisible to every
-    // later switch and got written away at the next one.
-    //
-    // So the baseline is the live file with whatever the mode in force removed
-    // put back. When nothing has been edited by hand the live file is exactly
-    // what the last switch wrote, and the byte copy is used unchanged.
-    const priorDisabled = (existing && existing.disabledHooks) || [];
-    const lastWritten = stripHooks(operatorSettings.hooks, priorDisabled);
-    const operatorHooks = sameHooks(current.hooks, lastWritten)
-      ? operatorSettings.hooks || current.hooks
-      : restoreHooks(current.hooks, operatorSettings.hooks, priorDisabled);
-    if (operatorHooks) next.hooks = stripHooks(operatorHooks, disabledHooks);
+    // A hook a mode turns off is skipped by the shared runner (io.run in
+    // hooks/lib/hook-io.js), so `hooks` is left exactly as found. A record
+    // written before that may have left entries deleted from this file; they
+    // are put back here, once, from the byte copy that record points at.
+    const deletedByOlderSwitch =
+      existing && existing.hooksInRunner !== true
+        ? existing.disabledHooks || []
+        : [];
+    if (deletedByOlderSwitch.length > 0)
+      next.hooks = restoreHooks(
+        current.hooks,
+        operatorSettings.hooks,
+        deletedByOlderSwitch,
+      );
 
-    // The operator's own skill overrides, recovered the way the hooks above
-    // were: what is on disk now, minus the skills the mode in force hid.
+    // The operator's own skill overrides, recovered from the file as it stands:
+    // what is on disk now, minus the skills the mode in force hid.
     //
     // Taking the live overrides whole would compound, because mode A's hiding
     // becomes mode B's baseline and the skill then stays hidden under every
@@ -340,6 +300,9 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
     appliedAt: new Date().toISOString(),
     settingsBackup,
     disabledHooks,
+    // Says the hooks above are skipped by the runner and were never deleted
+    // from settings.json, so the next switch has nothing to put back.
+    hooksInRunner: true,
     // Read by hooks/mode-guard.js on every tool call, which is what makes tool
     // gating take effect without waiting for a new session.
     deniedTools: layer.tools,
@@ -386,4 +349,4 @@ function revert(configDir) {
   return true;
 }
 
-module.exports = { applyMode, revert, readLock, stripHooks };
+module.exports = { applyMode, revert, readLock };
