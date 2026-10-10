@@ -24,9 +24,9 @@
 // and the lock they act on come from whichever directory CLAUDE_CONFIG_DIR
 // names. Keeping code and data on separate roots is what lets a test point the
 // hook at a throwaway corpus without a copy of the tooling in it.
-const fs = require("fs");
 const path = require("path");
 const io = require("./lib/hook-io");
+const modeLock = require("./lib/mode-lock");
 const rules = require("../tools/modes/rules.js");
 const render = require("../tools/modes/render.js");
 const crew = require("../tools/modes/crew.js");
@@ -39,22 +39,12 @@ const EVENT = "SubagentStart";
 const MAX_INJECTED = 8000;
 const TRUNCATED = "\n\n[rules truncated]";
 
-function readLock() {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.join(io.configDir(), "mode.lock"), "utf8"),
-    );
-  } catch {
-    return null;
-  }
-}
-
 io.run(() => {
   const payload = io.readPayload();
 
   // No mode applied means no posture to brief from, and the corpus alone cannot
   // say which rules lead. Staying silent matches hooks/mode-inject.js.
-  const lock = readLock();
+  const lock = modeLock.resolveForPayload(io.configDir(), payload).lock;
   if (lock === null) return;
 
   const corpus = rules.loadCorpus(path.join(io.configDir(), "modes", "rules"));

@@ -15,25 +15,14 @@
 // through `stop_hook_active`: this hold has to fire again after the main session
 // has gone off and dispatched the reviewer, and that flag would stop it.
 
-const fs = require("fs");
-const path = require("path");
 const io = require("./lib/hook-io");
+const modeLock = require("./lib/mode-lock");
 const record = require("./lib/crew-record");
 const blindReview = require("./lib/blind-review");
 const transcriptTail = require("./lib/transcript-tail");
 
 const MAX_HOLDS = 2;
 const STANDS_LINE = /^[ \t]*Stands[ \t]+([0-9a-f]{8})[ \t]*:[ \t]*(.*)$/gim;
-
-function readLock() {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.join(io.configDir(), "mode.lock"), "utf8"),
-    );
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The tokens of every run that owes a review.
@@ -106,7 +95,7 @@ function holdText(token, state) {
 
 io.run(() => {
   const payload = io.readPayload();
-  const lock = readLock();
+  const lock = modeLock.resolveForPayload(io.configDir(), payload).lock;
   if (!lock || !lock.settings || lock.settings.verify !== "proven") return;
 
   const sessionId = payload.session_id;

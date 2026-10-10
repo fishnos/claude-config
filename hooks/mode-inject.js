@@ -24,6 +24,7 @@
 const fs = require("fs");
 const path = require("path");
 const io = require("./lib/hook-io");
+const modeLock = require("./lib/mode-lock");
 
 const EVENT = "UserPromptSubmit";
 
@@ -42,22 +43,9 @@ function markerFile(sessionId) {
   return path.join(directory, String(sessionId || "unknown"));
 }
 
-function readLock() {
+function readRules(resolution) {
   try {
-    return JSON.parse(
-      fs.readFileSync(path.join(io.configDir(), "mode.lock"), "utf8"),
-    );
-  } catch {
-    return null;
-  }
-}
-
-function readActiveRules() {
-  try {
-    return fs.readFileSync(
-      path.join(io.configDir(), "rules", "_active.md"),
-      "utf8",
-    );
+    return fs.readFileSync(modeLock.rulesPath(resolution), "utf8");
   } catch {
     return null;
   }
@@ -65,7 +53,8 @@ function readActiveRules() {
 
 io.run(() => {
   const payload = io.readPayload();
-  const lock = readLock();
+  const resolution = modeLock.resolveForPayload(io.configDir(), payload);
+  const lock = resolution.lock;
   if (lock === null) return;
 
   const marker = markerFile(payload.session_id);
@@ -92,7 +81,7 @@ io.run(() => {
   if (seen === null) return;
   if (seen === current) return;
 
-  const rendered = readActiveRules();
+  const rendered = readRules(resolution);
   if (rendered === null) return;
 
   const body =

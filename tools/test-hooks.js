@@ -8972,6 +8972,106 @@ header("mode-lock: the repository's own record answers first");
     fs.rmSync(directory, { recursive: true, force: true });
 }
 
+header("mode hooks: gates and rules follow the repository's own mode");
+{
+  const modeLock = require(path.join(HOOKS, "lib", "mode-lock.js"));
+  const MODE_GUARD = path.join(HOOKS, "mode-guard.js");
+  const MODE_INJECT = path.join(HOOKS, "mode-inject.js");
+  const scopedConfig = fs.mkdtempSync(path.join(os.tmpdir(), "modescope-config-"));
+  const gatedRepository = makeRepository("modescope-gated-");
+  const openRepository = makeRepository("modescope-open-");
+  const environment = { CLAUDE_CONFIG_DIR: scopedConfig };
+
+  fs.mkdirSync(path.join(scopedConfig, "rules"), { recursive: true });
+  fs.writeFileSync(
+    path.join(scopedConfig, "rules", "_active.md"),
+    "MACHINE-RULES-MARK\n",
+  );
+  const writeMachineRecord = (appliedAt) =>
+    fs.writeFileSync(
+      path.join(scopedConfig, "mode.lock"),
+      JSON.stringify({ mode: "build", deniedTools: [], appliedAt }),
+    );
+  writeMachineRecord("2026-10-09T00:00:00Z");
+
+  const gatedDirectory = modeLock.repoDirectory(scopedConfig, gatedRepository);
+  fs.mkdirSync(gatedDirectory, { recursive: true });
+  fs.writeFileSync(path.join(gatedDirectory, "rules.md"), "REPO-RULES-MARK\n");
+  const writeRepoRecord = (appliedAt) =>
+    fs.writeFileSync(
+      path.join(gatedDirectory, "mode.lock"),
+      JSON.stringify({
+        mode: "review",
+        codename: "APPRAISER",
+        root: fs.realpathSync(gatedRepository),
+        deniedTools: ["Edit"],
+        appliedAt,
+      }),
+    );
+  writeRepoRecord("2026-10-09T01:00:00Z");
+
+  const edit = (cwd) => ({ tool_name: "Edit", cwd, tool_input: {} });
+  const gated = run(MODE_GUARD, edit(gatedRepository), environment);
+  check(
+    "a tool the repository's mode denies is refused there",
+    gated.verdict,
+    "DENY",
+    gated.reason,
+  );
+  check(
+    "the refusal names the repository's mode",
+    String(gated.reason).includes("APPRAISER"),
+    true,
+    gated.reason,
+  );
+  check(
+    "the same tool is allowed in a repository on the machine mode",
+    run(MODE_GUARD, edit(openRepository), environment).verdict,
+    "allow",
+  );
+
+  fs.mkdirSync(path.join(openRepository, ".claude"), { recursive: true });
+  fs.writeFileSync(
+    path.join(openRepository, ".claude", "mode.lock"),
+    JSON.stringify({
+      mode: "review",
+      root: fs.realpathSync(openRepository),
+      deniedTools: ["Edit"],
+    }),
+  );
+  check(
+    "a record shipped inside a repository gates nothing",
+    run(MODE_GUARD, edit(openRepository), environment).verdict,
+    "allow",
+  );
+
+  const prompt = { session_id: "scope-1", cwd: gatedRepository };
+  run(MODE_INJECT, prompt, environment);
+  writeMachineRecord("2026-10-09T02:00:00Z");
+  check(
+    "a machine switch is not announced inside a repository with its own mode",
+    run(MODE_INJECT, prompt, environment).verdict,
+    "allow",
+  );
+  writeRepoRecord("2026-10-09T03:00:00Z");
+  const announced = run(MODE_INJECT, prompt, environment);
+  check(
+    "a repository switch is announced with the repository's rules",
+    String(announced.reason).includes("REPO-RULES-MARK"),
+    true,
+    announced.reason,
+  );
+  check(
+    "and not with the machine-wide rules",
+    String(announced.reason).includes("MACHINE-RULES-MARK"),
+    false,
+    announced.reason,
+  );
+
+  for (const directory of [scopedConfig, gatedRepository, openRepository])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(testedConfig, { recursive: true, force: true });
 fs.rmSync(noneConfig, { recursive: true, force: true });

@@ -12,25 +12,15 @@
 // enough to list the dials stops being read at all. The glyph comes first
 // because a reader recognises a shape faster than a word.
 
-const fs = require("fs");
 const path = require("path");
 const io = require("./lib/hook-io");
+const modeLock = require("./lib/mode-lock");
 
 // Resolved from this file so the status line paints the same hue as the switch
 // banner and the rack. A status line always writes to a pipe, never a
 // terminal, so the usual "is this a TTY?" test would strip the colour every
 // time. NO_COLOR is the only thing that turns it off here.
 const ink = require(path.join(__dirname, "..", "tools", "modes", "ink.js"));
-
-function readLock() {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.join(io.configDir(), "mode.lock"), "utf8"),
-    );
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The glyph and hue to draw the line in: from the mode file where it can be
@@ -77,7 +67,7 @@ io.run(() => {
   const payload = io.readPayload();
   const sessionId = payload.session_id || process.env.CLAUDE_SESSION_ID || "";
 
-  const lock = readLock();
+  const lock = modeLock.resolveForPayload(io.configDir(), payload).lock;
   if (lock === null) {
     process.stdout.write("no mode");
     return;

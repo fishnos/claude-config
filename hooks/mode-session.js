@@ -21,6 +21,7 @@
 const fs = require("fs");
 const path = require("path");
 const io = require("./lib/hook-io");
+const modeLock = require("./lib/mode-lock");
 
 const EVENT = "SessionStart";
 
@@ -55,19 +56,9 @@ function baselineHash() {
   }
 }
 
-function readLock() {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.join(io.configDir(), "mode.lock"), "utf8"),
-    );
-  } catch {
-    return null;
-  }
-}
-
 io.run(() => {
   const payload = io.readPayload();
-  const lock = readLock();
+  const lock = modeLock.resolveForPayload(io.configDir(), payload).lock;
 
   const loaded = {
     // The fingerprint of the frozen half, as it stood when this session began.

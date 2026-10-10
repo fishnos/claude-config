@@ -18,9 +18,8 @@
 // what to do instead, because a bare "denied" invites the model to try the same
 // thing by another route, and that is worse than no gate.
 
-const fs = require("fs");
-const path = require("path");
 const io = require("./lib/hook-io");
+const modeLock = require("./lib/mode-lock");
 
 const EVENT = "PreToolUse";
 
@@ -30,22 +29,12 @@ const EVENT = "PreToolUse";
 // lock written by an older version or edited by hand.
 const UNGATEABLE = ["Read", "Glob", "Grep", "TodoWrite"];
 
-function readLock() {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.join(io.configDir(), "mode.lock"), "utf8"),
-    );
-  } catch {
-    return null;
-  }
-}
-
 io.run(() => {
   const payload = io.readPayload();
   const tool = payload.tool_name || "";
   if (tool === "" || UNGATEABLE.includes(tool)) return;
 
-  const lock = readLock();
+  const lock = modeLock.resolveForPayload(io.configDir(), payload).lock;
   if (lock === null) return;
 
   const label = lock.codename || lock.mode || "this mode";

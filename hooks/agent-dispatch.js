@@ -18,9 +18,8 @@
 // by that same spike, against a closed issue claiming it was ignored there.
 
 const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
 const io = require("./lib/hook-io");
+const modeLock = require("./lib/mode-lock");
 const record = require("./lib/crew-record");
 const blindReview = require("./lib/blind-review");
 
@@ -36,16 +35,6 @@ const UNDECLARED = "(undeclared)";
 
 const REVIEWER_ROLE = "reviewer";
 const REVIEW_SCOPE = "(review)";
-
-function readLock() {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.join(io.configDir(), "mode.lock"), "utf8"),
-    );
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The scope the dispatcher declared, as a list of patterns.
@@ -114,7 +103,7 @@ io.run(() => {
   // token would join the report to the wrong run.
   if (/^RUN [0-9a-f]{8}\b/m.test(prompt)) return;
 
-  const lock = readLock();
+  const lock = modeLock.resolveForPayload(io.configDir(), payload).lock;
   const verify = (lock && lock.settings && lock.settings.verify) || "none";
   const scope = declaredScope(prompt);
   const reviews =

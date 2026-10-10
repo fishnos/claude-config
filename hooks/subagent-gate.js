@@ -26,6 +26,7 @@
 const fs = require("fs");
 const path = require("path");
 const io = require("./lib/hook-io");
+const modeLock = require("./lib/mode-lock");
 const record = require("./lib/crew-record");
 const blindReview = require("./lib/blind-review");
 const { loadRoles } = require("../tools/modes/roles.js");
@@ -47,16 +48,6 @@ const FALLBACK_GATES = ["finish-shape"];
 const FIELDS = ["RUN", "STATE", "TOUCHED", "EVIDENCE"];
 
 const MAX_REFUSALS = 2;
-
-function readLock() {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.join(io.configDir(), "mode.lock"), "utf8"),
-    );
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The finish block as fields.
@@ -467,7 +458,7 @@ io.run(() => {
   });
 
   const matched = record.findRun(payload.session_id, finish.run);
-  const lock = readLock();
+  const lock = modeLock.resolveForPayload(io.configDir(), payload).lock;
   const settings = (lock && lock.settings) || {};
   const role = (matched && matched.role) || payload.agent_type || null;
 
