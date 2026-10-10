@@ -234,6 +234,7 @@ function applyMode(
   );
   let skillsHidden = 0;
   let hadSettings = false;
+  let settingsChanges = null;
   let baseSkillOverrides = {};
 
   if (target.scope === "repo") {
@@ -248,6 +249,7 @@ function applyMode(
     skillsHidden = written.skillsHidden;
     baseSkillOverrides = written.baseSkillOverrides;
     hadSettings = written.hadSettings;
+    settingsChanges = written.settingsChanges;
   } else if (fs.existsSync(settingsPath(configDir))) {
     const current = JSON.parse(
       fs.readFileSync(settingsPath(configDir), "utf8"),
@@ -368,6 +370,10 @@ function applyMode(
     lock.root = target.root;
     lock.hadSettings = hadSettings;
     lock.settingsBackup = hadSettings ? target.settingsBackup : null;
+    // What this switch wrote into the repository's settings file and what
+    // stood there before, so that revert and the next switch take back exactly
+    // that and leave whatever was added to the file since.
+    lock.settingsChanges = settingsChanges;
   }
   fs.mkdirSync(path.dirname(target.lockFile), { recursive: true });
   fs.writeFileSync(target.lockFile, JSON.stringify(lock, null, 2) + "\n");
@@ -384,15 +390,40 @@ function applyMode(
   return { lock };
 }
 
-/** Undo the applied mode. False when nothing is applied. */
-function revert(configDir, target = targets.machineTarget(configDir)) {
+/**
+ * Undo the applied mode. False when nothing is applied.
+ *
+ * `report` is told about anything in a repository that revert left as found
+ * and why, so a path it would not touch is never passed over silently.
+ */
+function revert(
+  configDir,
+  target = targets.machineTarget(configDir),
+  report = (message) => console.error(message),
+) {
   const lock = readRecord(target.lockFile);
   if (lock === null) return false;
 
   if (target.scope === "repo") {
-    repoFiles.restoreRepoSettings(target, lock);
-    modeCommands.remove(configDir, lock.installedCommands, target.commandsDirectory);
-    crew.writeCrew(configDir, [], {}, [], "", target.agentsDirectory);
+    // A link here was not present at the switch, which refuses one. Deleting
+    // through it would remove files outside the repository.
+    const reachedThroughLink = (directory) => {
+      const link = repoFiles.linkOnTheWayTo(target, directory);
+      if (link === null) return false;
+      report(
+        `${link} is a symbolic link, so nothing under ${directory} was removed`,
+      );
+      return true;
+    };
+    repoFiles.restoreRepoSettings(target, lock, report);
+    if (!reachedThroughLink(target.commandsDirectory))
+      modeCommands.remove(
+        configDir,
+        lock.installedCommands,
+        target.commandsDirectory,
+      );
+    if (!reachedThroughLink(target.agentsDirectory))
+      crew.writeCrew(configDir, [], {}, [], "", target.agentsDirectory);
     // The record, its rules and its byte copy go together. The repository then
     // has no record of its own and the lookup answers with the machine's.
     fs.rmSync(target.directory, { recursive: true, force: true });

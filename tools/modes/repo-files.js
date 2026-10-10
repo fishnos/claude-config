@@ -1,8 +1,9 @@
 "use strict";
 
 // What only a repository switch does: merge into the repository's own
-// settings.local.json, refuse a path git already tracks, and keep the files it
-// writes out of the repository's status through the local ignore list.
+// settings.local.json, refuse a path git already tracks or a symbolic link
+// stands on, and keep the files it writes out of the repository's status
+// through the local ignore list.
 //
 // The local ignore list (.git/info/exclude) and never the tracked .gitignore:
 // a mode is the operator's own posture on this machine, and a line added to
@@ -35,6 +36,31 @@ function readJson(file, fallback) {
   }
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** lstat and never stat: the question is what stands at the path itself. */
+function isLink(file) {
+  try {
+    return fs.lstatSync(file).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The symbolic link a write to `file` would pass through, or null.
+ *
+ * Only the repository root is resolved to a real path. A link at .claude, or
+ * at the path itself, sends a write or a delete to wherever the link points,
+ * which need not be inside the repository at all.
+ */
+function linkOnTheWayTo(target, file) {
+  const claudeDirectory = path.dirname(target.settingsFile);
+  return [claudeDirectory, file].find(isLink) ?? null;
+}
+
 function relativeToRoot(target, file) {
   return path.relative(target.root, file).split(path.sep).join("/");
 }
@@ -56,16 +82,28 @@ function generatedPaths(target, commandNames, roleIds) {
  * Throw, before anything is written, on a repository this switch must not
  * write into as it stands.
  *
- * A path git tracks is a committed file, and overwriting one is not this
- * command's call. A settings file that does not parse cannot be merged into,
- * and replacing it would lose whatever the operator meant it to say.
+ * A symbolic link is checked first, because every later check reads through
+ * one. A path git tracks is a committed file, and overwriting one is not this
+ * command's call. A settings file that does not parse, or that parses to a
+ * shape this module does not merge into, cannot be added to, and replacing it
+ * would lose whatever the operator meant it to say.
  */
 function refuseUnsafe(target, commandNames, roleIds) {
-  const tracked = git(target.root, [
-    "ls-files",
-    "--",
-    ...generatedPaths(target, commandNames, roleIds),
-  ])
+  const generated = generatedPaths(target, commandNames, roleIds);
+  const linked = [
+    path.dirname(target.settingsFile),
+    target.commandsDirectory,
+    target.agentsDirectory,
+    ...generated.map((relative) => path.join(target.root, relative)),
+  ].filter(isLink);
+  if (linked.length > 0)
+    throw new Error(
+      `symbolic link at ${linked.join(", ")}. A mode switch writes that path ` +
+        `and will not write through a link to wherever it points. Put a real ` +
+        `file or directory there, or switch with --global`,
+    );
+
+  const tracked = git(target.root, ["ls-files", "--", ...generated])
     .split("\n")
     .filter(Boolean);
   if (tracked.length > 0)
@@ -76,14 +114,37 @@ function refuseUnsafe(target, commandNames, roleIds) {
     );
 
   if (!fs.existsSync(target.settingsFile)) return;
+  let parsed;
   try {
-    JSON.parse(fs.readFileSync(target.settingsFile, "utf8"));
+    parsed = JSON.parse(fs.readFileSync(target.settingsFile, "utf8"));
   } catch (error) {
     throw new Error(
       `${target.settingsFile} is not valid JSON (${error.message}). A mode ` +
         `switch merges into that file and will not replace one it cannot read`,
     );
   }
+  const misshapen = unmergeableShape(parsed);
+  if (misshapen !== null)
+    throw new Error(
+      `${target.settingsFile}: ${misshapen}. A mode switch merges into that ` +
+        `file and will not replace one whose shape it does not expect`,
+    );
+}
+
+/** Why a parsed settings file cannot be merged into, or null when it can. */
+function unmergeableShape(parsed) {
+  if (!isPlainObject(parsed)) return "the file does not hold a JSON object";
+  if ("permissions" in parsed && !isPlainObject(parsed.permissions))
+    return '"permissions" is not an object';
+  if (
+    isPlainObject(parsed.permissions) &&
+    "deny" in parsed.permissions &&
+    !Array.isArray(parsed.permissions.deny)
+  )
+    return '"permissions.deny" is not a list';
+  if ("skillOverrides" in parsed && !isPlainObject(parsed.skillOverrides))
+    return '"skillOverrides" is not an object';
+  return null;
 }
 
 /**
@@ -114,15 +175,77 @@ function repoSkillOverrides({
   return result;
 }
 
+function sameValue(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/**
+ * The settings file with one mode's own additions taken back out.
+ *
+ * `changes` is what the record says the switch wrote: for each key and each
+ * skill, the value it wrote and what stood there before, and the deny entries
+ * it added. A key or skill is taken back only while it still holds the value
+ * the mode wrote, because one the operator has changed since is the
+ * operator's. Everything the record does not name is returned as found:
+ * Claude Code appends permission entries to this file on its own, and a
+ * revert that restored an earlier copy would throw those away.
+ */
+function withoutModeChanges(live, changes) {
+  const result = structuredClone(live);
+  if (!isPlainObject(changes)) return result;
+
+  const takeBack = (holder, recorded) => {
+    for (const [name, change] of Object.entries(recorded || {})) {
+      if (!(name in holder) || !sameValue(holder[name], change.wrote)) continue;
+      if (change.present) holder[name] = change.value;
+      else delete holder[name];
+    }
+  };
+  const created = changes.created || {};
+
+  takeBack(result, changes.keys);
+
+  if (isPlainObject(result.permissions)) {
+    const permissions = result.permissions;
+    if (Array.isArray(permissions.deny)) {
+      const added = new Set(changes.denyAdded || []);
+      permissions.deny = permissions.deny.filter((entry) => !added.has(entry));
+      if (permissions.deny.length === 0 && created.deny) delete permissions.deny;
+    }
+    if (Object.keys(permissions).length === 0 && created.permissions)
+      delete result.permissions;
+  }
+
+  if (isPlainObject(result.skillOverrides)) {
+    takeBack(result.skillOverrides, changes.skills);
+    if (Object.keys(result.skillOverrides).length === 0 && created.skillOverrides)
+      delete result.skillOverrides;
+  }
+
+  return result;
+}
+
 /**
  * Merge a mode into the repository's settings.local.json.
  *
  * `existing` is the repository's record from the last switch, or null on the
- * first. The byte copy is taken on the first switch only: taken on every
- * switch, the second would copy the first mode's output and revert would
- * restore a mode rather than the operator's own file.
+ * first. The merge starts from the file as it stands with the last mode's own
+ * additions taken back out, so whatever was added by hand since is carried
+ * into this mode, and what the returned `settingsChanges` calls "before" is
+ * the operator's value and never the last mode's.
+ *
+ * The byte copy is kept as a safety net for the operator and is no longer
+ * what revert restores. It is taken on the first switch only: taken on every
+ * switch, the second would copy the first mode's output.
  */
-function writeRepoSettings(configDir, target, mode, layer, existing, installedSkills) {
+function writeRepoSettings(
+  configDir,
+  target,
+  mode,
+  layer,
+  existing,
+  installedSkills,
+) {
   const firstSwitch = existing === null;
   const fileExists = fs.existsSync(target.settingsFile);
   const hadSettings = firstSwitch ? fileExists : existing.hadSettings === true;
@@ -133,8 +256,10 @@ function writeRepoSettings(configDir, target, mode, layer, existing, installedSk
     else fs.rmSync(target.settingsBackup, { force: true });
   }
 
-  const current = readJson(target.settingsFile, {});
-  const own = hadSettings ? readJson(target.settingsBackup, {}) : {};
+  const own = withoutModeChanges(
+    readJson(target.settingsFile, {}),
+    existing && existing.settingsChanges,
+  );
   const machineLock = readJson(path.join(configDir, "mode.lock"), null);
   const machineLive = readJson(path.join(configDir, "settings.json"), {});
   const machineOwn =
@@ -142,30 +267,42 @@ function writeRepoSettings(configDir, target, mode, layer, existing, installedSk
       ? readJson(machineLock.settingsBackup, machineLive)
       : machineLive;
 
+  const next = structuredClone(own);
+  const settingsChanges = {
+    keys: {},
+    denyAdded: [],
+    skills: {},
+    created: { permissions: false, deny: false, skillOverrides: false },
+  };
+  const write = (holder, recorded, name, value) => {
+    if (name in holder && sameValue(holder[name], value)) return;
+    recorded[name] = { present: name in holder, value: holder[name], wrote: value };
+    holder[name] = value;
+  };
+
   const pinning = mode.projects || {};
-  const next = { ...current };
-  for (const key of (existing && existing.pinnedKeys) || []) {
-    if (key in pinning || key === "permissions") continue;
-    if (key in own) next[key] = own[key];
-    else delete next[key];
-  }
   for (const [key, value] of Object.entries(pinning))
-    if (key !== "permissions") next[key] = value;
+    if (key !== "permissions") write(next, settingsChanges.keys, key, value);
 
   // Always stated, so the repository's effort does not follow whichever
   // machine mode happens to be in force when a session starts here.
   const effort = pinning.effortLevel ?? own.effortLevel ?? machineOwn.effortLevel;
-  if (effort === undefined) delete next.effortLevel;
-  else next.effortLevel = effort;
+  if (effort !== undefined)
+    write(next, settingsChanges.keys, "effortLevel", effort);
 
   const ownDeny = (own.permissions && own.permissions.deny) || [];
   const modeDeny = (pinning.permissions && pinning.permissions.deny) || [];
-  const deny = [...new Set([...ownDeny, ...modeDeny])];
-  const permissions = { ...(current.permissions || {}) };
-  if (deny.length > 0) permissions.deny = deny;
-  else delete permissions.deny;
-  if (Object.keys(permissions).length > 0) next.permissions = permissions;
-  else delete next.permissions;
+  settingsChanges.denyAdded = [...new Set(modeDeny)].filter(
+    (entry) => !ownDeny.includes(entry),
+  );
+  if (settingsChanges.denyAdded.length > 0) {
+    settingsChanges.created.permissions = !("permissions" in own);
+    settingsChanges.created.deny = !(own.permissions && "deny" in own.permissions);
+    next.permissions = {
+      ...(own.permissions || {}),
+      deny: [...ownDeny, ...settingsChanges.denyAdded],
+    };
+  }
 
   const ownOverrides = own.skillOverrides || {};
   const skillOverrides = repoSkillOverrides({
@@ -178,14 +315,19 @@ function writeRepoSettings(configDir, target, mode, layer, existing, installedSk
       {},
     machineLive: machineLive.skillOverrides || {},
   });
-  if (Object.keys(skillOverrides).length > 0) next.skillOverrides = skillOverrides;
-  else delete next.skillOverrides;
+  if (Object.keys(skillOverrides).length > 0) {
+    settingsChanges.created.skillOverrides = !("skillOverrides" in own);
+    next.skillOverrides = { ...ownOverrides };
+    for (const [skill, value] of Object.entries(skillOverrides))
+      write(next.skillOverrides, settingsChanges.skills, skill, value);
+  }
 
   fs.mkdirSync(path.dirname(target.settingsFile), { recursive: true });
   fs.writeFileSync(target.settingsFile, JSON.stringify(next, null, 2) + "\n");
 
   return {
     hadSettings,
+    settingsChanges,
     baseSkillOverrides: ownOverrides,
     skillsHidden: Object.keys(skillOverrides).filter(
       (name) => skillOverrides[name] === "off" && ownOverrides[name] !== "off",
@@ -193,14 +335,38 @@ function writeRepoSettings(configDir, target, mode, layer, existing, installedSk
   };
 }
 
-/** Put the repository's settings file back as it stood before the first switch. */
-function restoreRepoSettings(target, lock) {
-  if (lock.hadSettings === true) {
-    if (fs.existsSync(target.settingsBackup))
-      fs.copyFileSync(target.settingsBackup, target.settingsFile);
+/**
+ * Take the mode's own additions back out of the repository's settings file.
+ *
+ * The file is removed only when the switch created it and nothing but the
+ * mode's additions was ever in it. `report` is told when the file is left as
+ * found: behind a symbolic link, or no longer something this can read.
+ */
+function restoreRepoSettings(target, lock, report) {
+  const link = linkOnTheWayTo(target, target.settingsFile);
+  if (link !== null) {
+    report(
+      `${link} is a symbolic link, so ${target.settingsFile} was left as found`,
+    );
     return;
   }
-  fs.rmSync(target.settingsFile, { force: true });
+  if (!fs.existsSync(target.settingsFile)) return;
+
+  const live = readJson(target.settingsFile, undefined);
+  if (!isPlainObject(live)) {
+    report(
+      `${target.settingsFile} no longer holds a JSON object, so it was left ` +
+        `as found. What the mode added to it is still in it`,
+    );
+    return;
+  }
+
+  const restored = withoutModeChanges(live, lock.settingsChanges);
+  if (Object.keys(restored).length === 0 && lock.hadSettings !== true) {
+    fs.rmSync(target.settingsFile, { force: true });
+    return;
+  }
+  fs.writeFileSync(target.settingsFile, JSON.stringify(restored, null, 2) + "\n");
 }
 
 /** Add paths to the repository's local ignore list, each once. */
@@ -234,6 +400,7 @@ function addToExclude(target, files) {
 }
 
 module.exports = {
+  linkOnTheWayTo,
   generatedPaths,
   refuseUnsafe,
   repoSkillOverrides,

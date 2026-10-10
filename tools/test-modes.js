@@ -3726,6 +3726,491 @@ const QUIET_REPO_MODE = {
   fs.rmSync(repository, { recursive: true, force: true });
 }
 
+/** The message a refused repository switch throws, or "" when it went through. */
+function switchRefusal(config, definition, destination) {
+  try {
+    apply.applyMode(
+      config,
+      modes.parseMode(definition, `${definition.name}.json`),
+      CORPUS,
+      {},
+      destination,
+    );
+    return "";
+  } catch (error) {
+    return error.message;
+  }
+}
+
+// A symbolic link standing where a switch writes is refused: writing through
+// it would land outside the repository.
+{
+  const { config, repository } = repoSandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-repo-outside-"));
+  fs.symlinkSync(outside, path.join(repository, ".claude"));
+  const destination = targets.repoTarget(config, repository);
+
+  const refusal = switchRefusal(config, { name: "one", settings: {} }, destination);
+  check(
+    "a switch refuses a repository whose .claude directory is a symbolic link, and names it",
+    refusal.includes(path.join(repository, ".claude")),
+    true,
+  );
+  check(
+    "and writes nothing into the directory the link points at",
+    fs.readdirSync(outside).length,
+    0,
+  );
+  check(
+    "and writes no record for the linked directory",
+    fs.existsSync(destination.lockFile),
+    false,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+}
+
+{
+  const { config, repository } = repoSandbox();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-repo-outside-"));
+  const linkedTo = path.join(outside, "settings.json");
+  fs.writeFileSync(linkedTo, '{ "env": { "KEPT": "1" } }\n');
+  const destination = targets.repoTarget(config, repository);
+  fs.mkdirSync(path.dirname(destination.settingsFile), { recursive: true });
+  fs.symlinkSync(linkedTo, destination.settingsFile);
+
+  const refusal = switchRefusal(config, { name: "one", settings: {} }, destination);
+  check(
+    "a switch refuses a settings file that is a symbolic link, and names it",
+    refusal.includes(destination.settingsFile),
+    true,
+  );
+  check(
+    "and leaves the file the link points at byte-identical",
+    fs.readFileSync(linkedTo, "utf8"),
+    '{ "env": { "KEPT": "1" } }\n',
+  );
+  check(
+    "and writes no record for the linked settings file",
+    fs.existsSync(destination.lockFile),
+    false,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+}
+
+// A link that points at nothing yet is still a link: a write would create the
+// file it names, outside the repository.
+{
+  const { config, repository } = repoSandbox();
+  writeModeCommand(config, "quiet", "narrow", PLAIN_COMMAND);
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-repo-outside-"));
+  const destination = targets.repoTarget(config, repository);
+  fs.mkdirSync(destination.commandsDirectory, { recursive: true });
+  fs.symlinkSync(
+    path.join(outside, "narrow.md"),
+    path.join(destination.commandsDirectory, "narrow.md"),
+  );
+
+  const refusal = switchRefusal(config, QUIET_REPO_MODE, destination);
+  check(
+    "a switch refuses a slash command path that is a symbolic link, and names it",
+    refusal.includes(path.join(destination.commandsDirectory, "narrow.md")),
+    true,
+  );
+  check(
+    "and creates nothing where that link points",
+    fs.readdirSync(outside).length,
+    0,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+}
+
+// Links that appear after the switch: revert neither writes nor deletes
+// through them, and says which paths it left.
+{
+  const { config, repository } = repoSandbox();
+  writeModeCommand(config, "quiet", "narrow", PLAIN_COMMAND);
+  const destination = targets.repoTarget(config, repository);
+  fs.mkdirSync(path.dirname(destination.settingsFile), { recursive: true });
+  fs.writeFileSync(destination.settingsFile, '{\n  "env": {}\n}\n');
+  apply.applyMode(
+    config,
+    modes.parseMode(QUIET_REPO_MODE, "quiet.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-repo-outside-"));
+  const linkedSettings = path.join(outside, "settings.json");
+  fs.copyFileSync(destination.settingsFile, linkedSettings);
+  const settingsUnderTheMode = fs.readFileSync(linkedSettings, "utf8");
+  fs.rmSync(destination.settingsFile);
+  fs.symlinkSync(linkedSettings, destination.settingsFile);
+  const linkedCommands = path.join(outside, "commands");
+  fs.mkdirSync(linkedCommands);
+  fs.writeFileSync(path.join(linkedCommands, "narrow.md"), "not the mode's\n");
+  fs.rmSync(destination.commandsDirectory, { recursive: true });
+  fs.symlinkSync(linkedCommands, destination.commandsDirectory);
+
+  const said = [];
+  check(
+    "revert still succeeds when links have replaced what the switch wrote",
+    apply.revert(config, destination, (message) => said.push(message)),
+    true,
+  );
+  check(
+    "revert does not write through a settings file that became a link",
+    fs.readFileSync(linkedSettings, "utf8"),
+    settingsUnderTheMode,
+  );
+  check(
+    "revert does not delete through a commands directory that became a link",
+    fs.readFileSync(path.join(linkedCommands, "narrow.md"), "utf8"),
+    "not the mode's\n",
+  );
+  check(
+    "revert says it left the linked settings file",
+    said.some((message) => message.includes(destination.settingsFile)),
+    true,
+  );
+  check(
+    "revert says it left the linked commands directory",
+    said.some((message) => message.includes(destination.commandsDirectory)),
+    true,
+  );
+  check(
+    "revert removes the record even when it skipped a link",
+    fs.existsSync(destination.lockFile),
+    false,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+}
+
+// A settings file whose shape cannot be merged into is refused before the
+// rules and role files are written.
+{
+  const { config, repository } = repoSandbox();
+  const destination = targets.repoTarget(config, repository);
+  fs.mkdirSync(path.dirname(destination.settingsFile), { recursive: true });
+  fs.writeFileSync(destination.settingsFile, "null\n");
+
+  check(
+    "a switch refuses a settings file that holds no object, and names it",
+    switchRefusal(config, { name: "one", settings: {} }, destination).includes(
+      destination.settingsFile,
+    ),
+    true,
+  );
+  check(
+    "and leaves that settings file as it was",
+    fs.readFileSync(destination.settingsFile, "utf8"),
+    "null\n",
+  );
+  check(
+    "and writes no role file before refusing",
+    fs.existsSync(path.join(destination.agentsDirectory, "implementer.md")),
+    false,
+  );
+  check(
+    "and renders no rules before refusing",
+    fs.existsSync(destination.rulesFile),
+    false,
+  );
+
+  fs.writeFileSync(destination.settingsFile, '{ "permissions": "all" }\n');
+  check(
+    "a switch refuses a settings file whose permissions are not an object",
+    switchRefusal(config, { name: "one", settings: {} }, destination).includes(
+      "permissions",
+    ),
+    true,
+  );
+  check(
+    "and leaves those permissions as it found them",
+    fs.readFileSync(destination.settingsFile, "utf8"),
+    '{ "permissions": "all" }\n',
+  );
+
+  fs.writeFileSync(
+    destination.settingsFile,
+    '{ "permissions": { "deny": "Edit" } }\n',
+  );
+  check(
+    "a switch refuses a settings file whose denied tools are not a list",
+    switchRefusal(config, { name: "one", settings: {} }, destination).includes(
+      "permissions.deny",
+    ),
+    true,
+  );
+
+  fs.writeFileSync(destination.settingsFile, '{ "skillOverrides": [] }\n');
+  check(
+    "a switch refuses a settings file whose skill overrides are not an object",
+    switchRefusal(config, { name: "one", settings: {} }, destination).includes(
+      "skillOverrides",
+    ),
+    true,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// What is added to the settings file while a mode is on belongs to whoever
+// added it. Claude Code itself appends permission entries there.
+{
+  const { config, repository } = repoSandbox();
+  writeModeCommand(config, "quiet", "narrow", PLAIN_COMMAND);
+  const destination = targets.repoTarget(config, repository);
+  fs.mkdirSync(path.dirname(destination.settingsFile), { recursive: true });
+  fs.writeFileSync(
+    destination.settingsFile,
+    JSON.stringify(
+      {
+        permissions: { allow: ["Bash(ls:*)"], deny: ["WebFetch"] },
+        skillOverrides: { gamma: "off" },
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  apply.applyMode(
+    config,
+    modes.parseMode(QUIET_REPO_MODE, "quiet.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+
+  const edited = JSON.parse(fs.readFileSync(destination.settingsFile, "utf8"));
+  edited.permissions.allow.push("Bash(git status:*)");
+  edited.permissions.deny.push("Bash(rm:*)");
+  edited.theme = "dark";
+  fs.writeFileSync(destination.settingsFile, JSON.stringify(edited, null, 2) + "\n");
+
+  apply.revert(config, destination);
+  const reverted = JSON.parse(fs.readFileSync(destination.settingsFile, "utf8"));
+  check(
+    "revert keeps an allow entry added while the mode was on",
+    reverted.permissions.allow.join(","),
+    "Bash(ls:*),Bash(git status:*)",
+  );
+  check(
+    "revert keeps a deny entry added by hand and removes the mode's",
+    reverted.permissions.deny.join(","),
+    "WebFetch,Bash(rm:*)",
+  );
+  check("revert keeps a key added while the mode was on", reverted.theme, "dark");
+  check(
+    "revert removes the effort level the mode wrote",
+    "effortLevel" in reverted,
+    false,
+  );
+  check(
+    "revert removes the skill override the mode wrote",
+    "beta" in reverted.skillOverrides,
+    false,
+  );
+  check(
+    "revert leaves a skill override the operator wrote",
+    reverted.skillOverrides.gamma,
+    "off",
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+{
+  const { config, repository } = repoSandbox();
+  writeModeCommand(config, "quiet", "narrow", PLAIN_COMMAND);
+  const destination = targets.repoTarget(config, repository);
+  fs.mkdirSync(path.dirname(destination.settingsFile), { recursive: true });
+  fs.writeFileSync(
+    destination.settingsFile,
+    JSON.stringify({ permissions: { deny: ["WebFetch"] } }, null, 2) + "\n",
+  );
+  apply.applyMode(
+    config,
+    modes.parseMode(QUIET_REPO_MODE, "quiet.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  const edited = JSON.parse(fs.readFileSync(destination.settingsFile, "utf8"));
+  edited.permissions.deny.push("Bash(rm:*)");
+  fs.writeFileSync(destination.settingsFile, JSON.stringify(edited, null, 2) + "\n");
+
+  apply.applyMode(
+    config,
+    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  check(
+    "a second switch keeps a deny entry added by hand and drops the first mode's",
+    JSON.parse(
+      fs.readFileSync(destination.settingsFile, "utf8"),
+    ).permissions.deny.join(","),
+    "WebFetch,Bash(rm:*)",
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// A setting the mode pinned and the operator then changed by hand is the
+// operator's: revert takes back only a value that is still the mode's.
+{
+  const { config, repository } = repoSandbox();
+  const destination = targets.repoTarget(config, repository);
+  fs.mkdirSync(path.dirname(destination.settingsFile), { recursive: true });
+  fs.writeFileSync(
+    destination.settingsFile,
+    JSON.stringify({ model: "own-model" }, null, 2) + "\n",
+  );
+  apply.applyMode(
+    config,
+    modes.parseMode(
+      { name: "pinning", settings: {}, projects: { model: "pinned-model" } },
+      "pinning.json",
+    ),
+    CORPUS,
+    {},
+    destination,
+  );
+  const edited = JSON.parse(fs.readFileSync(destination.settingsFile, "utf8"));
+  edited.model = "hand-model";
+  fs.writeFileSync(destination.settingsFile, JSON.stringify(edited, null, 2) + "\n");
+
+  apply.revert(config, destination);
+  check(
+    "revert leaves a pinned setting the operator changed by hand since",
+    JSON.parse(fs.readFileSync(destination.settingsFile, "utf8")).model,
+    "hand-model",
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// A settings file that stopped parsing while the mode was on is left for the
+// operator to mend. The mode still comes off.
+{
+  const { config, repository } = repoSandbox();
+  writeModeCommand(config, "quiet", "narrow", PLAIN_COMMAND);
+  const destination = targets.repoTarget(config, repository);
+  fs.mkdirSync(path.dirname(destination.settingsFile), { recursive: true });
+  fs.writeFileSync(destination.settingsFile, "{}\n");
+  apply.applyMode(
+    config,
+    modes.parseMode(QUIET_REPO_MODE, "quiet.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  fs.writeFileSync(destination.settingsFile, "{ broken");
+
+  const said = [];
+  check(
+    "revert succeeds over a settings file that no longer parses",
+    apply.revert(config, destination, (message) => said.push(message)),
+    true,
+  );
+  check(
+    "revert leaves a settings file that no longer parses untouched",
+    fs.readFileSync(destination.settingsFile, "utf8"),
+    "{ broken",
+  );
+  check(
+    "revert says it left the unparsable settings file",
+    said.some((message) => message.includes(destination.settingsFile)),
+    true,
+  );
+  check(
+    "revert still removes the record over an unparsable settings file",
+    fs.existsSync(destination.lockFile),
+    false,
+  );
+  check(
+    "revert still removes the slash command over an unparsable settings file",
+    fs.existsSync(path.join(destination.commandsDirectory, "narrow.md")),
+    false,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// A repository with no settings file before the switch ends with exactly what
+// was added by hand, and with no file when nothing was.
+{
+  const { config, repository } = repoSandbox();
+  const destination = targets.repoTarget(config, repository);
+  apply.applyMode(
+    config,
+    modes.parseMode({ name: "one", settings: {} }, "one.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  const edited = JSON.parse(fs.readFileSync(destination.settingsFile, "utf8"));
+  edited.theme = "dark";
+  fs.writeFileSync(destination.settingsFile, JSON.stringify(edited, null, 2) + "\n");
+
+  apply.revert(config, destination);
+  check(
+    "revert keeps a settings file the switch created once it holds a hand edit",
+    fs.existsSync(destination.settingsFile),
+    true,
+  );
+  check(
+    "and that file holds only the hand edit",
+    fs.readFileSync(destination.settingsFile, "utf8"),
+    '{\n  "theme": "dark"\n}\n',
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// The permissions, deny list and skill overrides a switch had to create leave
+// with the mode, so a file the switch created does not outlive it as a husk.
+{
+  const { config, repository } = repoSandbox();
+  writeModeCommand(config, "quiet", "narrow", PLAIN_COMMAND);
+  const destination = targets.repoTarget(config, repository);
+  apply.applyMode(
+    config,
+    modes.parseMode(QUIET_REPO_MODE, "quiet.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  apply.revert(config, destination);
+  check(
+    "revert deletes a settings file the switch created for denied tools and hidden skills",
+    fs.existsSync(destination.settingsFile),
+    false,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
 // ----------------------------------------------- ccfg mode chooses the scope
 
 /** A config directory the real binary can switch in, with the real modes. */
