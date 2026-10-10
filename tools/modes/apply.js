@@ -19,9 +19,10 @@ const glitch = require("./glitch.js");
 const modeCommands = require("./commands.js");
 const roles = require("./roles.js");
 const crew = require("./crew.js");
+const targets = require("./target.js");
+const repoFiles = require("./repo-files.js");
 
 const LOCK_NAME = "mode.lock";
-const ACTIVE_RULES = path.join("rules", "_active.md");
 
 /** Every skill installed, by directory name. */
 function installedSkills(configDir) {
@@ -47,6 +48,14 @@ function settingsPath(configDir) {
 function readLock(configDir) {
   try {
     return JSON.parse(fs.readFileSync(lockPath(configDir), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function readRecord(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {
     return null;
   }
@@ -136,8 +145,7 @@ function writeSettings(configDir, value) {
   );
 }
 
-function renderTo(configDir, corpusRules, resolvedSettings, modeName) {
-  const destination = path.join(configDir, ACTIVE_RULES);
+function renderTo(destination, corpusRules, resolvedSettings, modeName) {
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(
     destination,
@@ -159,7 +167,13 @@ function loadRoleCorpus(configDir) {
  * Throws before writing anything if the mode tries to disable a protected hook,
  * so a refused switch leaves the configuration exactly as it found it.
  */
-function applyMode(configDir, mode, corpusRules, adhoc = {}) {
+function applyMode(
+  configDir,
+  mode,
+  corpusRules,
+  adhoc = {},
+  target = targets.machineTarget(configDir),
+) {
   const violation = modes.coreHookViolation(mode);
   if (violation !== null)
     throw new Error(
@@ -170,7 +184,9 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
   // applied. Backing up on every switch would make the second switch snapshot
   // the first mode's output, and revert would then restore a mode rather than
   // the operator's own settings, leaving skills hidden with no way back.
-  const existing = readLock(configDir);
+  const existing = readRecord(target.lockFile);
+  const layer = mode.glitch || glitch.parseGlitch(undefined, mode.name);
+  const roster = crew.crewRoster(loadRoleCorpus(configDir), layer.subagents);
 
   // Checked here, before a byte is written, for the same reason the hook check
   // above is: a mode whose commands turn out to be unusable must fail while the
@@ -179,36 +195,60 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
   const plannedCommands = modeCommands.plan(
     configDir,
     mode.name,
-    (mode.glitch || glitch.parseGlitch(undefined, mode.name)).commands,
+    layer.commands,
     priorCommands,
+    target.commandsDirectory,
   );
+  if (target.scope === "repo")
+    repoFiles.refuseUnsafe(
+      target,
+      plannedCommands.map((file) => file.name),
+      roster
+        .filter((role) => crew.allowedTools(role, layer.tools).length > 0)
+        .map((role) => role.id),
+    );
 
   const settingsBackup =
-    existing &&
-    existing.settingsBackup &&
-    fs.existsSync(existing.settingsBackup)
-      ? existing.settingsBackup
-      : backupSettings(configDir);
+    target.scope === "repo"
+      ? null
+      : existing &&
+          existing.settingsBackup &&
+          fs.existsSync(existing.settingsBackup)
+        ? existing.settingsBackup
+        : backupSettings(configDir);
   const resolved = modes.resolve({ personal: mode, adhoc });
-  renderTo(configDir, corpusRules, resolved.settings, mode.name);
+  renderTo(target.rulesFile, corpusRules, resolved.settings, mode.name);
 
   const disabledHooks = mode.disableHooks || [];
-  const layer = mode.glitch || glitch.parseGlitch(undefined, mode.name);
   // The worker's brief is built from the same band the rules file leads with,
   // so a worker reads the rules this posture makes primary and not whichever
   // five rules sort first by filename.
   const primaryBand = render.band(corpusRules, resolved.settings).primary;
-  crew.writeCrew(
+  const writtenRoles = crew.writeCrew(
     configDir,
-    crew.crewRoster(loadRoleCorpus(configDir), layer.subagents),
+    roster,
     resolved.settings,
     layer.tools,
     crew.briefBand(primaryBand),
+    target.agentsDirectory,
   );
   let skillsHidden = 0;
+  let hadSettings = false;
   let baseSkillOverrides = {};
 
-  if (fs.existsSync(settingsPath(configDir))) {
+  if (target.scope === "repo") {
+    const written = repoFiles.writeRepoSettings(
+      configDir,
+      target,
+      mode,
+      layer,
+      existing,
+      installedSkills(configDir),
+    );
+    skillsHidden = written.skillsHidden;
+    baseSkillOverrides = written.baseSkillOverrides;
+    hadSettings = written.hadSettings;
+  } else if (fs.existsSync(settingsPath(configDir))) {
     const current = JSON.parse(
       fs.readFileSync(settingsPath(configDir), "utf8"),
     );
@@ -286,6 +326,7 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
     configDir,
     plannedCommands,
     priorCommands,
+    target.commandsDirectory,
   );
 
   const lock = {
@@ -320,15 +361,43 @@ function applyMode(configDir, mode, corpusRules, adhoc = {}) {
     // that is only half in force. See hooks/mode-session.js.
     hardHash: glitch.hardHash(layer, mode.projects),
   };
-  fs.writeFileSync(lockPath(configDir), JSON.stringify(lock, null, 2) + "\n");
+  if (target.scope === "repo") {
+    // The root is what lets the lookup tell this record from one that merely
+    // shares its sixteen-character key.
+    lock.scope = "repo";
+    lock.root = target.root;
+    lock.hadSettings = hadSettings;
+    lock.settingsBackup = hadSettings ? target.settingsBackup : null;
+  }
+  fs.mkdirSync(path.dirname(target.lockFile), { recursive: true });
+  fs.writeFileSync(target.lockFile, JSON.stringify(lock, null, 2) + "\n");
+
+  if (target.scope === "repo")
+    repoFiles.addToExclude(target, [
+      target.settingsFile,
+      ...installedCommands.map((name) =>
+        path.join(target.commandsDirectory, `${name}.md`),
+      ),
+      ...writtenRoles,
+    ]);
 
   return { lock };
 }
 
 /** Undo the applied mode. False when nothing is applied. */
-function revert(configDir) {
-  const lock = readLock(configDir);
+function revert(configDir, target = targets.machineTarget(configDir)) {
+  const lock = readRecord(target.lockFile);
   if (lock === null) return false;
+
+  if (target.scope === "repo") {
+    repoFiles.restoreRepoSettings(target, lock);
+    modeCommands.remove(configDir, lock.installedCommands, target.commandsDirectory);
+    crew.writeCrew(configDir, [], {}, [], "", target.agentsDirectory);
+    // The record, its rules and its byte copy go together. The repository then
+    // has no record of its own and the lookup answers with the machine's.
+    fs.rmSync(target.directory, { recursive: true, force: true });
+    return true;
+  }
 
   if (lock.settingsBackup && fs.existsSync(lock.settingsBackup))
     fs.copyFileSync(lock.settingsBackup, settingsPath(configDir));
@@ -345,7 +414,7 @@ function revert(configDir) {
   const corpus = require("./rules.js").loadCorpus(
     path.join(configDir, "modes", "rules"),
   );
-  renderTo(configDir, corpus.rules, { ...settings.DEFAULTS }, "(none)");
+  renderTo(target.rulesFile, corpus.rules, { ...settings.DEFAULTS }, "(none)");
   return true;
 }
 

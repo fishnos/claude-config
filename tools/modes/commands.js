@@ -35,8 +35,13 @@ function modeCommandDir(configDir, modeName) {
   return path.join(configDir, "modes", "commands", modeName);
 }
 
-function installedPath(configDir, name) {
-  return path.join(configDir, "commands", `${name}.md`);
+/** Where installed commands go when the caller names no other place. */
+function machineCommands(configDir) {
+  return path.join(configDir, "commands");
+}
+
+function installedPath(directory, name) {
+  return path.join(directory, `${name}.md`);
 }
 
 /**
@@ -101,14 +106,20 @@ function read(configDir, modeName, name) {
  * Those names are excluded from the collision check, or re-applying the same
  * mode would see its own command sitting there and refuse.
  */
-function plan(configDir, modeName, declared, previous = []) {
+function plan(
+  configDir,
+  modeName,
+  declared,
+  previous = [],
+  directory = machineCommands(configDir),
+) {
   const wanted = declared || [];
   const files = wanted.map((name) => read(configDir, modeName, name));
   const leaving = new Set(previous || []);
 
   for (const file of files) {
     if (leaving.has(file.name)) continue;
-    if (fs.existsSync(installedPath(configDir, file.name)))
+    if (fs.existsSync(installedPath(directory, file.name)))
       throw new Error(
         `${modeName} carries a command called "${file.name}" but you already have ` +
           `one. A mode may not replace a command you wrote`,
@@ -118,12 +129,17 @@ function plan(configDir, modeName, declared, previous = []) {
 }
 
 /** Write a checked plan out, taking the previous mode's commands away first. */
-function commit(configDir, files, previous = []) {
-  remove(configDir, previous);
+function commit(
+  configDir,
+  files,
+  previous = [],
+  directory = machineCommands(configDir),
+) {
+  remove(configDir, previous, directory);
   if (files.length === 0) return [];
-  fs.mkdirSync(path.join(configDir, "commands"), { recursive: true });
+  fs.mkdirSync(directory, { recursive: true });
   for (const file of files)
-    fs.writeFileSync(installedPath(configDir, file.name), file.body);
+    fs.writeFileSync(installedPath(directory, file.name), file.body);
   return files.map((file) => file.name);
 }
 
@@ -135,19 +151,26 @@ function commit(configDir, files, previous = []) {
  * carried it, which would otherwise leave TRACE's shortcuts sitting in an
  * APPRAISER session.
  */
-function install(configDir, modeName, declared, previous = []) {
+function install(
+  configDir,
+  modeName,
+  declared,
+  previous = [],
+  directory = machineCommands(configDir),
+) {
   return commit(
     configDir,
-    plan(configDir, modeName, declared, previous),
+    plan(configDir, modeName, declared, previous, directory),
     previous,
+    directory,
   );
 }
 
 /** Take out exactly the commands a mode installed. */
-function remove(configDir, names) {
+function remove(configDir, names, directory = machineCommands(configDir)) {
   for (const name of names || []) {
     if (!validName(name)) continue;
-    fs.rmSync(installedPath(configDir, name), { force: true });
+    fs.rmSync(installedPath(directory, name), { force: true });
   }
 }
 

@@ -3302,6 +3302,399 @@ const ENVIRONMENT = process.env;
   );
 }
 
+// ------------------------------------------------- a switch for one repository
+
+const targets = require("./modes/target.js");
+const crew = require("./modes/crew.js");
+const modeLock = require("../hooks/lib/mode-lock.js");
+
+function gitIn(directory, args) {
+  return require("child_process").spawnSync("git", ["-C", directory, ...args], {
+    encoding: "utf8",
+  });
+}
+
+/**
+ * A temporary config directory and a temporary git repository.
+ *
+ * modes/ is a real directory holding links to the real corpus, never one link
+ * to the whole of it: a repository record is written under modes/repos/, and
+ * through a single link that would land in the real configuration.
+ */
+function repoSandbox() {
+  const config = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-repo-config-"));
+  fs.mkdirSync(path.join(config, "rules"), { recursive: true });
+  fs.mkdirSync(path.join(config, "modes"), { recursive: true });
+  fs.symlinkSync(
+    path.join(__dirname, "..", "modes", "roles"),
+    path.join(config, "modes", "roles"),
+  );
+  for (const skill of ["alpha", "beta", "gamma"]) {
+    fs.mkdirSync(path.join(config, "skills", skill), { recursive: true });
+    fs.writeFileSync(path.join(config, "skills", skill, "SKILL.md"), "x");
+  }
+  fs.writeFileSync(
+    path.join(config, "settings.json"),
+    JSON.stringify({ effortLevel: "high" }, null, 2) + "\n",
+  );
+  const repository = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-repo-work-"));
+  gitIn(repository, ["init", "-q", "."]);
+  return { config, repository: fs.realpathSync(repository) };
+}
+
+const QUIET_REPO_MODE = {
+  name: "quiet",
+  settings: {},
+  projects: { effortLevel: "low", permissions: { deny: ["Edit"] } },
+  disableHooks: ["review-reminder.js"],
+  glitch: { skills: { off: ["beta"] }, commands: ["narrow"] },
+};
+
+{
+  const { config, repository } = repoSandbox();
+  writeModeCommand(config, "quiet", "narrow", PLAIN_COMMAND);
+  apply.applyMode(
+    config,
+    modes.parseMode({ name: "base", settings: {} }, "base.json"),
+    CORPUS,
+    {},
+  );
+  const machineBefore = ["mode.lock", "settings.json", "rules/_active.md"].map(
+    (file) => fs.readFileSync(path.join(config, file), "utf8"),
+  );
+  const local = path.join(repository, ".claude", "settings.local.json");
+  const ownText =
+    JSON.stringify(
+      {
+        env: { KEPT: "1" },
+        permissions: { allow: ["Bash(ls:*)"], deny: ["WebFetch"] },
+        skillOverrides: { gamma: "off" },
+      },
+      null,
+      2,
+    ) + "\n";
+  fs.mkdirSync(path.dirname(local), { recursive: true });
+  fs.writeFileSync(local, ownText);
+  fs.mkdirSync(path.join(repository, ".claude", "agents"), { recursive: true });
+  fs.writeFileSync(
+    path.join(repository, ".claude", "agents", "reviewer.md"),
+    "my own reviewer\n",
+  );
+
+  const destination = targets.repoTarget(config, repository);
+  const applied = apply.applyMode(
+    config,
+    modes.parseMode(QUIET_REPO_MODE, "quiet.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+
+  check(
+    "a repository switch leaves the machine record, settings and rules byte-identical",
+    ["mode.lock", "settings.json", "rules/_active.md"]
+      .map((file) => fs.readFileSync(path.join(config, file), "utf8"))
+      .join("\u0000"),
+    machineBefore.join("\u0000"),
+  );
+  check("the repository record names its mode", applied.lock.mode, "quiet");
+  check("and its repository", applied.lock.root, repository);
+  check(
+    "the lookup answers with it from inside the repository",
+    modeLock.resolveLock(config, repository).lock.mode,
+    "quiet",
+  );
+  check(
+    "the record sits on the machine side",
+    fs.existsSync(path.join(destination.directory, "mode.lock")),
+    true,
+  );
+  check(
+    "and nothing named mode.lock is written into the repository",
+    fs.existsSync(path.join(repository, ".claude", "mode.lock")),
+    false,
+  );
+  check(
+    "the repository's rules are rendered beside the record",
+    fs.readFileSync(destination.rulesFile, "utf8").length > 0,
+    true,
+  );
+
+  const written = JSON.parse(fs.readFileSync(local, "utf8"));
+  check("the mode's effort level is written", written.effortLevel, "low");
+  check(
+    "the mode's denied tools join the repository's own",
+    written.permissions.deny.join(","),
+    "WebFetch,Edit",
+  );
+  check(
+    "a permission key the mode does not pin is left as found",
+    written.permissions.allow.join(","),
+    "Bash(ls:*)",
+  );
+  check("a key the mode does not touch is left as found", written.env.KEPT, "1");
+  check("the skill the mode hides is off", written.skillOverrides.beta, "off");
+  check(
+    "a skill the operator turned off here stays off",
+    written.skillOverrides.gamma,
+    "off",
+  );
+  check(
+    "the mode's slash command lands in the repository",
+    fs.existsSync(path.join(repository, ".claude", "commands", "narrow.md")),
+    true,
+  );
+  check(
+    "a role file is generated in the repository",
+    crew.isGenerated(path.join(repository, ".claude", "agents", "implementer.md")),
+    true,
+  );
+  check(
+    "a role file the operator wrote there is left exactly as found",
+    fs.readFileSync(
+      path.join(repository, ".claude", "agents", "reviewer.md"),
+      "utf8",
+    ),
+    "my own reviewer\n",
+  );
+
+  const excluded = () =>
+    fs
+      .readFileSync(path.join(repository, ".git", "info", "exclude"), "utf8")
+      .split("\n");
+  check(
+    "the settings file is added to the repository's local ignore list",
+    excluded().filter((line) => line === "/.claude/settings.local.json").length,
+    1,
+  );
+  check(
+    "the operator's own role file is not added to it",
+    excluded().includes("/.claude/agents/reviewer.md"),
+    false,
+  );
+  apply.applyMode(
+    config,
+    modes.parseMode(QUIET_REPO_MODE, "quiet.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  check(
+    "a second switch adds each path once",
+    excluded().filter((line) => line === "/.claude/commands/narrow.md").length,
+    1,
+  );
+  check(
+    "a second switch keeps the first byte copy of the settings file",
+    fs.readFileSync(destination.settingsBackup, "utf8"),
+    ownText,
+  );
+
+  check("reverting the repository says it did", apply.revert(config, destination), true);
+  check(
+    "revert restores the settings file byte for byte",
+    fs.readFileSync(local, "utf8"),
+    ownText,
+  );
+  check(
+    "revert removes the generated slash command",
+    fs.existsSync(path.join(repository, ".claude", "commands", "narrow.md")),
+    false,
+  );
+  check(
+    "revert removes the generated role file",
+    fs.existsSync(path.join(repository, ".claude", "agents", "implementer.md")),
+    false,
+  );
+  check(
+    "revert leaves the operator's own role file",
+    fs.existsSync(path.join(repository, ".claude", "agents", "reviewer.md")),
+    true,
+  );
+  check(
+    "after revert the repository follows the machine mode again",
+    modeLock.resolveLock(config, repository).lock.mode,
+    "base",
+  );
+  check(
+    "reverting a repository with no mode of its own changes nothing",
+    apply.revert(config, destination),
+    false,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// Two repositories hold different modes at once, and a repository with no
+// settings file of its own gets none left behind by revert.
+{
+  const { config, repository } = repoSandbox();
+  const other = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-repo-other-")),
+  );
+  gitIn(other, ["init", "-q", "."]);
+  const first = targets.repoTarget(config, repository);
+  const second = targets.repoTarget(config, other);
+  apply.applyMode(config, modes.parseMode({ name: "one", settings: {} }, "one.json"), CORPUS, {}, first);
+  apply.applyMode(config, modes.parseMode({ name: "two", settings: {} }, "two.json"), CORPUS, {}, second);
+
+  check("the first repository keeps its own mode", modeLock.resolveLock(config, repository).lock.mode, "one");
+  check("the second repository keeps its own mode", modeLock.resolveLock(config, other).lock.mode, "two");
+  check(
+    "a mode that pins no effort level writes the operator's own",
+    JSON.parse(fs.readFileSync(first.settingsFile, "utf8")).effortLevel,
+    "high",
+  );
+  apply.revert(config, first);
+  check(
+    "revert deletes a settings file that did not exist before the switch",
+    fs.existsSync(first.settingsFile),
+    false,
+  );
+  check("reverting one repository leaves the other's mode", modeLock.resolveLock(config, other).lock.mode, "two");
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+  fs.rmSync(other, { recursive: true, force: true });
+}
+
+// A skill the machine mode hides is visible in a repository whose mode does
+// not hide it: the repository file states the operator's own value.
+{
+  const { config, repository } = repoSandbox();
+  apply.applyMode(
+    config,
+    modes.parseMode(
+      { name: "narrow", settings: {}, glitch: { skills: { only: ["alpha"] } } },
+      "narrow.json",
+    ),
+    CORPUS,
+    {},
+  );
+  check(
+    "the machine mode hides the skill machine-wide",
+    JSON.parse(fs.readFileSync(path.join(config, "settings.json"), "utf8"))
+      .skillOverrides.beta,
+    "off",
+  );
+  const destination = targets.repoTarget(config, repository);
+  apply.applyMode(config, modes.parseMode({ name: "wide", settings: {} }, "wide.json"), CORPUS, {}, destination);
+  check(
+    "a skill the machine mode hides is switched on in a repository that does not hide it",
+    JSON.parse(fs.readFileSync(destination.settingsFile, "utf8")).skillOverrides
+      .beta,
+    "on",
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// Two refusals, both before a byte is written.
+{
+  const { config, repository } = repoSandbox();
+  const destination = targets.repoTarget(config, repository);
+  const local = destination.settingsFile;
+  fs.mkdirSync(path.dirname(local), { recursive: true });
+  fs.writeFileSync(local, "{}\n");
+  gitIn(repository, ["add", "-f", ".claude/settings.local.json"]);
+
+  let refusal = "";
+  try {
+    apply.applyMode(config, modes.parseMode({ name: "one", settings: {} }, "one.json"), CORPUS, {}, destination);
+  } catch (error) {
+    refusal = error.message;
+  }
+  check(
+    "a switch refuses when a path it would write is tracked by git",
+    refusal.includes(".claude/settings.local.json"),
+    true,
+  );
+  check("and writes no record", fs.existsSync(destination.lockFile), false);
+  check("and leaves the tracked file as it was", fs.readFileSync(local, "utf8"), "{}\n");
+
+  gitIn(repository, ["rm", "-q", "--cached", ".claude/settings.local.json"]);
+  fs.writeFileSync(local, "{ not json");
+  refusal = "";
+  try {
+    apply.applyMode(config, modes.parseMode({ name: "one", settings: {} }, "one.json"), CORPUS, {}, destination);
+  } catch (error) {
+    refusal = error.message;
+  }
+  check(
+    "a switch refuses a settings file it cannot parse, and names it",
+    refusal.includes("settings.local.json"),
+    true,
+  );
+  check("and leaves that file as it was", fs.readFileSync(local, "utf8"), "{ not json");
+  check("and writes no record for it either", fs.existsSync(destination.lockFile), false);
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
+// A setting a mode pins, other than the effort level, is written into the
+// repository file and handed back when the next mode does not pin it.
+{
+  const { config, repository } = repoSandbox();
+  const destination = targets.repoTarget(config, repository);
+  fs.mkdirSync(path.dirname(destination.settingsFile), { recursive: true });
+  fs.writeFileSync(
+    destination.settingsFile,
+    JSON.stringify({ model: "own-model" }, null, 2) + "\n",
+  );
+  apply.applyMode(
+    config,
+    modes.parseMode(
+      {
+        name: "pinning",
+        settings: {},
+        projects: { model: "pinned-model", outputStyle: "terse" },
+      },
+      "pinning.json",
+    ),
+    CORPUS,
+    {},
+    destination,
+  );
+  const pinned = JSON.parse(fs.readFileSync(destination.settingsFile, "utf8"));
+  check(
+    "a setting the mode pins replaces the repository's own value",
+    pinned.model,
+    "pinned-model",
+  );
+  check(
+    "a setting the mode pins that the repository never set is written",
+    pinned.outputStyle,
+    "terse",
+  );
+
+  apply.applyMode(
+    config,
+    modes.parseMode({ name: "plain", settings: {} }, "plain.json"),
+    CORPUS,
+    {},
+    destination,
+  );
+  const handedBack = JSON.parse(
+    fs.readFileSync(destination.settingsFile, "utf8"),
+  );
+  check(
+    "the next mode hands a pinned setting back to the repository's own value",
+    handedBack.model,
+    "own-model",
+  );
+  check(
+    "and removes a pinned setting the repository never set",
+    "outputStyle" in handedBack,
+    false,
+  );
+
+  fs.rmSync(config, { recursive: true, force: true });
+  fs.rmSync(repository, { recursive: true, force: true });
+}
+
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 
 console.log(`\nPASS ${passed}  FAIL ${failed}`);

@@ -105,9 +105,14 @@ function isGenerated(file) {
  * agents/ that this renderer did not write is the operator's own, and is
  * neither removed nor overwritten, even when it carries a role's name.
  */
-function writeCrew(configDir, roles, resolvedSettings, deniedTools, briefBand) {
-  const directory = path.join(configDir, "agents");
-
+function writeCrew(
+  configDir,
+  roles,
+  resolvedSettings,
+  deniedTools,
+  briefBand,
+  directory = path.join(configDir, "agents"),
+) {
   const written = [];
   const keep = new Set();
   for (const role of roles) {
