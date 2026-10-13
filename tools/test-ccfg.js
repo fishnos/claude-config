@@ -33,6 +33,13 @@ const {
   shellProfileTargets,
   PROFILE_OPEN,
 } = require("./ccfg.js");
+const voiceRegistry = require("./voice/registry.js");
+const voiceScope = require("./voice/scope.js");
+const voiceScaffold = require("./voice/scaffold.js");
+const voiceCommand = require("./voice/command.js");
+const modeApply = require("./modes/apply.js");
+const modeParser = require("./modes/modes.js");
+const modeTargets = require("./modes/target.js");
 
 const CCFG = path.join(__dirname, "ccfg.js");
 
@@ -438,8 +445,947 @@ check(
 );
 check("the created profile exists on disk", fs.existsSync(created), true);
 
+console.log("\nVoice registry\n--------------------");
+
+const voiceSandboxes = [];
+
+function voiceConfig() {
+  const config = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-voice-"));
+  fs.mkdirSync(path.join(config, "skills"));
+  voiceSandboxes.push(config);
+  return config;
+}
+
+function writeSkill(config, skill, text) {
+  const directory = path.join(config, "skills", skill);
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(path.join(directory, "SKILL.md"), text);
+  return path.join(directory, "SKILL.md");
+}
+
+function voiceText(skill, owner) {
+  return (
+    `---\nname: ${skill}\ndescription: Writes like ${owner}.\n` +
+    `metadata:\n  kind: voice\n  owner: "${owner}"\n  template: "1"\n` +
+    `  version: "0.1.0"\n---\n\n# ${owner}\n`
+  );
+}
+
+function thrownMessage(action) {
+  try {
+    action();
+    return "(no error)";
+  } catch (error) {
+    return error.message;
+  }
+}
+
+const HAND_BUILT_SKILL =
+  "---\nname: ada-voice\ndescription: Writes like Ada.\nlicense: MIT\n" +
+  'metadata:\n  version: "3.1.0"\n  supersedes: "1.x"\n---\n\n# Ada\n\nBody.\n';
+
+check("a short name gains the suffix", voiceRegistry.skillName("ada"), "ada-voice");
+check(
+  "a full skill name is left alone",
+  voiceRegistry.skillName("ada-voice"),
+  "ada-voice",
+);
+check("the short name drops the suffix", voiceRegistry.shortName("ada-voice"), "ada");
+check("a lower-case name is usable", voiceRegistry.nameRejection("ada-2"), null);
+check(
+  "a name with a path separator is refused",
+  voiceRegistry.nameRejection("../ada").includes("not a usable voice name"),
+  true,
+);
+check(
+  "an owner that would break the frontmatter is refused",
+  voiceRegistry.ownerRejection("Ada: Lovelace").includes("cannot contain"),
+  true,
+);
+
+{
+  const config = voiceConfig();
+  check("an empty skills directory lists no voices", voiceRegistry.listVoices(config).length, 0);
+
+  writeSkill(config, "ada-voice", voiceText("ada-voice", "Ada Lovelace"));
+  writeSkill(config, "bob-voice", voiceText("bob-voice", "Bob Stone"));
+  writeSkill(config, "cy-voice", HAND_BUILT_SKILL.replace("ada-voice", "cy-voice"));
+  writeSkill(config, "notes", voiceText("notes", "Nobody"));
+
+  const voices = voiceRegistry.listVoices(config);
+  check(
+    "only registered voice skills are listed, in name order",
+    voices.map((voice) => voice.skill).join(","),
+    "ada-voice,bob-voice",
+  );
+  check("a voice carries its owner", voices[0].owner, "Ada Lovelace");
+  check("a voice carries its version", voices[0].version, "0.1.0");
+  check("a voice carries its short name", voices[0].name, "ada");
+  check(
+    "a voice-named skill without the marker is reported as unregistered",
+    voiceRegistry.unregisteredVoices(config).join(","),
+    "cy-voice",
+  );
+}
+
+{
+  const config = voiceConfig();
+  const file = writeSkill(config, "ada-voice", HAND_BUILT_SKILL);
+  const result = voiceRegistry.registerVoice(config, "ada", "Ada Lovelace");
+
+  check("register reports the keys it added", result.added.join(","), "kind,owner,template");
+  check(
+    "register adds three lines under metadata and changes nothing else",
+    fs.readFileSync(file, "utf8"),
+    HAND_BUILT_SKILL.replace(
+      "metadata:\n",
+      'metadata:\n  kind: voice\n  owner: "Ada Lovelace"\n  template: "hand-built"\n',
+    ),
+  );
+  check(
+    "a registered skill is then listed with its existing version",
+    voiceRegistry.listVoices(config)[0].version,
+    "3.1.0",
+  );
+  check(
+    "registering twice is refused",
+    thrownMessage(() => voiceRegistry.registerVoice(config, "ada", "Ada Lovelace")).includes(
+      "already registered",
+    ),
+    true,
+  );
+}
+
+{
+  const config = voiceConfig();
+  const windowsText = "---\r\nname: ada-voice\r\ndescription: Ada.\r\n---\r\n\r\n# Ada\r\n";
+  const file = writeSkill(config, "ada-voice", windowsText);
+  voiceRegistry.registerVoice(config, "ada-voice", "Ada Lovelace");
+
+  check(
+    "register on a file with no metadata block and Windows line endings adds a block in the same endings",
+    fs.readFileSync(file, "utf8"),
+    "---\r\nname: ada-voice\r\ndescription: Ada.\r\n" +
+      'metadata:\r\n  kind: voice\r\n  owner: "Ada Lovelace"\r\n' +
+      '  template: "hand-built"\r\n  version: "0.1.0"\r\n' +
+      "---\r\n\r\n# Ada\r\n",
+  );
+  check(
+    "register on a missing skill names the command that makes one",
+    thrownMessage(() => voiceRegistry.registerVoice(config, "zed", "Zed")).includes(
+      "ccfg voice new zed",
+    ),
+    true,
+  );
+}
+
+console.log("\nVoice scope\n--------------------");
+
+function gitIn(directory, args) {
+  return spawnSync("git", ["-C", directory, ...args], { encoding: "utf8" });
+}
+
+function voiceRepository() {
+  const repository = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-voice-repo-"));
+  gitIn(repository, ["init", "-q", "."]);
+  voiceSandboxes.push(repository);
+  return fs.realpathSync(repository);
+}
+
+function twoVoices() {
+  const config = voiceConfig();
+  writeSkill(config, "ada-voice", voiceText("ada-voice", "Ada Lovelace"));
+  writeSkill(config, "bob-voice", voiceText("bob-voice", "Bob Stone"));
+  return config;
+}
+
+function writeJsonFile(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n");
+}
+
+function readJsonFile(file) {
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function noBackup() {
+  return null;
+}
+
+function quiet() {}
+
+{
+  const config = twoVoices();
+  const settingsFile = path.join(config, "settings.json");
+  writeJsonFile(settingsFile, {
+    model: "opus",
+    skillOverrides: { "other-skill": "user-invocable-only" },
+  });
+  const backups = [];
+  const result = voiceScope.useVoice({
+    configDir: config,
+    root: null,
+    name: "bob",
+    voices: voiceRegistry.listVoices(config),
+    backupFile: (file, label) => {
+      backups.push(`${path.basename(file)}:${label}`);
+      return "/backup/settings.json";
+    },
+    report: quiet,
+  });
+  const written = readJsonFile(settingsFile);
+
+  check("a machine choice reports machine scope", result.scope, "machine");
+  check("a machine choice turns the named voice on", written.skillOverrides["bob-voice"], "on");
+  check("a machine choice turns every other voice off", written.skillOverrides["ada-voice"], "off");
+  check(
+    "a machine choice leaves a non-voice override untouched",
+    written.skillOverrides["other-skill"],
+    "user-invocable-only",
+  );
+  check("a machine choice leaves other settings untouched", written.model, "opus");
+  check("a machine choice backs the settings file up first", backups.join(","), "settings.json:voice");
+  check("a machine choice names the voices it turned off", result.turnedOff.join(","), "ada-voice");
+
+  const states = voiceScope.voiceStates(config, null, voiceRegistry.listVoices(config));
+  check("the chosen voice reads as in force", states[1].active, true);
+  check("the other voice reads as not in force", states[0].active, false);
+  check("a machine value names the machine as its source", states[1].source, "machine");
+}
+
+{
+  const config = twoVoices();
+  const states = voiceScope.voiceStates(config, null, voiceRegistry.listVoices(config));
+  check("a voice no file mentions is in force by default", states[0].active, true);
+  check("a voice no file mentions names no source", states[0].source, "default");
+}
+
+{
+  const config = twoVoices();
+  const settingsFile = path.join(config, "settings.json");
+  writeJsonFile(settingsFile, { model: "opus" });
+  const before = fs.readFileSync(settingsFile, "utf8");
+  const message = thrownMessage(() =>
+    voiceScope.useVoice({
+      configDir: config,
+      root: null,
+      name: "bod",
+      voices: voiceRegistry.listVoices(config),
+      backupFile: noBackup,
+      report: quiet,
+    }),
+  );
+  check("an unknown voice is refused with the registered ones named", message.includes("ada, bob"), true);
+  check("an unknown voice leaves the settings file byte-identical", fs.readFileSync(settingsFile, "utf8"), before);
+}
+
+{
+  const config = twoVoices();
+  writeSkill(config, "cy-voice", HAND_BUILT_SKILL.replace("ada-voice", "cy-voice"));
+  const message = thrownMessage(() =>
+    voiceScope.useVoice({
+      configDir: config,
+      root: null,
+      name: "cy",
+      voices: voiceRegistry.listVoices(config),
+      backupFile: noBackup,
+      report: quiet,
+    }),
+  );
+  check("an unregistered voice skill is refused with the register command", message.includes("ccfg voice register cy"), true);
+}
+
+{
+  const config = twoVoices();
+  const settingsFile = path.join(config, "settings.json");
+  fs.writeFileSync(settingsFile, "{ not json");
+  const backups = [];
+  const message = thrownMessage(() =>
+    voiceScope.useVoice({
+      configDir: config,
+      root: null,
+      name: "ada",
+      voices: voiceRegistry.listVoices(config),
+      backupFile: (file) => {
+        backups.push(file);
+        return null;
+      },
+      report: quiet,
+    }),
+  );
+  check("a settings file that does not parse is refused", message.includes("is not valid JSON"), true);
+  check("a refused settings file is left byte-identical", fs.readFileSync(settingsFile, "utf8"), "{ not json");
+  check("a refused settings file is not backed up", backups.length, 0);
+
+  writeJsonFile(settingsFile, { skillOverrides: ["ada-voice"] });
+  check(
+    "a settings file whose skillOverrides is a list is refused",
+    thrownMessage(() =>
+      voiceScope.useVoice({
+        configDir: config,
+        root: null,
+        name: "ada",
+        voices: voiceRegistry.listVoices(config),
+        backupFile: noBackup,
+        report: quiet,
+      }),
+    ).includes('"skillOverrides" is not an object'),
+    true,
+  );
+}
+
+{
+  const config = twoVoices();
+  const settingsFile = path.join(config, "settings.json");
+  const savedCopy = path.join(config, "settings.before-mode.json");
+  const lockFile = path.join(config, "mode.lock");
+  writeJsonFile(settingsFile, { skillOverrides: { "hidden-by-mode": "off" } });
+  writeJsonFile(savedCopy, { model: "opus" });
+  writeJsonFile(lockFile, {
+    mode: "runner",
+    settingsBackup: savedCopy,
+    baseSkillOverrides: {},
+    hardHash: "abc",
+  });
+  const result = voiceScope.useVoice({
+    configDir: config,
+    root: null,
+    name: "ada",
+    voices: voiceRegistry.listVoices(config),
+    backupFile: noBackup,
+    report: quiet,
+  });
+
+  check(
+    "with a mode in force the choice is carried into the copy a revert restores",
+    (readJsonFile(savedCopy).skillOverrides ?? {})["bob-voice"],
+    "off",
+  );
+  check("the copy a revert restores keeps its other settings", readJsonFile(savedCopy).model, "opus");
+  check(
+    "with a mode in force the choice is carried into the baseline the next switch reads",
+    readJsonFile(lockFile).baseSkillOverrides["bob-voice"],
+    "off",
+  );
+  check("the mode record keeps its other fields", readJsonFile(lockFile).hardHash, "abc");
+  check("the mode's own hiding is not copied into its baseline", "hidden-by-mode" in readJsonFile(lockFile).baseSkillOverrides, false);
+  check("the result names the mode whose record it wrote", result.modeRecord.mode, "runner");
+}
+
+function repositoryModeFixture() {
+  const config = twoVoices();
+  fs.mkdirSync(path.join(config, "modes"), { recursive: true });
+  fs.symlinkSync(
+    path.join(__dirname, "..", "modes", "roles"),
+    path.join(config, "modes", "roles"),
+  );
+  const repository = voiceRepository();
+  const target = modeTargets.repoTarget(config, repository);
+  const hidesBothVoices = modeParser.parseMode(
+    { name: "quiet", settings: {}, glitch: { skills: { off: ["ada-voice", "bob-voice"] } } },
+    "quiet.json",
+  );
+  const hidesNothing = modeParser.parseMode({ name: "plain", settings: {} }, "plain.json");
+  modeApply.applyMode(config, hidesBothVoices, [], {}, target);
+  voiceScope.useVoice({
+    configDir: config,
+    root: repository,
+    name: "bob",
+    voices: voiceRegistry.listVoices(config),
+    backupFile: noBackup,
+    report: quiet,
+  });
+  return {
+    config,
+    target,
+    hidesNothing,
+    localFile: path.join(repository, ".claude", "settings.local.json"),
+  };
+}
+
+{
+  const { config, target, hidesNothing, localFile } = repositoryModeFixture();
+  modeApply.applyMode(config, hidesNothing, [], {}, target);
+  const overrides = readJsonFile(localFile).skillOverrides ?? {};
+
+  check("a repository choice survives a switch to another mode: chosen voice stays on", overrides["bob-voice"], "on");
+  check("a repository choice survives a switch to another mode: other voice stays off", overrides["ada-voice"], "off");
+}
+
+{
+  const { config, target, localFile } = repositoryModeFixture();
+  modeApply.revert(config, target, quiet);
+  const overrides = readJsonFile(localFile).skillOverrides ?? {};
+
+  check("a repository choice survives a mode revert: chosen voice stays on", overrides["bob-voice"], "on");
+  check("a repository choice survives a mode revert: other voice stays off", overrides["ada-voice"], "off");
+}
+
+{
+  const config = twoVoices();
+  const repository = voiceRepository();
+  const machineFile = path.join(config, "settings.json");
+  const localFile = path.join(repository, ".claude", "settings.local.json");
+  writeJsonFile(machineFile, { skillOverrides: { "ada-voice": "on", "bob-voice": "off" } });
+  const machineBefore = fs.readFileSync(machineFile, "utf8");
+  writeJsonFile(localFile, { env: { KEPT: "1" } });
+
+  const result = voiceScope.useVoice({
+    configDir: config,
+    root: repository,
+    name: "bob",
+    voices: voiceRegistry.listVoices(config),
+    backupFile: noBackup,
+    report: quiet,
+  });
+  const written = readJsonFile(localFile);
+
+  check("a repository choice reports repository scope", result.scope, "repository");
+  check("a repository choice writes the repository's local settings file", result.file, localFile);
+  check("a repository choice turns the named voice on there", written.skillOverrides["bob-voice"], "on");
+  check("a repository choice turns the other voice off there", written.skillOverrides["ada-voice"], "off");
+  check("a repository choice keeps what was already in the file", written.env.KEPT, "1");
+  check("a repository choice leaves the machine settings byte-identical", fs.readFileSync(machineFile, "utf8"), machineBefore);
+  check(
+    "a repository choice keeps the file out of git status",
+    gitIn(repository, ["status", "--porcelain"]).stdout,
+    "",
+  );
+
+  const states = voiceScope.voiceStates(config, repository, voiceRegistry.listVoices(config));
+  check("inside the repository its own choice wins over the machine's", states[1].active, true);
+  check("inside the repository the source is the repository", states[1].source, "repository");
+
+  const dropped = voiceScope.dropRepositoryChoice({
+    configDir: config,
+    root: repository,
+    voices: voiceRegistry.listVoices(config),
+  });
+  check("dropping the choice names what it removed", dropped.dropped.join(","), "ada-voice,bob-voice");
+  check("dropping the choice removes the emptied skillOverrides key", "skillOverrides" in readJsonFile(localFile), false);
+  check("dropping the choice keeps the rest of the file", readJsonFile(localFile).env.KEPT, "1");
+  check(
+    "after dropping, the machine's voice is in force again",
+    voiceScope.voiceStates(config, repository, voiceRegistry.listVoices(config))[0].source,
+    "machine",
+  );
+}
+
+{
+  const config = twoVoices();
+  const repository = voiceRepository();
+  const localFile = path.join(repository, ".claude", "settings.local.json");
+  writeJsonFile(localFile, { env: {} });
+  gitIn(repository, ["add", "-f", ".claude/settings.local.json"]);
+  const before = fs.readFileSync(localFile, "utf8");
+  const message = thrownMessage(() =>
+    voiceScope.useVoice({
+      configDir: config,
+      root: repository,
+      name: "ada",
+      voices: voiceRegistry.listVoices(config),
+      backupFile: noBackup,
+      report: quiet,
+    }),
+  );
+  check("a tracked local settings file is refused", message.includes("is tracked by git"), true);
+  check("a refused tracked file is left byte-identical", fs.readFileSync(localFile, "utf8"), before);
+}
+
+{
+  const config = twoVoices();
+  const repository = voiceRepository();
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-voice-link-"));
+  voiceSandboxes.push(elsewhere);
+  fs.symlinkSync(elsewhere, path.join(repository, ".claude"));
+  const message = thrownMessage(() =>
+    voiceScope.useVoice({
+      configDir: config,
+      root: repository,
+      name: "ada",
+      voices: voiceRegistry.listVoices(config),
+      backupFile: noBackup,
+      report: quiet,
+    }),
+  );
+  check("a symbolic link at .claude is refused", message.includes("symbolic link at"), true);
+  check("nothing is written through the link", fs.readdirSync(elsewhere).length, 0);
+}
+
+check(
+  "dropping a repository choice outside a repository is refused",
+  thrownMessage(() =>
+    voiceScope.dropRepositoryChoice({ configDir: twoVoices(), root: null, voices: [] }),
+  ).includes("--global"),
+  true,
+);
+
+console.log("\nVoice scaffold\n--------------------");
+
+function sampleDirectory() {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-voice-samples-"));
+  voiceSandboxes.push(directory);
+  fs.writeFileSync(path.join(directory, "essay.md"), "An essay.\n");
+  fs.writeFileSync(path.join(directory, "letter.txt"), "A letter.\n");
+  fs.writeFileSync(path.join(directory, ".DS_Store"), "junk");
+  return directory;
+}
+
+{
+  const config = voiceConfig();
+  const samples = sampleDirectory();
+  const result = voiceScaffold.createVoice({
+    configDir: config,
+    name: "ada",
+    owner: "Ada Lovelace",
+    sources: [samples],
+  });
+  const skillDirectory = path.join(config, "skills", "ada-voice");
+  const skillText = fs.readFileSync(path.join(skillDirectory, "SKILL.md"), "utf8");
+
+  check("new reports the skill it made", result.skill, "ada-voice");
+  check(
+    "new writes the five-part shape",
+    [
+      "SKILL.md",
+      "references/UPDATING.md",
+      "references/mechanics.md",
+      "references/structure.md",
+      "references/genres.md",
+      "references/corrections.md",
+      "references/samples/README.md",
+      "references/paired/README.md",
+    ]
+      .map((file) => fs.existsSync(path.join(skillDirectory, file)))
+      .join(","),
+    "true,true,true,true,true,true,true,true",
+  );
+  check("new leaves no placeholder unfilled", skillText.includes("{{"), false);
+  check("new writes the skill name on the second line of SKILL.md", skillText.split("\n")[1], "name: ada-voice");
+  check("a new skill is listed as a voice", voiceRegistry.listVoices(config)[0].skill, "ada-voice");
+  check("a new skill carries its owner", voiceRegistry.listVoices(config)[0].owner, "Ada Lovelace");
+  check(
+    "a new skill carries the scaffold version",
+    voiceRegistry.listVoices(config)[0].template,
+    voiceScaffold.TEMPLATE_VERSION,
+  );
+  check("a new skill says it is still empty", skillText.includes("This skill is still empty"), true);
+  check("new copies the samples from a directory", result.samples.join(","), "essay.md,letter.txt");
+  check(
+    "a copied sample keeps its content",
+    fs.readFileSync(path.join(skillDirectory, "references", "samples", "essay.md"), "utf8"),
+    "An essay.\n",
+  );
+  check(
+    "a dotfile in a sample directory is not copied",
+    fs.existsSync(path.join(skillDirectory, "references", "samples", ".DS_Store")),
+    false,
+  );
+  check(
+    "new refuses a directory that already exists",
+    thrownMessage(() =>
+      voiceScaffold.createVoice({ configDir: config, name: "ada", owner: "Ada Lovelace", sources: [] }),
+    ).includes("already exists"),
+    true,
+  );
+
+  check(
+    "add refuses a sample whose name is already taken",
+    thrownMessage(() =>
+      voiceScaffold.addSamples({
+        configDir: config,
+        name: "ada",
+        sources: [path.join(samples, "essay.md")],
+      }),
+    ).includes("already holds essay.md"),
+    true,
+  );
+
+  const extra = path.join(samples, "speech.md");
+  fs.writeFileSync(extra, "A speech.\n");
+  check(
+    "add copies a new sample",
+    voiceScaffold.addSamples({ configDir: config, name: "ada", sources: [extra] }).samples.join(","),
+    "speech.md",
+  );
+  const fresh = path.join(samples, "speech2.md");
+  fs.writeFileSync(fresh, "A second speech.\n");
+  check(
+    "add with a taken name beside a new one copies neither",
+    thrownMessage(() =>
+      voiceScaffold.addSamples({
+        configDir: config,
+        name: "ada",
+        sources: [fresh, extra],
+      }),
+    ).includes("already holds speech.md"),
+    true,
+  );
+  check(
+    "the new file beside the taken name was not copied",
+    fs.existsSync(path.join(skillDirectory, "references", "samples", "speech2.md")),
+    false,
+  );
+  check(
+    "add refuses a path that does not exist",
+    thrownMessage(() =>
+      voiceScaffold.addSamples({ configDir: config, name: "ada", sources: ["/no/such/file.md"] }),
+    ).includes("no such file"),
+    true,
+  );
+  check(
+    "add refuses a voice that does not exist",
+    thrownMessage(() =>
+      voiceScaffold.addSamples({ configDir: config, name: "zed", sources: [extra] }),
+    ).includes("no voice skill at skills/zed-voice"),
+    true,
+  );
+
+  fs.mkdirSync(path.join(config, "outside-voice"));
+  fs.writeFileSync(path.join(config, "outside-voice", "SKILL.md"), "---\nname: outside-voice\n---\n");
+  check(
+    "add refuses a voice name that climbs out of skills/",
+    thrownMessage(() =>
+      voiceScaffold.addSamples({ configDir: config, name: "../outside", sources: [extra] }),
+    ).includes("is not a usable voice name"),
+    true,
+  );
+  check(
+    "a refused climbing name copies nothing outside skills/",
+    fs.existsSync(path.join(config, "outside-voice", "references")),
+    false,
+  );
+  check(
+    "pair refuses a voice name that climbs out of skills/",
+    thrownMessage(() =>
+      voiceScaffold.startPair({ configDir: config, name: "../outside", slug: "x", today: "2026-10-10" }),
+    ).includes("is not a usable voice name"),
+    true,
+  );
+
+  const first = voiceScaffold.startPair({
+    configDir: config,
+    name: "ada",
+    slug: "cover-letter",
+    today: "2026-10-10",
+  });
+  const second = voiceScaffold.startPair({
+    configDir: config,
+    name: "ada",
+    slug: undefined,
+    today: "2026-10-11",
+  });
+  check("the first paired file is numbered 001", path.basename(first.file), "001-cover-letter.md");
+  check("the next paired file counts upward and has a default slug", path.basename(second.file), "002-untitled.md");
+  check(
+    "a paired file names the owner's rewrite",
+    fs.readFileSync(first.file, "utf8").includes("## Ada's rewrite"),
+    true,
+  );
+  check(
+    "a paired file carries the date it was started",
+    fs.readFileSync(first.file, "utf8").includes("**Date:** 2026-10-10"),
+    true,
+  );
+  check(
+    "a slug with a path separator is refused",
+    thrownMessage(() =>
+      voiceScaffold.startPair({ configDir: config, name: "ada", slug: "../x", today: "2026-10-10" }),
+    ).includes("not a usable slug"),
+    true,
+  );
+}
+
+{
+  const config = voiceConfig();
+  const samples = sampleDirectory();
+  const twin = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-voice-twin-"));
+  voiceSandboxes.push(twin);
+  fs.writeFileSync(path.join(twin, "essay.md"), "Another essay.\n");
+  check(
+    "new refuses two sources that share a file name",
+    thrownMessage(() =>
+      voiceScaffold.createVoice({
+        configDir: config,
+        name: "ada",
+        owner: "Ada Lovelace",
+        sources: [samples, path.join(twin, "essay.md")],
+      }),
+    ).includes("essay.md is given twice"),
+    true,
+  );
+  check(
+    "a refused new leaves no skill directory behind",
+    fs.existsSync(path.join(config, "skills", "ada-voice")),
+    false,
+  );
+}
+
+{
+  const config = voiceConfig();
+  const samples = sampleDirectory();
+  fs.writeFileSync(path.join(samples, "README.md"), "About this folder.\n");
+  const result = voiceScaffold.createVoice({
+    configDir: config,
+    name: "ada",
+    owner: "Ada Lovelace",
+    sources: [samples],
+  });
+
+  check("new skips a README.md found in a sample directory", result.samples.join(","), "essay.md,letter.txt");
+  check(
+    "new keeps the scaffold's own samples README.md when the directory held one",
+    fs.readFileSync(
+      path.join(config, "skills", "ada-voice", "references", "samples", "README.md"),
+      "utf8",
+    ).includes("About this folder"),
+    false,
+  );
+}
+
+{
+  const config = voiceConfig();
+  const samples = sampleDirectory();
+  const named = path.join(samples, "README.md");
+  fs.writeFileSync(named, "About this folder.\n");
+  check(
+    "new still refuses a README.md the user names explicitly",
+    thrownMessage(() =>
+      voiceScaffold.createVoice({
+        configDir: config,
+        name: "ada",
+        owner: "Ada Lovelace",
+        sources: [named],
+      }),
+    ).includes("a sample cannot be named README.md"),
+    true,
+  );
+}
+
+check(
+  "the scaffold is not stored under skills/",
+  voiceScaffold.TEMPLATE_DIRECTORY.split(path.sep).includes("skills"),
+  false,
+);
+
+console.log("\nVoice command\n--------------------");
+
+function runVoice(config, workingDirectory, args) {
+  return spawnSync(process.execPath, [CCFG, "voice", ...args], {
+    encoding: "utf8",
+    cwd: workingDirectory,
+    env: { ...process.env, CLAUDE_CONFIG_DIR: config, NO_COLOR: "1" },
+  });
+}
+
+function outsideAnyRepository() {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-voice-plain-"));
+  voiceSandboxes.push(directory);
+  return directory;
+}
+
+{
+  const parsed = voiceCommand.parseArguments([
+    "new",
+    "ada",
+    "--owner",
+    "Ada Lovelace",
+    "--from",
+    "one.md",
+    "two.md",
+    "--global",
+  ]);
+  check("the subcommand is the first word", parsed.subcommand, "new");
+  check("the name is positional", parsed.positional.join(","), "ada");
+  check("--owner takes the next word", parsed.owner, "Ada Lovelace");
+  check("--from takes every path up to the next flag", parsed.from.join(","), "one.md,two.md");
+  check("--global is a switch", parsed.global, true);
+  check(
+    "a flag with no value is refused",
+    thrownMessage(() => voiceCommand.parseArguments(["new", "ada", "--owner"])).includes(
+      "--owner needs a value",
+    ),
+    true,
+  );
+  check(
+    "an unknown flag is refused",
+    thrownMessage(() => voiceCommand.parseArguments(["use", "ada", "--everywhere"])).includes(
+      "unknown option --everywhere",
+    ),
+    true,
+  );
+}
+
+{
+  const config = voiceConfig();
+  const plain = outsideAnyRepository();
+
+  const empty = runVoice(config, plain, ["list"]);
+  check("list with no voices exits cleanly", empty.status, 0);
+  check("list with no voices names the command that makes one", empty.stdout.includes("ccfg voice new"), true);
+
+  const made = runVoice(config, plain, ["new", "ada", "--owner", "Ada Lovelace"]);
+  check("new exits cleanly", made.status, 0);
+  check("new says where the skill is", made.stdout.includes(path.join("skills", "ada-voice")), true);
+  check("new names the companion skill as the next step", made.stdout.includes("/voice-build ada"), true);
+
+  const again = runVoice(config, plain, ["new", "ada", "--owner", "Ada Lovelace"]);
+  check("a refused new exits 1", again.status, 1);
+  check("a refused new says why on stderr", again.stderr.includes("already exists"), true);
+
+  check("new without an owner is a usage error", runVoice(config, plain, ["new", "bob"]).status, 2);
+
+  runVoice(config, plain, ["new", "bob", "--owner", "Bob Stone"]);
+  const used = runVoice(config, plain, ["use", "bob"]);
+  check("use outside a repository exits cleanly", used.status, 0);
+  check("use outside a repository says it wrote the machine", used.stdout.includes("machine-wide"), true);
+  check(
+    "use outside a repository writes the machine settings",
+    readJsonFile(path.join(config, "settings.json")).skillOverrides["ada-voice"],
+    "off",
+  );
+
+  const listed = runVoice(config, plain, ["list"]);
+  check("list marks the voice in force", /bob\s+Bob Stone\s+0\.1\.0\s+in force/.test(listed.stdout), true);
+  check("list marks the other voice off", /ada\s+Ada Lovelace\s+0\.1\.0\s+off/.test(listed.stdout), true);
+
+  const repository = voiceRepository();
+  const local = runVoice(config, repository, ["use", "ada"]);
+  check("use inside a repository says it wrote that repository only", local.stdout.includes("this repository only"), true);
+  check("use inside a repository names --global", local.stdout.includes("--global"), true);
+  check(
+    "use inside a repository leaves the machine choice alone",
+    readJsonFile(path.join(config, "settings.json")).skillOverrides["bob-voice"],
+    "on",
+  );
+  check(
+    "list inside the repository shows where the choice came from",
+    /ada\s+Ada Lovelace\s+0\.1\.0\s+in force \(repository\)/.test(
+      runVoice(config, repository, ["list"]).stdout,
+    ),
+    true,
+  );
+
+  const none = runVoice(config, repository, ["use", "--none"]);
+  check("use --none exits cleanly", none.status, 0);
+  check(
+    "after use --none the machine's voice is in force in the repository",
+    /bob\s+Bob Stone\s+0\.1\.0\s+in force \(machine\)/.test(
+      runVoice(config, repository, ["list"]).stdout,
+    ),
+    true,
+  );
+  check("use --none with --global is a usage error", runVoice(config, repository, ["use", "--none", "--global"]).status, 2);
+  check("use with a name and --none is a usage error", runVoice(config, repository, ["use", "ada", "--none"]).status, 2);
+
+  const learned = runVoice(config, plain, ["learn", "ada", "--slug", "memo"]);
+  check("learn prints the path of the file it made", learned.stdout.includes("001-memo.md"), true);
+
+  const sample = path.join(plain, "note.md");
+  fs.writeFileSync(sample, "A note.\n");
+  check("add reports the copy", runVoice(config, plain, ["add", "ada", sample]).stdout.includes("note.md"), true);
+
+  writeSkill(config, "cy-voice", HAND_BUILT_SKILL.replace("ada-voice", "cy-voice"));
+  check(
+    "list points at an unregistered voice skill",
+    runVoice(config, plain, ["list"]).stdout.includes("ccfg voice register cy"),
+    true,
+  );
+  check(
+    "register exits cleanly",
+    runVoice(config, plain, ["register", "cy", "--owner", "Cy Twombly"]).status,
+    0,
+  );
+  check("an unknown subcommand is a usage error", runVoice(config, plain, ["sing"]).status, 2);
+
+  const inherited = runVoice(config, plain, ["constructor"]);
+  check("a subcommand named like an inherited property is a usage error", inherited.status, 2);
+  check(
+    "a subcommand named like an inherited property is reported as unknown",
+    inherited.stderr.includes("unknown: voice constructor"),
+    true,
+  );
+  const inheritedMethod = runVoice(config, plain, ["hasOwnProperty"]);
+  check("a subcommand named like an inherited method is a usage error", inheritedMethod.status, 2);
+  check(
+    "a subcommand named like an inherited method is reported as unknown",
+    inheritedMethod.stderr.includes("unknown: voice hasOwnProperty"),
+    true,
+  );
+  check(
+    "a voice named like an inherited property stays a name, not a flag",
+    voiceCommand.parseArguments(["use", "constructor"]).positional.join(","),
+    "constructor",
+  );
+}
+
+{
+  const config = voiceConfig();
+  const plain = outsideAnyRepository();
+  const outside = path.join(config, "evil-voice", "SKILL.md");
+  fs.mkdirSync(path.dirname(outside), { recursive: true });
+  fs.writeFileSync(outside, HAND_BUILT_SKILL.replace("ada-voice", "evil-voice"));
+  const before = fs.readFileSync(outside, "utf8");
+
+  const refused = runVoice(config, plain, ["register", "../evil", "--owner", "X"]);
+  check("register refuses a name that climbs out of skills/", refused.status, 1);
+  check("register of a climbing name writes nothing", fs.readFileSync(outside, "utf8"), before);
+}
+
+{
+  const config = voiceConfig();
+  const plain = outsideAnyRepository();
+  check(
+    "with no voice skill the health check says so without warning",
+    voiceCommand.doctorFindings(config, plain).map((finding) => finding.level).join(","),
+    "ok",
+  );
+  check(
+    "with no voice in force the installer points at the command",
+    voiceCommand.installPointer(config, plain).includes("ccfg voice new"),
+    true,
+  );
+
+  writeSkill(config, "ada-voice", voiceText("ada-voice", "Ada Lovelace"));
+  const oneActive = voiceCommand.doctorFindings(config, plain);
+  check("a voice in force draws one warning", oneActive.length, 1);
+  check("the warning names the owner the voice declares", oneActive[0].label.includes("Ada Lovelace"), true);
+  check("the warning is a warning", oneActive[0].level, "warn");
+  check("with a voice in force the installer stays quiet", voiceCommand.installPointer(config, plain), null);
+
+  writeSkill(config, "bob-voice", voiceText("bob-voice", "Bob Stone"));
+  check(
+    "two voices in force at once draw a warning of their own",
+    voiceCommand
+      .doctorFindings(config, plain)
+      .some((finding) => finding.label.includes("2 voice skills are in force at once")),
+    true,
+  );
+
+  writeJsonFile(path.join(config, "settings.json"), {
+    skillOverrides: { "ada-voice": "off", "bob-voice": "off" },
+  });
+  writeJsonFile(path.join(config, "mode.lock"), {
+    mode: "quiet",
+    baseSkillOverrides: { "bob-voice": "off" },
+  });
+  const hidden = voiceCommand.doctorFindings(config, plain);
+  check(
+    "a voice the mode in force hid is reported with the mode's name",
+    hidden.some((finding) => finding.label.includes("mode quiet hides the voice skill ada-voice")),
+    true,
+  );
+  check(
+    "a voice the operator turned off is not blamed on the mode",
+    hidden.some((finding) => finding.label.includes("bob-voice")),
+    false,
+  );
+}
+
 fs.rmSync(sandbox, { recursive: true, force: true });
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
+for (const directory of voiceSandboxes)
+  fs.rmSync(directory, { recursive: true, force: true });
 console.log("\ntemp profiles and sandbox config removed");
 
 console.log(`\nPASS ${passed}  FAIL ${failed}`);

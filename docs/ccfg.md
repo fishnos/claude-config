@@ -25,6 +25,7 @@
 | `ccfg mode revert --global` | Takes the machine's mode off, from anywhere.                                                        |
 | `ccfg mode list --repos`    | Every repository with a mode of its own.                                                            |
 | `ccfg mode diff A B`        | What working under mode B would change relative to mode A.                                          |
+| `ccfg voice`                | Writing-voice skills: list them, make one, choose the one in force                                  |
 | `ccfg crew`                 | Each subagent role the mode in force renders, with its tools and its gates.                         |
 | `ccfg conformance`          | What real subagent runs have confirmed about how Claude Code behaves.                               |
 | `ccfg probe …`              | `list`, `run <name>`, `run --all`, `inspect <name>`, `clean <name>`. See [Probes](#probes).         |
@@ -58,6 +59,40 @@ Revert checks four paths for a symbolic link that appeared after the switch, and
 Independence between a repository and the machine has a limit, in two places. A repository switch hides or shows skills relative to the machine mode in force at that moment, so a later `--global` switch that hides other skills reaches new sessions in that repository too. And a list of denied tools written by the machine mode still applies inside a repository that is in another mode: the `review` mode denies Edit, Write and NotebookEdit, and a repository in `build` on a machine in `review` cannot use them. That second point follows from how Claude Code merges its settings files, where a deny entry in any of them applies; this project has not measured it.
 
 A record is tied to a path. If a different repository is later created at the same path, it picks the old record up, so remove a stale record by hand. A nested directory with its own `.git`, such as a submodule or a clone inside a clone, is its own repository, and the outer repository's mode does not reach it.
+
+## Voice
+
+A writing-voice skill is a skill that makes a session write prose the way one
+named person writes. It is any `skills/<name>-voice/` whose `SKILL.md` says
+`kind: voice` under `metadata:`, so the skills directory is the list.
+
+| Command                                             | What it does                                                        |
+| :-------------------------------------------------- | :------------------------------------------------------------------ |
+| `ccfg voice` (or `ccfg voice list`)                 | Every voice, its owner and version, and which is in force here      |
+| `ccfg voice new NAME --owner "Full Name" [--from DIR\|FILE...]` | Scaffold an empty `skills/NAME-voice/` and copy samples in |
+| `ccfg voice use NAME`                               | Turn NAME on and the others off, for the repository you are in      |
+| `ccfg voice use NAME --global`                      | The same, machine-wide                                              |
+| `ccfg voice use --none`                             | Drop this repository's own choice; the machine's applies again      |
+| `ccfg voice add NAME FILE...`                       | Copy more writing samples in                                        |
+| `ccfg voice learn NAME [--slug SLUG]`               | Start the next before-and-after file and print its path             |
+| `ccfg voice register NAME --owner "Full Name"`      | Mark a hand-built skill as a voice (up to four frontmatter keys, nothing else) |
+
+A new skill is empty and says so. The rules are written inside a Claude
+session by `/voice-build NAME`, which reads the samples and interviews you;
+`ccfg` itself never calls a model. A new voice starts switched on, so two can
+be in force at once until `ccfg voice use NAME` picks one. If `ccfg voice new`
+fails partway, it leaves `skills/NAME-voice` behind and a retry says it already
+exists; delete that directory first.
+
+The choice is layered like `ccfg mode` and like git's config: inside a git
+repository a plain `use` writes that repository's `.claude/settings.local.json`
+and is kept out of its `git status`; `--global` writes the machine's
+`settings.json`, which every repository without its own choice inherits.
+`~/.claude` is itself a repository, so use `--global` there to set the machine.
+A choice takes effect at the next session.
+
+Samples are private writing: `skills/*-voice/references/samples/` is ignored by
+git.
 
 ## The crew
 

@@ -116,10 +116,12 @@ That third one is not optional. A body with no stated limits reads as
 unexamined. If a suite was not run, say so. If a failure is pre-existing, say
 that and say why it is unrelated.
 
-Load `daniel-voice` before drafting the body and write every sentence under
-it, as a constraint rather than a register: its flow rule, mechanics and
-connectives hold, its personal register and first-person singular do not. The
-subject stays under Step 3's rules alone.
+Load the active voice skill (the `*-voice` skill in your listing) before
+drafting the body and write every sentence under it, as a constraint rather
+than a register: its flow rule, mechanics and connectives hold, its personal
+register and first-person singular do not. When no voice skill is listed,
+write the body in plain prose and say in your report that no voice is active.
+The subject stays under Step 3's rules alone.
 
 Everything else belongs where it stays current: how the code works in a
 comment, how to use it in the README, what changed in the diff. A commit

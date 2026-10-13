@@ -1007,6 +1007,13 @@ function commandDoctor() {
     );
   else if (statusLine) ok("statusLine pinned");
 
+  heading("Voice");
+  for (const finding of require("./voice/command.js").doctorFindings(
+    CONFIG_DIR,
+    process.cwd(),
+  ))
+    (finding.level === "warn" ? warn : ok)(finding.label, finding.detail);
+
   heading("Disk");
   const total = directorySize(CONFIG_DIR);
   const noisy = [];
@@ -1308,6 +1315,14 @@ function commandInstall(argv = []) {
     "    2. exec $SHELL           " + dim("pick up the shell integration"),
   );
   console.log("    3. ccfg doctor           " + dim("verify the whole setup"));
+  const voicePointer = require("./voice/command.js").installPointer(
+    CONFIG_DIR,
+    process.cwd(),
+  );
+  if (voicePointer !== null)
+    console.log(
+      `    4. ${voicePointer}   ` + dim("no writing voice is in force; start your own"),
+    );
 }
 
 // Handed to the broker installer rather than imported by it: the installer
@@ -1348,6 +1363,7 @@ const COMMANDS = {
   probe: (argv) => require("./probe/command.js").commandProbe(argv, IO),
   mode: (argv) => require("./modes/command.js").commandMode(argv, IO),
   crew: (argv) => require("./modes/command.js").commandCrew(argv, IO),
+  voice: (argv) => require("./voice/command.js").commandVoice(argv, IO),
   conformance: (argv) =>
     require("./conformance.js").commandConformance(argv, IO),
   validate: commandValidate,
@@ -1376,6 +1392,8 @@ ${bold("ccfg")}: manage this Claude Code configuration
   ${bold("mode")} NAME           switch to it: rules and tools change now, skills
                       and model at the next session (diff A B | revert)
   ${bold("crew")}                each worker the mode in force renders: tools and gates
+  ${bold("voice")}               writing-voice skills: which one is in force here
+                      new NAME --owner | use NAME [--global] | add | learn | register
   ${bold("install")}             put ccfg on PATH and wire your shell (--no-shell to skip)
   ${bold("keys list")}           show every managed secret and where its value comes from
   ${bold("keys set")} VAR        store a secret in the keychain (macOS) or secrets.env

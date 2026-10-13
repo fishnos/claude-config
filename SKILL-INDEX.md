@@ -3,9 +3,9 @@
 Generated. Do not edit by hand. Rerun `node ~/.claude/scripts/build-skill-index.js`,
 or start a session and the SessionStart hook rebuilds it when it goes stale.
 
-Every skill on this machine and whether Claude can see it: 214 in all,
+Every skill on this machine and whether Claude can see it: 215 in all,
 85 of them from enabled plugins, named the way they are invoked
-(`plugin:skill`). 74 of these
+(`plugin:skill`). 75 of these
 are invisible in the session listing but run right now when invoked by name. Only the
 **Disabled** section needs settings.json changed before use.
 
@@ -341,11 +341,13 @@ Work with any Upstash TypeScript/JavaScript SDK including Redis, Box, QStash, Wo
 
 Design system skill for vapi. Activate when building UI components, pages, or any visual elements. Provides exact color tokens, typography scale, spacing grid, component patterns, and craft rules. Read references/DESIGN.md before writing any CSS or JSX.
 
-## Hidden children (0)
+## Hidden children (1)
 
 Their authors set `disable-model-invocation: true`, usually because a router skill picks between them. Never listed, but `/name` works.
 
-_none_
+### `/voice-build`
+
+Builds or extends a writing-voice skill from the owner's writing samples and a short interview. Invoke by name as /voice-build NAME after `ccfg voice new NAME` has scaffolded the skill.
 
 ## Path-gated (23)
 

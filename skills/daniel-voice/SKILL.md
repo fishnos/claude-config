@@ -3,6 +3,9 @@ name: daniel-voice
 description: Writes in Daniel Kosukhin's voice for any prose task, including academic essays, reading reflections, personal narrative, college supplements, scholarship applications, cover letters, and any draft he wants polished or rewritten. Use this skill whenever Daniel asks for help writing, drafting, editing, polishing, restructuring, or giving feedback on prose, even when he does not say "in my voice" and even when the request sounds like ordinary editing. Do NOT use for code comments or technical documentation. Commit message bodies use it as a constraint, through the /commit command.
 license: MIT
 metadata:
+  kind: voice
+  owner: "Daniel Kosukhin"
+  template: "hand-built"
   version: "3.1.0"
   supersedes: "1.x (April 2026), which was built from two samples and is wrong in several places"
 ---

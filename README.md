@@ -32,6 +32,10 @@ and seven more) that puts the rules it cares about most first and can gate tools
 and skills. `ccfg mode` shows the one in force; `ccfg mode NAME` switches,
 for the repository you are in, or for the whole machine with `--global`.
 
+`ccfg voice` does the same for writing voice: `ccfg voice new NAME --owner
+"Your Name"` scaffolds a voice skill of your own, and `ccfg voice use NAME`
+makes it the one in force. See [ccfg](docs/ccfg.md#voice).
+
 The **crew** is the set of subagent roles a mode provides. A subagent's report
 passes checks before it is accepted: that the files it touched were the ones it
 was given, and that a claim of working code names a command that ran.

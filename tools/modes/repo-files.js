@@ -65,6 +65,13 @@ function relativeToRoot(target, file) {
   return path.relative(target.root, file).split(path.sep).join("/");
 }
 
+/** The paths among `relativePaths` that git tracks in the repository. */
+function trackedPaths(root, relativePaths) {
+  return git(root, ["ls-files", "--", ...relativePaths])
+    .split("\n")
+    .filter(Boolean);
+}
+
 /** Every path a switch would write inside the repository, relative to its root. */
 function generatedPaths(target, commandNames, roleIds) {
   return [
@@ -103,9 +110,7 @@ function refuseUnsafe(target, commandNames, roleIds) {
         `file or directory there, or switch with --global`,
     );
 
-  const tracked = git(target.root, ["ls-files", "--", ...generated])
-    .split("\n")
-    .filter(Boolean);
+  const tracked = trackedPaths(target.root, generated);
   if (tracked.length > 0)
     throw new Error(
       `${tracked.join(", ")} is tracked by git in ${target.root}. A mode ` +
@@ -420,6 +425,8 @@ module.exports = {
   linkOnTheWayTo,
   generatedPaths,
   refuseUnsafe,
+  trackedPaths,
+  unmergeableShape,
   repoSkillOverrides,
   writeRepoSettings,
   restoreRepoSettings,

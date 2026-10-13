@@ -298,6 +298,17 @@ for (const skill of skills) {
   );
 }
 
+// The voice scaffold holds a file named SKILL.md. Under skills/ the catalogue
+// builder would list it as a real skill, placeholders and all.
+const voiceTemplate = path.join(ROOT, "tools", "voice", "template", "SKILL.md");
+check(
+  "the voice scaffold is kept outside skills/",
+  fs.existsSync(voiceTemplate) &&
+    !fs.existsSync(path.join(ROOT, "skills", "template")) &&
+    !fs.existsSync(path.join(ROOT, "skills", "voice-template")),
+  `expected ${voiceTemplate}`,
+);
+
 section("Prepared commit messages lint clean");
 const messageDir = path.join(ROOT, ".commit-msgs");
 if (fs.existsSync(messageDir)) {

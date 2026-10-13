@@ -138,6 +138,7 @@ __pycache__/
 
 # Personal writing samples: read from disk by daniel-voice, never published.
 skills/daniel-voice/references/samples/
+skills/*-voice/references/samples/
 
 # Claude Code's local copy of the skills synced from claude.ai. Written by the
 # harness rather than authored here, and it carries a second copy of the
