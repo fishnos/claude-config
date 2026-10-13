@@ -237,6 +237,54 @@ check(
   "NO EFFECT",
 );
 
+// The first paid run of voice-adoption graded all 36 replies as violating: no
+// reply wrote the "Skills:" line the grader read, because each session tried to
+// load the voice skill for real and reported that it could not.
+const voiceAdoption = require("../probes/voice-adoption.js");
+
+check(
+  "voice-adoption: a Skills line naming the voice is clean",
+  voiceAdoption.grade("Skills: sam-voice\n\nDear committee,").violations.length,
+  0,
+);
+check(
+  "voice-adoption: a reply reporting the voice failed to load is clean",
+  voiceAdoption.grade(
+    '`sam-voice` failed to load ("Unknown skill"), so this is plain prose.\n\nDear committee,',
+  ).violations.length,
+  0,
+);
+check(
+  "voice-adoption: a reply saying the voice is not installed is clean",
+  voiceAdoption.grade(
+    "`sam-voice` is listed but isn't installed, so this is plain prose.",
+  ).violations.length,
+  0,
+);
+check(
+  "voice-adoption: a Skills line of none is violating",
+  voiceAdoption.grade("Skills: none\n\nDear committee,").violations.length,
+  1,
+);
+check(
+  "voice-adoption: a Skills line of none that mentions the voice is violating",
+  voiceAdoption.grade("Skills: none (sam-voice not needed)\n\nDear committee,")
+    .violations.length,
+  1,
+);
+check(
+  "voice-adoption: a reply that never names the voice is violating",
+  voiceAdoption.grade("Dear committee,\n\nPlease find enclosed.").violations
+    .length,
+  1,
+);
+check(
+  "voice-adoption: naming the voice without trying to load it is violating",
+  voiceAdoption.grade("I will not use sam-voice here.\n\nDear committee,")
+    .violations.length,
+  1,
+);
+
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 
 console.log(`\nPASS ${passed}  FAIL ${failed}`);

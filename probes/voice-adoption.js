@@ -7,11 +7,10 @@
 // same rule. That swaps a name for a description the session has to resolve
 // against its skill listing, and a rule that needs resolving can be skipped.
 //
-// A cell runs with skills stripped, so nothing can load. Each arm carries the
-// rule and a listing as text, and the grader asks only whether the reply says
-// it would load the voice skill before drafting.
-//
-// Written and dry-run clean. Never executed: a run is 36 paid cells.
+// Each arm carries the rule and a listing as text; sam-voice does not exist.
+// A cell can still try to load it: in the first run no reply wrote the asked
+// "Skills:" line, every one tried the load and reported that it failed. The
+// grader therefore takes either as picking the voice.
 
 const LISTING = `## Available skills
 
@@ -56,6 +55,18 @@ function skillsLine(output) {
   return line === undefined ? "" : line;
 }
 
+const VOICE = "sam-voice";
+const REPORTS_FAILED_LOAD =
+  /unknown skill|failed to load|could ?n[o']t load|is ?n[o']t (?:installed|available)/i;
+
+function pickedVoice(output) {
+  const line = skillsLine(output);
+  if (line !== "") {
+    return line.includes(VOICE) && !/:\s*\**\s*none\b/i.test(line);
+  }
+  return output.includes(VOICE) && REPORTS_FAILED_LOAD.test(output);
+}
+
 module.exports = {
   name: "voice-adoption",
   kind: "model",
@@ -72,8 +83,8 @@ module.exports = {
     violating: "Skills: none\n\nI am writing to submit my application.",
   },
   grade: (output) => ({
-    violations: skillsLine(output).includes("sam-voice")
+    violations: pickedVoice(output)
       ? []
-      : ["did not name the voice skill before drafting"],
+      : ["did not pick the voice skill before drafting"],
   }),
 };
