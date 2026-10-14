@@ -1,6 +1,6 @@
 ---
 name: repo-setup
-description: Audit and fix a repository's agent infrastructure — CLAUDE.md presence and whether git actually tracks it, the .claude/state.md working record and its ignore line, the graphify knowledge graph and its freshness, an origin remote for cloud routines, declared routines and their .mcp.json, and skills the stack needs that nothing can route to automatically. Use when the SessionStart notice says "Repo setup:", when someone asks whether a repo is set up for agents, when onboarding an unfamiliar repo, or when asked to snooze or dismiss one of those notices, or to set a repo up for early clears (the context action). Not for writing CLAUDE.md content itself — that is /init — and not for scheduling, which is /repo-schedule.
+description: Audit and fix a repository's agent infrastructure — CLAUDE.md presence and whether git actually tracks it, the .claude/state/ folder of per-window working records and its ignore line, the graphify knowledge graph and its freshness, an origin remote for cloud routines, declared routines and their .mcp.json, and skills the stack needs that nothing can route to automatically. Use when the SessionStart notice says "Repo setup:", when someone asks whether a repo is set up for agents, when onboarding an unfamiliar repo, or when asked to snooze or dismiss one of those notices, or to set a repo up for early clears (the context action). Not for writing CLAUDE.md content itself — that is /init — and not for scheduling, which is /repo-schedule.
 ---
 
 # Repo setup
@@ -27,8 +27,8 @@ they act on.
 | `instructions`         | No `CLAUDE.md` or `AGENTS.md` at the root                            | `/init`                                                |
 | `instructions-ignored` | The file exists but git ignores it                                   | see below — fix here                                   |
 | `graph`                | No `graphify-out/graph.json`, or it predates the newest commit       | `audit.js context`, or `/graphify --update` when stale |
-| `state-file`           | No `.claude/state.md`, so nothing carries the work across a `/clear` | `audit.js context`                                     |
-| `state-file-tracked`   | Git would track `.claude/state.md`                                   | `audit.js context`                                     |
+| `state-file`           | No `.claude/state/` folder, or still the old single `.claude/state.md` | `audit.js context`, or `ccfg state migrate` for the old file |
+| `state-file-tracked`   | Git would track `.claude/state/`                                     | `ccfg state migrate`                                   |
 | `remote`               | No `origin`, so no cloud routine can clone the repo                  | the reader adds a remote                               |
 | `routines`             | What `.claude/routines/` declares                                    | `/repo-schedule`                                       |
 | `routine-mcp`          | Routines declared with no `.mcp.json`                                | `/repo-schedule`                                       |
@@ -54,9 +54,9 @@ skill in that repository and nowhere else. The audit prints the exact object.
 
     node ~/.claude/skills/repo-setup/audit.js context [<repo-path>]
 
-Sets a repository up for early clears in one step: writes `.claude/state.md`
-from `templates/state.md` (never over an existing one), appends
-`.claude/state.md` to `.gitignore` unless git already ignores it, and builds the
+Sets a repository up for early clears in one step: runs `ccfg state migrate`,
+which creates `.claude/state/`, moves an old single `.claude/state.md` in if
+there is one, and writes the `.claude/state/` line to `.gitignore`; then builds the
 code graph with `graphify update`, which reads code only and makes no model
 calls. It does not start graphify's pass over documents, papers and images,
 which spends model tokens: offer that, and run `/graphify` only on a yes.

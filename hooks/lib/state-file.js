@@ -10,38 +10,6 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-// The single fixed record the per-window ones replaced, and its archive. Kept
-// only for lib/repo-audit and skills/repo-setup/audit.js until they read the
-// per-window layout; no hook reads or writes either path.
-const STATE_FILE_RELATIVE = path.join(".claude", "state.md");
-const ARCHIVE_FILE_RELATIVE = path.join(".claude", "state.archive.md");
-
-// The four spellings the design names. Anything subtler is for the skill, which
-// asks `git check-ignore`; a missed match here costs one extra notice.
-function coveringLines(relativePath) {
-  const posixPath = relativePath.split(path.sep).join("/");
-  return new Set([posixPath, `/${posixPath}`, ".claude/", "/.claude/"]);
-}
-
-function stateFilePath(root) {
-  return path.join(root, STATE_FILE_RELATIVE);
-}
-
-function ignoreListed(root, relativePath) {
-  let text;
-  try {
-    text = fs.readFileSync(path.join(root, ".gitignore"), "utf8");
-  } catch {
-    return false;
-  }
-  const covering = coveringLines(relativePath);
-  return text.split(/\r?\n/).some((line) => covering.has(line.trim()));
-}
-
-function stateFileIgnoreListed(root) {
-  return ignoreListed(root, STATE_FILE_RELATIVE);
-}
-
 // A cap, not a budget, on the same reasoning as the retired pre-compact hook's
 // MAX_SECTION: a file this large is being used as a log, and truncating with a
 // visible note keeps it from flooding the context while leaving that in view.
@@ -294,11 +262,6 @@ function writeRecord(file, text) {
 }
 
 module.exports = {
-  STATE_FILE_RELATIVE,
-  ARCHIVE_FILE_RELATIVE,
-  stateFilePath,
-  ignoreListed,
-  stateFileIgnoreListed,
   MAX_LOADED_CHARACTERS,
   sectionBody,
   goalLine,

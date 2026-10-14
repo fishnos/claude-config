@@ -3540,35 +3540,31 @@ header("Repo setup: state file and graph findings");
     findingIds(bare),
   );
   check(
-    "no .gitignore line raises state-file-tracked",
+    "no folder raises only state-file, not state-file-tracked",
     findingIds(bare).includes("state-file-tracked"),
-    true,
+    false,
     findingIds(bare),
   );
   check(
-    "state-file, state-file-tracked and graph are the urgent findings",
+    "state-file and graph are the urgent findings of a bare repository",
     repoAudit
       .audit(bare)
       .filter((finding) => finding.urgent === true)
       .map((finding) => finding.id)
       .sort()
       .join(","),
-    "graph,state-file,state-file-tracked",
+    "graph,state-file",
     findingIds(bare),
   );
 
   const covered = makeRepository("audit-covered-");
-  fs.mkdirSync(path.join(covered, ".claude"));
-  fs.writeFileSync(
-    path.join(covered, ".claude", "state.md"),
-    "# Working state\n",
-  );
+  fs.mkdirSync(path.join(covered, ".claude", "state"), { recursive: true });
   fs.writeFileSync(
     path.join(covered, ".gitignore"),
     "node_modules/\n/.claude/\n",
   );
   check(
-    "a present state file clears state-file",
+    "a present .claude/state/ folder clears state-file",
     findingIds(covered).includes("state-file"),
     false,
     findingIds(covered),
@@ -3579,9 +3575,9 @@ header("Repo setup: state file and graph findings");
     false,
     findingIds(covered),
   );
-  fs.writeFileSync(path.join(covered, ".gitignore"), ".claude/state.md\n");
+  fs.writeFileSync(path.join(covered, ".gitignore"), ".claude/state/\n");
   check(
-    "the exact path clears state-file-tracked",
+    "the exact folder line clears state-file-tracked",
     findingIds(covered).includes("state-file-tracked"),
     false,
     findingIds(covered),
@@ -3597,6 +3593,51 @@ header("Repo setup: state file and graph findings");
     findingIds(covered),
   );
 
+  const findingFix = (root, id) =>
+    repoAudit.audit(root).find((finding) => finding.id === id).fix;
+
+  const oldLayout = makeRepository("audit-old-layout-");
+  fs.mkdirSync(path.join(oldLayout, ".claude"));
+  fs.writeFileSync(
+    path.join(oldLayout, ".claude", "state.md"),
+    "# Working state\n",
+  );
+  check(
+    "audit: an old single record is sent to ccfg state migrate",
+    findingFix(oldLayout, "state-file"),
+    "ccfg state migrate",
+    findingIds(oldLayout),
+  );
+  check(
+    "audit: a repository with neither is sent to the setup skill",
+    findingFix(bare, "state-file"),
+    "/repo-setup context",
+    findingIds(bare),
+  );
+
+  const migrated = makeRepository("audit-migrated-");
+  fs.mkdirSync(path.join(migrated, ".claude", "state"), { recursive: true });
+  fs.writeFileSync(path.join(migrated, ".gitignore"), ".claude/state/\n");
+  check(
+    "audit: the folder with its ignore line raises neither finding",
+    findingIds(migrated).some((id) => id.startsWith("state-file")),
+    false,
+    findingIds(migrated),
+  );
+
+  const unignored = makeRepository("audit-unignored-");
+  fs.mkdirSync(path.join(unignored, ".claude", "state"), { recursive: true });
+  check(
+    "audit: the folder without an ignore line is named",
+    repoAudit
+      .audit(unignored)
+      .find((finding) => finding.id === "state-file-tracked").message,
+    ".gitignore does not cover .claude/state/",
+    findingIds(unignored),
+  );
+  for (const directory of [oldLayout, migrated, unignored])
+    fs.rmSync(directory, { recursive: true, force: true });
+
   const setupHome = fs.mkdtempSync(path.join(os.tmpdir(), "repo-setup-home-"));
   const sessionStart = (root) =>
     runJson(
@@ -3608,20 +3649,20 @@ header("Repo setup: state file and graph findings");
   const secondStart = sessionStart(bare);
   check(
     "urgent findings show a banner",
-    String(firstStart.systemMessage).includes("state.md"),
+    String(firstStart.systemMessage).includes(".claude/state/"),
     true,
     JSON.stringify(firstStart),
   );
   check(
     "the banner shows again on the next start",
-    String(secondStart.systemMessage).includes("state.md"),
+    String(secondStart.systemMessage).includes(".claude/state/"),
     true,
     JSON.stringify(secondStart),
   );
   check(
     "Claude gets the urgent findings as context",
     String((firstStart.hookSpecificOutput || {}).additionalContext).includes(
-      "no .claude/state.md",
+      "no .claude/state/ folder",
     ),
     true,
     JSON.stringify(firstStart),
@@ -3658,7 +3699,7 @@ header("Repo setup: state file and graph findings");
   fs.rmSync(bare, { recursive: true, force: true });
 }
 
-header("/repo-setup context: one-step state file, ignore line and graph");
+header("/repo-setup context: one-step records folder, ignore line and graph");
 {
   const auditScript = path.join(
     __dirname,
@@ -3667,24 +3708,16 @@ header("/repo-setup context: one-step state file, ignore line and graph");
     "repo-setup",
     "audit.js",
   );
-  const template = path.join(
-    __dirname,
-    "..",
-    "skills",
-    "repo-setup",
-    "templates",
-    "state.md",
-  );
   const contextCases = [
-    "context writes the state file from the template",
+    "context creates the .claude/state/ folder",
     "context builds the graph with graphify update <root>",
-    "context never overwrites an existing state file",
+    "context moves an old single record into the folder",
     "context appends the .gitignore line exactly once",
     "the deep audit sees the ignore line through git",
     "context without graphify still exits 0",
     "context without graphify says so",
-    "context ignores the archive exactly once",
-    "context adds only the archive line where the state file is already ignored",
+    "context leaves no old single-record ignore line behind",
+    "context swaps the old single-record ignore line for the folder line",
   ];
   if (process.platform === "win32") {
     for (const label of contextCases)
@@ -3718,8 +3751,8 @@ header("/repo-setup context: one-step state file, ignore line and graph");
     const firstRun = runContext(fresh, true);
     check(
       contextCases[0],
-      readTextOrEmpty(path.join(fresh, ".claude", "state.md")),
-      readTextOrEmpty(template),
+      fs.existsSync(path.join(fresh, ".claude", "state")),
+      true,
       firstRun.stdout + firstRun.stderr,
     );
     check(
@@ -3734,43 +3767,44 @@ header("/repo-setup context: one-step state file, ignore line and graph");
       "# Working state\n\n## Goal\n\nkeep me\n",
     );
     runContext(fresh, true);
+    const movedRecords = fs.readdirSync(path.join(fresh, ".claude", "state"));
     check(
       contextCases[2],
-      readTextOrEmpty(path.join(fresh, ".claude", "state.md")).includes(
-        "keep me",
-      ),
+      movedRecords.length === 1 &&
+        readTextOrEmpty(
+          path.join(fresh, ".claude", "state", movedRecords[0]),
+        ).includes("keep me") &&
+        !fs.existsSync(path.join(fresh, ".claude", "state.md")),
       true,
-      "",
+      movedRecords.join(","),
     );
     check(
       contextCases[3],
       readTextOrEmpty(path.join(fresh, ".gitignore"))
         .split("\n")
-        .filter((line) => line === ".claude/state.md").length,
+        .filter((line) => line === ".claude/state/").length,
       1,
       readTextOrEmpty(path.join(fresh, ".gitignore")),
     );
     check(
-      "context ignores the archive exactly once",
-      readTextOrEmpty(path.join(fresh, ".gitignore"))
-        .split("\n")
-        .filter((line) => line === ".claude/state.archive.md").length,
-      1,
+      contextCases[7],
+      readTextOrEmpty(path.join(fresh, ".gitignore")).includes("state.md"),
+      false,
       readTextOrEmpty(path.join(fresh, ".gitignore")),
     );
-    const stateOnlyRoot = makeRepository("context-state-only-");
+    const oldIgnoreRoot = makeRepository("context-old-ignore-");
     fs.writeFileSync(
-      path.join(stateOnlyRoot, ".gitignore"),
+      path.join(oldIgnoreRoot, ".gitignore"),
       ".claude/state.md\n",
     );
-    runContext(stateOnlyRoot, true);
+    runContext(oldIgnoreRoot, true);
     check(
-      "context adds only the archive line where the state file is already ignored",
-      readTextOrEmpty(path.join(stateOnlyRoot, ".gitignore")),
-      ".claude/state.md\n.claude/state.archive.md\n",
+      contextCases[8],
+      readTextOrEmpty(path.join(oldIgnoreRoot, ".gitignore")),
+      ".claude/state/\n",
       "",
     );
-    fs.rmSync(stateOnlyRoot, { recursive: true, force: true });
+    fs.rmSync(oldIgnoreRoot, { recursive: true, force: true });
     const deepReport = spawnSync(
       process.execPath,
       [auditScript, "--json", fresh],
@@ -3846,12 +3880,12 @@ header(
   );
 
   const listedRoot = makeRepository("no-git-archive-");
-  fs.writeFileSync(path.join(listedRoot, ".gitignore"), ".claude/state.md\n");
+  fs.writeFileSync(path.join(listedRoot, ".gitignore"), ".claude/state/\n");
   withoutGit(["context", listedRoot]);
   check(
-    "without git, context reads the ignore file and adds only the archive line",
+    "without git, context leaves a folder line that is already listed",
     readTextOrEmpty(path.join(listedRoot, ".gitignore")),
-    ".claude/state.md\n.claude/state.archive.md\n",
+    ".claude/state/\n",
     "",
   );
 
@@ -3872,8 +3906,7 @@ header("/repo-setup audit: a ! exception in .gitignore is not an ignore");
     const root = makeRepository("audit-exception-");
     fs.writeFileSync(path.join(root, ".gitignore"), gitignore);
     fs.writeFileSync(path.join(root, "CLAUDE.md"), "# CLAUDE.md\n");
-    fs.mkdirSync(path.join(root, ".claude"));
-    fs.writeFileSync(path.join(root, ".claude", "state.md"), "# state\n");
+    fs.mkdirSync(path.join(root, ".claude", "state"), { recursive: true });
     const report = spawnSync(process.execPath, [auditScript, "--json", root], {
       encoding: "utf8",
       windowsHide: true,
@@ -3902,14 +3935,14 @@ header("/repo-setup audit: a ! exception in .gitignore is not an ignore");
     "",
   );
   check(
-    "an excepted state file counts as tracked",
-    auditRow(".claude/*\n!.claude/state.md\n", "state-file-tracked"),
+    "an excepted records folder counts as tracked",
+    auditRow(".claude/*\n!.claude/state/\n", "state-file-tracked"),
     "state-file-tracked:broken",
     "",
   );
   check(
-    "an ignored state file counts as ignored",
-    auditRow(".claude/state.md\n", "state-file-tracked"),
+    "an ignored records folder counts as ignored",
+    auditRow(".claude/state/\n", "state-file-tracked"),
     "state-file-tracked:ok",
     "",
   );

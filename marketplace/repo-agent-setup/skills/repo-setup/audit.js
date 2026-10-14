@@ -16,10 +16,13 @@ const configDir =
   process.env.CLAUDE_CONFIG_DIR || path.resolve(__dirname, "..", "..");
 const repoAudit = require(path.join(configDir, "hooks", "lib", "repo-audit"));
 const io = require(path.join(configDir, "hooks", "lib", "hook-io"));
-const stateFile = require(path.join(configDir, "hooks", "lib", "state-file"));
+const stateRecords = require(
+  path.join(configDir, "hooks", "lib", "state-records"),
+);
+const { migrate } = require(
+  path.join(configDir, "tools", "state", "command.js"),
+);
 const { spawnSync } = require("child_process");
-
-const TEMPLATE = path.join(__dirname, "templates", "state.md");
 
 const SNOOZE_DAYS = 14;
 
@@ -40,51 +43,30 @@ function gitIgnores(root, fileName) {
   return gitWorks ? false : repoAudit.isIgnored(root, fileName);
 }
 
-/** Whether git ignores a file under .claude/, with the hook's approximation when git cannot run. */
-function claudeFileGitIgnored(root, relativePath) {
-  const posixPath = relativePath.split(path.sep).join("/");
-  if (io.git(["check-ignore", posixPath], root) !== "") return true;
+/** Whether git ignores the records folder, with the hook's approximation when git cannot run. */
+function recordsGitIgnored(root) {
+  if (io.git(["check-ignore", ".claude/state/"], root) !== "") return true;
   const gitWorks = io.git(["rev-parse", "--git-dir"], root) !== "";
-  return gitWorks ? false : stateFile.ignoreListed(root, relativePath);
-}
-
-function stateFileGitIgnored(root) {
-  return claudeFileGitIgnored(root, stateFile.STATE_FILE_RELATIVE);
+  return gitWorks ? false : stateRecords.recordsIgnoreListed(root);
 }
 
 /**
- * The one-step setup: state file, ignore lines, code graph. Never overwrites a
- * state file, and never starts graphify's document pass, which spends tokens.
+ * The one-step setup: the records folder with its ignore line, then the code
+ * graph. The folder step is `ccfg state migrate`, which never overwrites a
+ * record, and this never starts graphify's document pass, which spends tokens.
  */
 function runContext(root) {
-  const statePath = stateFile.stateFilePath(root);
-  if (fs.existsSync(statePath)) {
-    console.log("kept      .claude/state.md (already exists)");
-  } else {
-    fs.mkdirSync(path.dirname(statePath), { recursive: true });
-    fs.copyFileSync(TEMPLATE, statePath);
-    console.log("wrote     .claude/state.md from the template");
-  }
-
-  // The archive holds what is trimmed out of the state file, so it must stay
-  // out of git on the same terms.
-  for (const relativePath of [
-    stateFile.STATE_FILE_RELATIVE,
-    stateFile.ARCHIVE_FILE_RELATIVE,
-  ]) {
-    const line = relativePath.split(path.sep).join("/");
-    if (claudeFileGitIgnored(root, relativePath)) {
-      console.log(`kept      .gitignore (git already ignores ${line})`);
-      continue;
-    }
-    const gitignorePath = path.join(root, ".gitignore");
-    const existing = fs.existsSync(gitignorePath)
-      ? fs.readFileSync(gitignorePath, "utf8")
-      : "";
-    const separator = existing === "" || existing.endsWith("\n") ? "" : "\n";
-    fs.writeFileSync(gitignorePath, `${existing}${separator}${line}\n`);
-    console.log(`appended  ${line} to .gitignore`);
-  }
+  const result = migrate(root);
+  console.log(
+    result.moved === null
+      ? "ready     .claude/state/ (no old .claude/state.md to move)"
+      : `moved     the old .claude/state.md to ${path.relative(root, result.moved)}`,
+  );
+  console.log(
+    result.ignoreChanged
+      ? "wrote     .claude/state/ to .gitignore"
+      : "kept      .gitignore (already covers .claude/state/)",
+  );
 
   const graphBuild = spawnSync("graphify", ["update", root], {
     cwd: root,
@@ -187,26 +169,31 @@ function deepAudit(root) {
           : undefined,
   });
 
-  const statePresent = fs.existsSync(stateFile.stateFilePath(root));
+  const oldRecordPresent = fs.existsSync(path.join(root, ".claude", "state.md"));
+  const recordsPresent = fs.existsSync(stateRecords.recordsDirectory(root));
   rows.push({
     id: "state-file",
-    status: statePresent ? "ok" : "missing",
-    detail: statePresent
-      ? ".claude/state.md present"
-      : "no .claude/state.md, so nothing carries the work across a /clear",
-    fix: statePresent
+    status: recordsPresent ? "ok" : "missing",
+    detail: recordsPresent
+      ? ".claude/state/ present"
+      : oldRecordPresent
+        ? "working record is still the single .claude/state.md"
+        : "no .claude/state/ folder, so nothing carries the work across a /clear",
+    fix: recordsPresent
       ? undefined
-      : "audit.js context writes it from the template",
+      : oldRecordPresent
+        ? "ccfg state migrate moves it into .claude/state/"
+        : "audit.js context creates .claude/state/",
   });
 
-  const stateIgnored = stateFileGitIgnored(root);
+  const stateIgnored = recordsGitIgnored(root);
   rows.push({
     id: "state-file-tracked",
     status: stateIgnored ? "ok" : "broken",
     detail: stateIgnored
-      ? "git ignores .claude/state.md"
-      : "git would track .claude/state.md, a per-worktree working record",
-    fix: stateIgnored ? undefined : "audit.js context appends it to .gitignore",
+      ? "git ignores .claude/state/"
+      : "git would track .claude/state/, the per-window working records",
+    fix: stateIgnored ? undefined : "ccfg state migrate adds it to .gitignore",
   });
 
   const remote = remoteUrl(root);

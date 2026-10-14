@@ -14,9 +14,9 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-// Named workingStateFile, not stateFile, because this file already has a
-// stateFile() below for a different thing: the audit dismiss/snooze cache path.
-const workingStateFile = require("./state-file");
+// Named workingStateRecords, not stateRecords, to stay apart from the
+// stateFile() below, which is the audit dismiss/snooze cache path.
+const workingStateRecords = require("./state-records");
 
 /** Repository root holding `cwd`, or null when the path is not inside a repo. */
 function findRepositoryRoot(cwd) {
@@ -177,20 +177,21 @@ function audit(root) {
     });
   }
 
-  if (!fs.existsSync(workingStateFile.stateFilePath(root))) {
+  if (!fs.existsSync(workingStateRecords.recordsDirectory(root))) {
+    const oldRecordPresent = exists(root, path.join(".claude", "state.md"));
     findings.push({
       id: "state-file",
-      message: "no .claude/state.md",
-      fix: "/repo-setup context",
+      message: oldRecordPresent
+        ? "working record is still the single .claude/state.md"
+        : "no .claude/state/ folder for working records",
+      fix: oldRecordPresent ? "ccfg state migrate" : "/repo-setup context",
       urgent: true,
     });
-  }
-
-  if (!workingStateFile.stateFileIgnoreListed(root)) {
+  } else if (!workingStateRecords.recordsIgnoreListed(root)) {
     findings.push({
       id: "state-file-tracked",
-      message: ".gitignore does not cover .claude/state.md",
-      fix: "/repo-setup context",
+      message: ".gitignore does not cover .claude/state/",
+      fix: "ccfg state migrate",
       urgent: true,
     });
   }
