@@ -164,13 +164,17 @@ function formatCount(count) {
  * section by section in LOAD_PRIORITY order, with a note naming every section
  * cut or left out so the session knows to read the file for them.
  */
-function loadedText(text) {
+function loadedText(
+  text,
+  recordName = ".claude/state.md",
+  archiveName = ".claude/state.archive.md",
+) {
   if (text.length <= MAX_LOADED_CHARACTERS) return text;
   const note = (details) =>
-    `\n\n[.claude/state.md is ${formatCount(text.length)} characters, over ` +
+    `\n\n[${recordName} is ${formatCount(text.length)} characters, over ` +
     `the ${formatCount(MAX_LOADED_CHARACTERS)} that load. ${details}` +
     "Read the file for the rest, and move finished entries word for word " +
-    "into .claude/state.archive.md.]";
+    `into ${archiveName}.]`;
 
   const parsed = splitSections(text);
   if (parsed === null) {
@@ -284,6 +288,25 @@ function withUnconfirmed(text, newLines) {
 }
 
 // Through a rename, so the gauge never reads half a write and digests it.
+function readRecord(file) {
+  try {
+    return {
+      text: fs.readFileSync(file, "utf8"),
+      modifiedMs: fs.statSync(file).mtimeMs,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Through a rename, so the gauge never reads half a write and digests it.
+function writeRecord(file, text) {
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(temporary, text, "utf8");
+  fs.renameSync(temporary, file);
+}
+
 function writeStateFile(root, text) {
   const file = stateFilePath(root);
   const temporary = `${file}.${process.pid}.tmp`;
@@ -309,4 +332,6 @@ module.exports = {
   stateDigest,
   withUnconfirmed,
   writeStateFile,
+  readRecord,
+  writeRecord,
 };

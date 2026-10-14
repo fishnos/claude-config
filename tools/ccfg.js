@@ -1364,6 +1364,7 @@ const COMMANDS = {
   mode: (argv) => require("./modes/command.js").commandMode(argv, IO),
   crew: (argv) => require("./modes/command.js").commandCrew(argv, IO),
   voice: (argv) => require("./voice/command.js").commandVoice(argv, IO),
+  state: (argv) => require("./state/command.js").commandState(argv, IO),
   conformance: (argv) =>
     require("./conformance.js").commandConformance(argv, IO),
   validate: commandValidate,
@@ -1394,6 +1395,8 @@ ${bold("ccfg")}: manage this Claude Code configuration
   ${bold("crew")}                each worker the mode in force renders: tools and gates
   ${bold("voice")}               writing-voice skills: which one is in force here
                       new NAME --owner | use NAME [--global] | add | learn | register
+  ${bold("state")}               this window's working record: show, path, list, use KEY,
+                      new, done, migrate
   ${bold("install")}             put ccfg on PATH and wire your shell (--no-shell to skip)
   ${bold("keys list")}           show every managed secret and where its value comes from
   ${bold("keys set")} VAR        store a secret in the keychain (macOS) or secrets.env

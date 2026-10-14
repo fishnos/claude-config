@@ -40,6 +40,8 @@ const voiceCommand = require("./voice/command.js");
 const modeApply = require("./modes/apply.js");
 const modeParser = require("./modes/modes.js");
 const modeTargets = require("./modes/target.js");
+const stateCommand = require("./state/command.js");
+const stateRecords = require("../hooks/lib/state-records.js");
 
 const CCFG = path.join(__dirname, "ccfg.js");
 
@@ -1380,6 +1382,137 @@ function outsideAnyRepository() {
     hidden.some((finding) => finding.label.includes("bob-voice")),
     false,
   );
+}
+
+console.log("\nccfg state\n--------------------");
+{
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-state-repo-"));
+  fs.mkdirSync(path.join(stateRoot, ".git"));
+  const stateHome = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-state-home-"));
+  const contextFor = (windowIdentity, sessionIdentifier) => ({
+    root: stateRoot,
+    configDir: stateHome,
+    live: new Set(["window-a", "window-b"]),
+    windowIdentity,
+    sessionIdentifier,
+  });
+  const outputOf = (argv, context) => {
+    const lines = [];
+    stateCommand.runState(argv, context, (line) => lines.push(line));
+    return lines.join("\n");
+  };
+  const failureOf = (argv, context) => {
+    try {
+      stateCommand.runState(argv, context, () => {});
+      return "";
+    } catch (error) {
+      return error.message;
+    }
+  };
+
+  fs.mkdirSync(path.join(stateRoot, ".claude"));
+  fs.writeFileSync(
+    path.join(stateRoot, ".claude", "state.md"),
+    "# Working state\n\n## Goal\n\nOld single record.\n",
+  );
+  fs.writeFileSync(
+    path.join(stateRoot, ".gitignore"),
+    "node_modules\n.claude/state.md\n.claude/state.archive.md\n",
+  );
+  check(
+    "before migrating, state says how to turn records on",
+    failureOf([], contextFor("window-a", "session-a")).includes("ccfg state migrate"),
+    true,
+  );
+
+  const migrated = stateCommand.migrate(stateRoot, new Date(2026, 9, 13, 11, 26));
+  check("migrate moves the old record into the folder", fs.existsSync(migrated.moved), true);
+  check("the old file is gone", fs.existsSync(path.join(stateRoot, ".claude", "state.md")), false);
+  check(
+    "the ignore file covers the folder and drops the old lines",
+    fs.readFileSync(path.join(stateRoot, ".gitignore"), "utf8"),
+    "node_modules\n.claude/state/\n",
+  );
+  check("migrating twice changes nothing", stateCommand.migrate(stateRoot).moved, null);
+
+  const oldKey = stateRecords.keyOf(migrated.moved);
+  check(
+    "a window with no record is told how to get one",
+    failureOf(["path"], contextFor("window-a", "session-a")).includes("ccfg state new"),
+    true,
+  );
+
+  check(
+    "list shows the migrated record as unclaimed",
+    outputOf(["list"], contextFor("window-a", "session-a")).includes(`${oldKey}  unclaimed  Old single record`),
+    true,
+  );
+
+  outputOf(["use", oldKey], contextFor("window-a", "session-a"));
+  check(
+    "use points the window at the record",
+    outputOf(["path"], contextFor("window-a", "session-a")),
+    migrated.moved,
+  );
+  check(
+    "use refuses a record another live window holds",
+    failureOf(["use", oldKey], contextFor("window-b", "session-b")).includes("held by window-a"),
+    true,
+  );
+  check(
+    "use refuses a key that does not exist",
+    failureOf(["use", "0101-0000-zz"], contextFor("window-b", "session-b")).includes("no record"),
+    true,
+  );
+
+  outputOf(["new"], contextFor("window-b", "session-b"));
+  const freshPath = outputOf(["path"], contextFor("window-b", "session-b"));
+  check("new starts the window on another record", freshPath === migrated.moved, false);
+  check("and the fresh record exists", fs.existsSync(freshPath), true);
+
+  check(
+    "state shows the goal of the window's record",
+    outputOf([], contextFor("window-a", "session-a")).includes("Old single record"),
+    true,
+  );
+
+  outputOf(["done"], contextFor("window-a", "session-a"));
+  check("done without --yes removes nothing", fs.existsSync(migrated.moved), true);
+  outputOf(["done", "--yes"], contextFor("window-a", "session-a"));
+  check("done --yes removes the record", fs.existsSync(migrated.moved), false);
+  check(
+    "and the window no longer has one",
+    failureOf(["path"], contextFor("window-a", "session-a")).includes("ccfg state new"),
+    true,
+  );
+
+  check(
+    "use refuses a key that climbs out of the records folder",
+    failureOf(["use", "../../outside"], contextFor("window-b", "session-b")).includes("not a record key"),
+    true,
+  );
+
+  fs.mkdirSync(path.join(stateRoot, ".claude"), { recursive: true });
+  const collidingKeyPath = stateRecords.recordPath(stateRoot, "1013-1126-00");
+  fs.writeFileSync(collidingKeyPath, "# Working state\n\n## Goal\n\nAlready here.\n");
+  fs.writeFileSync(
+    path.join(stateRoot, ".claude", "state.md"),
+    "# Working state\n\n## Goal\n\nSecond old record.\n",
+  );
+  const collided = stateCommand.migrate(stateRoot, new Date(2026, 9, 13, 11, 26));
+  check(
+    "migrate keeps a record already at the key it would use",
+    fs.readFileSync(collidingKeyPath, "utf8").includes("Already here"),
+    true,
+  );
+  check(
+    "and the moved record lands under another key",
+    fs.readFileSync(collided.moved, "utf8").includes("Second old record") && collided.moved !== collidingKeyPath,
+    true,
+  );
+
+  for (const directory of [stateRoot, stateHome])
+    fs.rmSync(directory, { recursive: true, force: true });
 }
 
 fs.rmSync(sandbox, { recursive: true, force: true });

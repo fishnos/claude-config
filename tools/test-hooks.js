@@ -9346,6 +9346,159 @@ header("mode-session: a repository's own rules are sent at session start");
     fs.rmSync(directory, { recursive: true, force: true });
 }
 
+header("state-records: each window keeps its own working record");
+{
+  const records = require(path.join(HOOKS, "lib", "state-records.js"));
+  const recordContents = require(path.join(HOOKS, "lib", "state-file.js"));
+  const recordsRoot = makeRepository("state-records-");
+  const recordsHome = fs.mkdtempSync(
+    path.join(os.tmpdir(), "state-records-home-"),
+  );
+  const processTable = new Map([
+    [300, { processId: 300, parentProcessId: 200, started: "Tue Oct 13 11:33:29 2026", command: "/bin/zsh" }],
+    [200, { processId: 200, parentProcessId: 100, started: "Tue Oct 13 11:26:22 2026", command: "claude" }],
+    [100, { processId: 100, parentProcessId: 1, started: "Tue Oct 13 11:26:19 2026", command: "-/bin/zsh" }],
+  ]);
+
+  const windowIdentity = records.findWindow(processTable, 300, {});
+  check(
+    "a window is the claude process above the caller",
+    windowIdentity,
+    "200-Tue-Oct-13-11-26-22-2026",
+  );
+  check(
+    "no claude process above the caller means no window",
+    records.findWindow(processTable, 100, {}),
+    null,
+  );
+  check(
+    "the override variable names the window outright",
+    records.findWindow(processTable, 100, { CLAUDE_STATE_WINDOW: "window-a" }),
+    "window-a",
+  );
+  check(
+    "the override value none means no window, whatever is above",
+    records.findWindow(processTable, 300, { CLAUDE_STATE_WINDOW: "none" }),
+    null,
+  );
+  check(
+    "windows named as live count as open",
+    records.liveWindows(new Map(), { CLAUDE_STATE_LIVE_WINDOWS: "window-a, window-b" }).has("window-b"),
+    true,
+  );
+  const reusedTable = new Map([
+    [200, { processId: 200, parentProcessId: 1, started: "Wed Oct 14 09:00:00 2026", command: "claude" }],
+  ]);
+  check(
+    "a reused process id with another start time is another window",
+    records.findWindow(reusedTable, 200, {}) === windowIdentity,
+    false,
+  );
+
+  check(
+    "a key is month-day, hour-minute and a suffix",
+    records.newKey(new Date(2026, 9, 13, 11, 26), "9c"),
+    "1013-1126-9c",
+  );
+
+  check("a repository without the folder is not enabled", records.enabled(recordsRoot), false);
+  fs.mkdirSync(records.recordsDirectory(recordsRoot), { recursive: true });
+  check("a folder git does not ignore is not enabled", records.enabled(recordsRoot), false);
+  fs.writeFileSync(path.join(recordsRoot, ".gitignore"), ".claude/state/\n");
+  check("the folder with its ignore line is enabled", records.enabled(recordsRoot), true);
+
+  const firstRecord = records.createRecord(recordsRoot, "# Working state\n", "1013-1126-9c");
+  const secondRecord = records.createRecord(recordsRoot, "# Working state\n", "1013-1126-9c");
+  check("a taken key gets another suffix", firstRecord === secondRecord, false);
+  check("and both records exist", fs.existsSync(firstRecord) && fs.existsSync(secondRecord), true);
+
+  const live = records.liveWindows(processTable, {});
+  records.claim(recordsHome, {
+    windowIdentity,
+    sessionIdentifier: "session-before-clear",
+    record: firstRecord,
+  });
+  check(
+    "a session finds its record",
+    records.recordForSession(recordsHome, "session-before-clear"),
+    firstRecord,
+  );
+  check(
+    "a new session in the same window finds the same record",
+    records.resolveRecord(recordsHome, {
+      windowIdentity,
+      sessionIdentifier: "session-after-clear",
+    }),
+    firstRecord,
+  );
+  check(
+    "an unknown session and no window find nothing",
+    records.resolveRecord(recordsHome, {
+      windowIdentity: null,
+      sessionIdentifier: "never-seen",
+    }),
+    null,
+  );
+  check("a live window holds its record", records.holderOf(recordsHome, firstRecord, live), windowIdentity);
+  check("nobody holds the other record", records.holderOf(recordsHome, secondRecord, live), null);
+
+  recordContents.writeRecord(
+    firstRecord,
+    "# Working state\n\n## Goal\n\nShip the exporter.\n\n## Progress\n\n- Next: wire the pool\n",
+  );
+  const listed = records.listRecords(recordsRoot, recordsHome, live);
+  const listedFirst = listed.find((entry) => entry.path === firstRecord);
+  check("a listing carries the goal", listedFirst.goal, "Ship the exporter");
+  check("and the next step", listedFirst.next, "wire the pool");
+  check("and who holds it", listedFirst.heldBy, windowIdentity);
+
+  records.removeAbandonedTemplates(recordsRoot, recordsHome, live);
+  check("an untouched template nobody holds is removed", fs.existsSync(secondRecord), false);
+  check("a record with content is kept", fs.existsSync(firstRecord), true);
+
+  records.pruneDeadWindows(recordsHome, new Set());
+  check(
+    "a dead window stops holding its record",
+    records.holderOf(recordsHome, firstRecord, live),
+    null,
+  );
+  check(
+    "the session still finds it, for a resume",
+    records.recordForSession(recordsHome, "session-before-clear"),
+    firstRecord,
+  );
+
+  const otherRoot = makeRepository("state-records-other-");
+  check(
+    "a record under another repository is not this session's",
+    records.readForSession(recordsHome, "session-before-clear", otherRoot),
+    null,
+  );
+  check(
+    "inside its repository the record is read with its relative name",
+    records.readForSession(recordsHome, "session-before-clear", recordsRoot).name,
+    [".claude", "state", "1013-1126-9c.md"].join("/"),
+  );
+
+  fs.rmSync(firstRecord);
+  check(
+    "a record deleted by hand is no longer anybody's",
+    records.recordForSession(recordsHome, "session-before-clear"),
+    null,
+  );
+
+  check(
+    "an over-long record names itself in the cut note",
+    recordContents
+      .loadedText("x".repeat(9000), ".claude/state/1013-1126-9c.md", ".claude/state/1013-1126-9c.archive.md")
+      .includes(".claude/state/1013-1126-9c.archive.md"),
+    true,
+  );
+
+  for (const directory of [recordsRoot, recordsHome, otherRoot])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
 fs.rmSync(repo, { recursive: true, force: true });
 fs.rmSync(testedConfig, { recursive: true, force: true });
 fs.rmSync(noneConfig, { recursive: true, force: true });
