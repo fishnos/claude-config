@@ -26,6 +26,7 @@
 | `ccfg mode list --repos`    | Every repository with a mode of its own.                                                            |
 | `ccfg mode diff A B`        | What working under mode B would change relative to mode A.                                          |
 | `ccfg voice`                | Writing-voice skills: list them, make one, choose the one in force                                  |
+| `ccfg state`                | This window's working record: show it, list the repository's, adopt one, start one, finish one.     |
 | `ccfg crew`                 | Each subagent role the mode in force renders, with its tools and its gates.                         |
 | `ccfg conformance`          | What real subagent runs have confirmed about how Claude Code behaves.                               |
 | `ccfg probe …`              | `list`, `run <name>`, `run --all`, `inspect <name>`, `clean <name>`. See [Probes](#probes).         |
@@ -93,6 +94,28 @@ A choice takes effect at the next session.
 
 Samples are private writing: `skills/*-voice/references/samples/` is ignored by
 git.
+
+## State
+
+A working record is the file a session writes its goal, decisions, progress and
+next step into, so the work survives `/clear` and compaction. Each Claude Code
+window has its own, under `.claude/state/` in the repository, git-ignored.
+`ccfg state` works out which window is asking from the process above it, so no
+key is ever passed.
+
+| Command              | What it does                                                       |
+| :------------------- | :----------------------------------------------------------------- |
+| `ccfg state`         | This window's record: path, goal, next step, age                   |
+| `ccfg state path`    | Only the path                                                      |
+| `ccfg state list`    | Every record in this repository, held or unclaimed                 |
+| `ccfg state use KEY` | Point this window at a record no open window holds                 |
+| `ccfg state new`     | Start this window on a fresh record, leaving the old one unclaimed |
+| `ccfg state done`    | Remove this window's record. Dry run unless `--yes`.               |
+| `ccfg state migrate` | Create `.claude/state/`, move an old `.claude/state.md` into it, fix `.gitignore` |
+
+A window that closes or crashes leaves its record where it was, unclaimed. A
+session reopened with `--resume` or `--continue` finds it again by itself; a
+fresh session is shown the unclaimed records and adopts one with `use`.
 
 ## The crew
 
