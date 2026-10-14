@@ -22,12 +22,13 @@
 // `claude -p --safe-mode "$(summaryPrompt())"`; it approximates the harness's own
 // summary, which a probe cannot trigger.
 //
-// Baseline, 2026-09-13, before the build (clear-state uses CLEAR_PREAMBLE, not the
-// hook): clear-bare 6/6, compact 0/6 (p=0.0005 vs clear-bare), clear-state 0/6
-// (p=0.0005). Every hit was the drain check: no cell proposed worker_threads or
-// abbreviated a name. As first written the grader scored compact 1/6, because its
-// go #3 proposed stream.pipeline without naming 'drain'; widening the grader to
-// accept pipeline and inflected 'drain' moved that cell to clean. The grader then
+// Baseline, 2026-09-13, before the build (clear-state used clearPreamble's
+// wording directly, not the hook): clear-bare 6/6, compact 0/6 (p=0.0005 vs
+// clear-bare), clear-state 0/6 (p=0.0005). Every hit was the drain check: no
+// cell proposed worker_threads or abbreviated a name. As first written the
+// grader scored compact 1/6, because its go #3 proposed stream.pipeline
+// without naming 'drain'; widening the grader to accept pipeline and inflected
+// 'drain' moved that cell to clean. The grader then
 // went sentence-level in both directions: a proposal counts only in a sentence
 // carrying no rejection, the next step only in a sentence that names it without
 // refusing it. Checked against 41 phrasings; the counts above did not move.
@@ -38,7 +39,7 @@
 // is what separates it from clear-state.
 //
 // From the second run on, every arm except clear-bare is the real hooks' output
-// (hookOutput); the baseline's clear-state used CLEAR_PREAMBLE directly and its
+// (hookOutput); the baseline's clear-state used that wording directly and its
 // compact arm the retired handoff. clear-forgotten against clear-captured is the
 // keyword capture's test: capture stays only if it measurably helps.
 //
@@ -145,13 +146,25 @@ Streaming CSV export for ledger-export that never holds a whole export (up to 2 
 ## Open questions
 `;
 
-// Must match hooks/state-restore.js (Task 4) word for word; its test checks.
-const CLEAR_PREAMBLE =
-  "This session started with /clear. Below is .claude/state.md, the working " +
-  "record for this repository. Re-read the files under Hot files and run " +
-  'the queries under Where to look as `graphify query "<question>" ' +
-  "--budget 1500`, never through the /graphify skill; then continue from " +
-  "the next step under Progress without asking.\n\n";
+// The wording a session gets after /clear. The record's name is an argument
+// because each window has its own record. The last measurement of this text
+// was taken with the single fixed name; it has not been repeated since.
+function clearPreamble(recordName) {
+  return (
+    `This session started with /clear. Below is ${recordName}, this ` +
+    "window's working record (`ccfg state` shows it). Re-read the files " +
+    "under Hot files and run the queries under Where to look as " +
+    '`graphify query "<question>" --budget 1500`, never through the ' +
+    "/graphify skill; then continue from the next step under Progress " +
+    "without asking.\n\n"
+  );
+}
+
+// The record every arm's scratch repository holds, and the window and session
+// that hold it, so the hook finds it the way a real window's clear does.
+const RECORD_KEY = "1013-1126-9c";
+const RECORD_WINDOW = "carryover-window";
+const RECORD_SESSION = "carryover";
 
 const COMPACTION_PREAMBLE =
   "This session is being continued from a previous conversation that ran " +
@@ -160,13 +173,25 @@ const COMPACTION_PREAMBLE =
 // The exact text the hooks inject, from a throwaway repository, so the arms
 // measure what ships rather than a copy of it.
 function inScratchRepository(stateText, body) {
+  const records = require(path.join(HOOKS, "lib", "state-records.js"));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "carryover-repo-"));
   const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "carryover-config-"));
   try {
     spawnSync("git", ["init", "-q", "."], { cwd: root });
-    fs.mkdirSync(path.join(root, ".claude"));
-    fs.writeFileSync(path.join(root, ".claude", "state.md"), stateText);
-    return body(root, { ...process.env, CLAUDE_CONFIG_DIR: configDir });
+    fs.mkdirSync(records.recordsDirectory(root), { recursive: true });
+    fs.writeFileSync(path.join(root, ".gitignore"), ".claude/state/\n");
+    const record = records.recordPath(root, RECORD_KEY);
+    fs.writeFileSync(record, stateText);
+    records.claim(configDir, {
+      windowIdentity: RECORD_WINDOW,
+      sessionIdentifier: RECORD_SESSION,
+      record,
+    });
+    return body(root, record, {
+      ...process.env,
+      CLAUDE_CONFIG_DIR: configDir,
+      [records.WINDOW_OVERRIDE_VARIABLE]: RECORD_WINDOW,
+    });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(configDir, { recursive: true, force: true });
@@ -174,12 +199,16 @@ function inScratchRepository(stateText, body) {
 }
 
 function hookOutput(source, stateText) {
-  return inScratchRepository(stateText, (root, env) => {
+  return inScratchRepository(stateText, (root, record, env) => {
     const reply = spawnSync(
       process.execPath,
       [path.join(HOOKS, "state-restore.js")],
       {
-        input: JSON.stringify({ source, cwd: root }),
+        input: JSON.stringify({
+          source,
+          session_id: RECORD_SESSION,
+          cwd: root,
+        }),
         encoding: "utf8",
         env,
       },
@@ -195,15 +224,19 @@ const FORGOTTEN_STATE_FILE = STATE_FILE.replace(
 );
 
 function capturedStateFile() {
-  return inScratchRepository(FORGOTTEN_STATE_FILE, (root, env) => {
+  return inScratchRepository(FORGOTTEN_STATE_FILE, (root, record, env) => {
     for (const prompt of userTurns()) {
       spawnSync(process.execPath, [path.join(HOOKS, "constraint-capture.js")], {
-        input: JSON.stringify({ session_id: "carryover", prompt, cwd: root }),
+        input: JSON.stringify({
+          session_id: RECORD_SESSION,
+          prompt,
+          cwd: root,
+        }),
         encoding: "utf8",
         env,
       });
     }
-    return fs.readFileSync(path.join(root, ".claude", "state.md"), "utf8");
+    return fs.readFileSync(record, "utf8");
   });
 }
 
@@ -288,7 +321,7 @@ module.exports = {
   kind: "model",
   question:
     "After a fresh context, does a state file carry instructions, rejections and the next step better than a bare clear or a compaction?",
-  why: "The context-management design clears early and relies on .claude/state.md to carry the work. If the file does not beat a compaction summary, early clears lose more than they save.",
+  why: "The context-management design clears early and relies on each window's working record (.claude/state/<key>.md) to carry the work. If the file does not beat a compaction summary, early clears lose more than they save.",
 
   control: "clear-bare",
   reps: 3,
@@ -349,7 +382,7 @@ module.exports = {
   },
 
   grade,
-  CLEAR_PREAMBLE,
+  clearPreamble,
   STATE_FILE,
   hookOutput,
   userTurns,

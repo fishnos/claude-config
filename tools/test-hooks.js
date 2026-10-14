@@ -106,10 +106,55 @@ function makeRepository(prefix) {
   return root;
 }
 
-// The config repository may hold a real working record. Captured here and
-// compared at the end, so no case can write into it unnoticed.
-const configRepositoryState = path.join(__dirname, "..", ".claude", "state.md");
-const configRepositoryStateBefore = readTextOrEmpty(configRepositoryState);
+// A repository with records turned on, one record holding `text`, and that
+// record claimed by `sessionIdentifier` in the temporary configuration
+// directory `home`. Returns the record's path.
+function seedRecord(root, home, sessionIdentifier, text, key = "1013-1126-9c") {
+  const records = require(path.join(HOOKS, "lib", "state-records.js"));
+  fs.mkdirSync(records.recordsDirectory(root), { recursive: true });
+  fs.writeFileSync(path.join(root, ".gitignore"), ".claude/state/\n");
+  const record = records.recordPath(root, key);
+  fs.writeFileSync(record, text);
+  records.claim(home, {
+    windowIdentity: "window-under-test",
+    sessionIdentifier,
+    record,
+  });
+  return record;
+}
+
+const WINDOW_UNDER_TEST = { CLAUDE_STATE_WINDOW: "window-under-test" };
+
+// Hands a seeded record to one more session, as a session start in the same
+// window would, without rewriting what the record holds.
+function joinRecord(home, sessionIdentifier, record) {
+  require(path.join(HOOKS, "lib", "state-records.js")).claim(home, {
+    sessionIdentifier,
+    record,
+  });
+}
+
+// The config repository may hold real working records: the per-window ones
+// under .claude/state/ and the single file they replaced. Captured here and
+// compared later, so no case can write into them unnoticed.
+function configRepositoryRecords() {
+  const repositoryRoot = path.join(__dirname, "..");
+  const recordsFolder = path.join(repositoryRoot, ".claude", "state");
+  let names = [];
+  try {
+    names = fs.readdirSync(recordsFolder).sort();
+  } catch {
+    names = [];
+  }
+  const snapshot = names.map(
+    (name) => `${name}\n${readTextOrEmpty(path.join(recordsFolder, name))}`,
+  );
+  snapshot.push(
+    readTextOrEmpty(path.join(repositoryRoot, ".claude", "state.md")),
+  );
+  return snapshot.join("\n\0\n");
+}
+const configRepositoryRecordsBefore = configRepositoryRecords();
 
 function bash(command, cwd) {
   return { tool_name: "Bash", cwd, tool_input: { command } };
@@ -766,12 +811,10 @@ header(
   const trackedHome = fs.mkdtempSync(
     path.join(os.tmpdir(), "state-tracked-home-"),
   );
-  fs.mkdirSync(path.join(trackedRoot, ".claude"));
-  fs.writeFileSync(
-    path.join(trackedRoot, ".claude", "state.md"),
-    carryover.STATE_FILE,
-  );
-  git(["add", ".claude/state.md"], trackedRoot);
+  seedRecord(trackedRoot, trackedHome, "tracked-1", carryover.STATE_FILE);
+  // Forced past the ignore line, as a record committed before the line was
+  // added would be.
+  git(["add", "-f", ".claude/state/1013-1126-9c.md"], trackedRoot);
   const reply = runJson(
     restoreHook,
     {
@@ -780,7 +823,7 @@ header(
       session_id: "tracked-1",
       cwd: trackedRoot,
     },
-    { CLAUDE_CONFIG_DIR: trackedHome },
+    { CLAUDE_CONFIG_DIR: trackedHome, ...WINDOW_UNDER_TEST },
   );
   const context = String(
     (reply.hookSpecificOutput || {}).additionalContext || "",
@@ -2733,14 +2776,25 @@ const CAPTURE = path.join(HOOKS, "constraint-capture.js");
 // the case is about what accumulates across turns.
 const stateFileLibrary = require(path.join(HOOKS, "lib", "state-file.js"));
 const captureRepository = makeRepository("capture-repo-");
-const captureStatePath = path.join(captureRepository, ".claude", "state.md");
 const captureTemplate = readTextOrEmpty(
   path.join(__dirname, "..", "skills", "repo-setup", "templates", "state.md"),
 );
-fs.mkdirSync(path.join(captureRepository, ".claude"));
+const captureStatePath = seedRecord(
+  captureRepository,
+  captureHome,
+  "capture-seed",
+  captureTemplate,
+);
 
 function capture(prompt, sessionIdentifier, { fresh = true } = {}) {
-  if (fresh) fs.writeFileSync(captureStatePath, captureTemplate);
+  if (fresh) {
+    seedRecord(
+      captureRepository,
+      captureHome,
+      sessionIdentifier,
+      captureTemplate,
+    );
+  }
   run(
     CAPTURE,
     {
@@ -2897,8 +2951,8 @@ for (const [label, prompt] of [
     reply.reason,
   );
   check(
-    "without a working record no state file is created",
-    fs.existsSync(path.join(noRecordRepository, ".claude", "state.md")),
+    "without a working record no record folder is created",
+    fs.existsSync(path.join(noRecordRepository, ".claude")),
     false,
     "",
   );
@@ -2933,9 +2987,12 @@ header(
   const captureStateHome = fs.mkdtempSync(
     path.join(os.tmpdir(), "capture-state-home-"),
   );
-  fs.mkdirSync(path.join(captureRoot, ".claude"));
-  const statePath = path.join(captureRoot, ".claude", "state.md");
-  fs.writeFileSync(statePath, carryover.STATE_FILE);
+  const statePath = seedRecord(
+    captureRoot,
+    captureStateHome,
+    "capture-state-1",
+    carryover.STATE_FILE,
+  );
   const submit = (prompt) =>
     run(
       captureHook,
@@ -3006,9 +3063,71 @@ header(
     readTextOrEmpty(statePath),
   );
 
+  // Review Focus 3. The capture says nothing either way, so what is checked is
+  // whether the session's record was written.
+  const captureOtherRepository = makeRepository("capture-other-");
+  run(
+    captureHook,
+    {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "capture-state-1",
+      prompt: "Never rename the ledger columns",
+      cwd: captureOtherRepository,
+    },
+    { CLAUDE_CONFIG_DIR: captureStateHome },
+  );
   check(
-    "no case wrote the config repository's state file",
-    readTextOrEmpty(configRepositoryState) === configRepositoryStateBefore,
+    "capture: a session whose record is in another repository is left alone",
+    readTextOrEmpty(statePath).includes("Never rename the ledger columns"),
+    false,
+    "",
+  );
+  fs.rmSync(captureOtherRepository, { recursive: true, force: true });
+
+  const firstSessionRecord = seedRecord(
+    captureRoot,
+    captureStateHome,
+    "capture-first-session",
+    carryover.STATE_FILE,
+    "1013-1126-a1",
+  );
+  const secondSessionRecord = seedRecord(
+    captureRoot,
+    captureStateHome,
+    "capture-second-session",
+    carryover.STATE_FILE,
+    "1013-1127-b2",
+  );
+  run(
+    captureHook,
+    {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "capture-second-session",
+      prompt: "From now on never touch the billing tables",
+      cwd: captureRoot,
+    },
+    { CLAUDE_CONFIG_DIR: captureStateHome },
+  );
+  check(
+    "capture: a second session's instruction reaches its own record",
+    fs
+      .readFileSync(secondSessionRecord, "utf8")
+      .includes("never touch the billing tables"),
+    true,
+    "",
+  );
+  check(
+    "capture: a second session's instruction does not reach the first session's record",
+    fs
+      .readFileSync(firstSessionRecord, "utf8")
+      .includes("never touch the billing tables"),
+    false,
+    "",
+  );
+
+  check(
+    "no case wrote the config repository's working records",
+    configRepositoryRecords() === configRepositoryRecordsBefore,
     true,
     "",
   );
@@ -3040,10 +3159,15 @@ header(
   const harnessHome = fs.mkdtempSync(
     path.join(os.tmpdir(), "capture-harness-home-"),
   );
-  fs.mkdirSync(path.join(harnessRoot, ".claude"));
-  const statePath = path.join(harnessRoot, ".claude", "state.md");
-  const submit = (prompt, sessionIdentifier) =>
-    run(
+  const statePath = seedRecord(
+    harnessRoot,
+    harnessHome,
+    "harness-seed",
+    readTextOrEmpty(template),
+  );
+  const submit = (prompt, sessionIdentifier) => {
+    joinRecord(harnessHome, sessionIdentifier, statePath);
+    return run(
       captureHook,
       {
         hook_event_name: "UserPromptSubmit",
@@ -3053,6 +3177,7 @@ header(
       },
       { CLAUDE_CONFIG_DIR: harnessHome },
     );
+  };
   const unconfirmed = () =>
     stateFile.sectionBody(readTextOrEmpty(statePath), "Unconfirmed");
 
@@ -3096,7 +3221,7 @@ header(
           session_id: "harness-restore-1",
           cwd: harnessRoot,
         },
-        { CLAUDE_CONFIG_DIR: harnessHome },
+        { CLAUDE_CONFIG_DIR: harnessHome, ...WINDOW_UNDER_TEST },
       ),
     ),
     "{}",
@@ -3791,13 +3916,14 @@ header("/repo-setup audit: a ! exception in .gitignore is not an ignore");
 }
 
 header(
-  "SessionStart: state-restore loads .claude/state.md by how the session started",
+  "SessionStart: state-restore loads this window's record by how the session started",
 );
 {
   const restoreHook = path.join(HOOKS, "state-restore.js");
   const carryover = require(
     path.join(__dirname, "..", "probes", "state-carryover.js"),
   );
+  const recordsLibrary = require(path.join(HOOKS, "lib", "state-records.js"));
   const template = path.join(
     __dirname,
     "..",
@@ -3810,14 +3936,41 @@ header(
   const restoreHome = fs.mkdtempSync(
     path.join(os.tmpdir(), "state-restore-home-"),
   );
-  fs.mkdirSync(path.join(restoreRoot, ".claude"));
-  const statePath = path.join(restoreRoot, ".claude", "state.md");
-  fs.writeFileSync(statePath, carryover.STATE_FILE);
+  const statePath = seedRecord(
+    restoreRoot,
+    restoreHome,
+    "restore-1",
+    carryover.STATE_FILE,
+  );
+  const recordName = ".claude/state/1013-1126-9c.md";
   const start = (source, cwd = restoreRoot) =>
     runJson(
       restoreHook,
       { hook_event_name: "SessionStart", source, session_id: "restore-1", cwd },
-      { CLAUDE_CONFIG_DIR: restoreHome },
+      { CLAUDE_CONFIG_DIR: restoreHome, ...WINDOW_UNDER_TEST },
+    );
+  // Each hook run is its own process, so the window the record was seeded
+  // under is named as still open; `null` stands for a client whose window
+  // process cannot be recognised.
+  const startAs = (
+    source,
+    sessionIdentifier,
+    windowIdentity,
+    cwd = restoreRoot,
+  ) =>
+    runJson(
+      restoreHook,
+      {
+        hook_event_name: "SessionStart",
+        source,
+        session_id: sessionIdentifier,
+        cwd,
+      },
+      {
+        CLAUDE_CONFIG_DIR: restoreHome,
+        CLAUDE_STATE_WINDOW: windowIdentity === null ? "none" : windowIdentity,
+        CLAUDE_STATE_LIVE_WINDOWS: "window-under-test",
+      },
     );
   const contextOf = (reply) =>
     String((reply.hookSpecificOutput || {}).additionalContext || "");
@@ -3830,8 +3983,8 @@ header(
     contextOf(cleared).slice(0, 200),
   );
   check(
-    "clear opens with the preamble the probe measured",
-    contextOf(cleared).startsWith(carryover.CLEAR_PREAMBLE),
+    "clear opens with the preamble naming this window's record",
+    contextOf(start("clear")).startsWith(carryover.clearPreamble(recordName)),
     true,
     contextOf(cleared).slice(0, 200),
   );
@@ -3854,6 +4007,12 @@ header(
   check(
     "compact says how stale the file was",
     compacted.includes("30 minutes before the compaction"),
+    true,
+    compacted.slice(0, 300),
+  );
+  check(
+    "compact names this window's record",
+    compacted.includes(recordName),
     true,
     compacted.slice(0, 300),
   );
@@ -3949,9 +4108,9 @@ header(
     bySection.slice(-600),
   );
   check(
-    "the cut names what was left out and where finished work goes",
+    "the cut names what was left out and this record's own archive",
     bySection.includes("Progress") &&
-      bySection.includes(".claude/state.archive.md"),
+      bySection.includes(".claude/state/1013-1126-9c.archive.md"),
     true,
     bySection.slice(-600),
   );
@@ -3972,56 +4131,282 @@ header(
     templated.slice(0, 300),
   );
   check(
-    "a clear onto an untouched template names the file it read",
-    templated.includes(statePath),
+    "a clear onto an untouched template names the record it read",
+    templated.includes(recordName),
     true,
     templated.slice(0, 300),
   );
 
   fs.rmSync(statePath);
-  const missing = contextOf(start("clear"));
+  const missingReply = start("clear");
+  const missing = contextOf(missingReply);
   check(
     "a clear with no record says nothing was carried across",
-    missing.includes("Nothing was carried across"),
+    missing.includes("nothing was carried across"),
     true,
     missing.slice(0, 300),
   );
   check(
-    "a clear with no record names the file that would hold one",
-    missing.includes(statePath),
+    "a clear with no record treats the next message as the whole brief",
+    missing.includes("treat what the user says next as the whole brief"),
     true,
     missing.slice(0, 300),
   );
   check(
-    "a clear with no record says how to create one",
-    missing.includes("/repo-setup context"),
+    "a clear with no record names the new record made for this window",
+    missing.includes("This window's working record is .claude/state/"),
     true,
     missing.slice(0, 300),
-  );
-  check(
-    "a clear with no record forbids guessing at earlier work",
-    missing.includes("do not guess"),
-    true,
-    missing.slice(0, 300),
-  );
-  check(
-    "a compaction with no record says so too",
-    contextOf(start("compact")).includes("Nothing was carried across"),
-    true,
-    "",
-  );
-  check(
-    "startup with no record stays silent",
-    JSON.stringify(start("startup")),
-    "{}",
-    "",
   );
   check(
     "a missing record shows no banner",
-    start("clear").systemMessage,
+    missingReply.systemMessage,
     undefined,
-    JSON.stringify(start("clear")).slice(0, 200),
+    JSON.stringify(missingReply).slice(0, 200),
   );
+  check(
+    "a compaction in a window with no record says so too",
+    contextOf(startAs("compact", "restore-compact", "compact-window")).includes(
+      "This session was just compacted. This window had no working record",
+    ),
+    true,
+    "",
+  );
+
+  seedRecord(restoreRoot, restoreHome, "restore-1", carryover.STATE_FILE);
+
+  const afterClear = contextOf(
+    startAs("clear", "restore-2", "window-under-test"),
+  );
+  check(
+    "a new session in the same window loads the same record after a clear",
+    afterClear.includes("worker_threads pool for row formatting"),
+    true,
+    afterClear.slice(0, 200),
+  );
+  check(
+    "and the new session now finds that record",
+    recordsLibrary.recordForSession(restoreHome, "restore-2"),
+    recordsLibrary.recordPath(restoreRoot, "1013-1126-9c"),
+  );
+
+  // The fork row as built: Claude Code does not hand the hook the session a
+  // fork left, so a fork in the same window keeps the window's record and a
+  // fork in a new window starts as a new window does.
+  check(
+    "a fork in the same window says nothing",
+    contextOf(startAs("fork", "restore-fork", "window-under-test")),
+    "",
+  );
+  check(
+    "and keeps the window's record",
+    recordsLibrary.recordForSession(restoreHome, "restore-fork"),
+    recordsLibrary.recordPath(restoreRoot, "1013-1126-9c"),
+  );
+  startAs("fork", "restore-fork-elsewhere", "fork-window");
+  check(
+    "a fork in a new window is not handed another window's record",
+    recordsLibrary.recordForSession(restoreHome, "restore-fork-elsewhere") ===
+      recordsLibrary.recordPath(restoreRoot, "1013-1126-9c"),
+    false,
+  );
+
+  const secondWindow = startAs("startup", "restore-3", "second-window");
+  const secondRecord = recordsLibrary.recordForSession(
+    restoreHome,
+    "restore-3",
+  );
+  check(
+    "a second window gets a record of its own",
+    secondRecord !== null &&
+      secondRecord !== recordsLibrary.recordPath(restoreRoot, "1013-1126-9c"),
+    true,
+  );
+  check(
+    "and is told its path and the command",
+    contextOf(secondWindow).includes(path.basename(String(secondRecord))) &&
+      contextOf(secondWindow).includes("ccfg state"),
+    true,
+    contextOf(secondWindow).slice(0, 300),
+  );
+  check(
+    "a record another live window holds is not offered",
+    contextOf(secondWindow).includes("\n- 1013-1126-9c: "),
+    false,
+  );
+
+  fs.rmSync(path.join(restoreHome, "cache", "state-records", "windows"), {
+    recursive: true,
+    force: true,
+  });
+  const afterCrash = startAs("startup", "restore-4", "third-window");
+  check(
+    "after its window is gone a record is offered as unclaimed",
+    contextOf(afterCrash).includes("\n- 1013-1126-9c: "),
+    true,
+    contextOf(afterCrash).slice(0, 400),
+  );
+  check(
+    "the operator sees how many records are unclaimed",
+    String(afterCrash.systemMessage || "").includes("unclaimed"),
+    true,
+    String(afterCrash.systemMessage),
+  );
+  check(
+    "the second window's untouched template was cleaned up",
+    fs.existsSync(String(secondRecord)),
+    false,
+  );
+
+  const resumed = startAs("resume", "restore-1", "fourth-window");
+  check("a resume says nothing", contextOf(resumed), "");
+  check(
+    "and points the new window at the session's record",
+    recordsLibrary.recordForWindow(restoreHome, "fourth-window"),
+    recordsLibrary.recordPath(restoreRoot, "1013-1126-9c"),
+  );
+
+  // A /resume can switch conversations inside a window that already holds a
+  // record; the resumed session's own record is the one it continues.
+  const resumeRoot = makeRepository("state-restore-resume-");
+  const resumeHome = fs.mkdtempSync(
+    path.join(os.tmpdir(), "state-restore-resume-home-"),
+  );
+  seedRecord(
+    resumeRoot,
+    resumeHome,
+    "resume-earlier",
+    carryover.STATE_FILE,
+    "1013-0900-b1",
+  );
+  seedRecord(
+    resumeRoot,
+    resumeHome,
+    "resume-current",
+    carryover.STATE_FILE,
+    "1013-1126-a1",
+  );
+  runJson(
+    restoreHook,
+    {
+      hook_event_name: "SessionStart",
+      source: "resume",
+      session_id: "resume-earlier",
+      cwd: resumeRoot,
+    },
+    {
+      CLAUDE_CONFIG_DIR: resumeHome,
+      CLAUDE_STATE_WINDOW: "window-under-test",
+      CLAUDE_STATE_LIVE_WINDOWS: "window-under-test",
+    },
+  );
+  check(
+    "a resume inside an open window keeps the resumed session's own record",
+    recordsLibrary.recordForSession(resumeHome, "resume-earlier"),
+    recordsLibrary.recordPath(resumeRoot, "1013-0900-b1"),
+  );
+  check(
+    "and the window moves to the resumed session's record",
+    recordsLibrary.recordForWindow(resumeHome, "window-under-test"),
+    recordsLibrary.recordPath(resumeRoot, "1013-0900-b1"),
+  );
+
+  // A session whose directory moved into another repository: the window's
+  // record stays where it is, so a later clear back home still finds it.
+  const homeRepository = makeRepository("state-restore-home-repository-");
+  const secondRepository = makeRepository("state-restore-second-repository-");
+  fs.mkdirSync(path.join(secondRepository, ".claude", "state"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(secondRepository, ".gitignore"),
+    ".claude/state/\n",
+  );
+  const movedHome = fs.mkdtempSync(
+    path.join(os.tmpdir(), "state-restore-moved-home-"),
+  );
+  const homeRecord = seedRecord(
+    homeRepository,
+    movedHome,
+    "moved-1",
+    carryover.STATE_FILE,
+  );
+  const movedReply = runJson(
+    restoreHook,
+    {
+      hook_event_name: "SessionStart",
+      source: "compact",
+      session_id: "moved-1",
+      cwd: secondRepository,
+    },
+    {
+      CLAUDE_CONFIG_DIR: movedHome,
+      CLAUDE_STATE_WINDOW: "window-under-test",
+      CLAUDE_STATE_LIVE_WINDOWS: "window-under-test",
+    },
+  );
+  check(
+    "a compaction in another repository leaves the window on its own record",
+    recordsLibrary.recordForWindow(movedHome, "window-under-test"),
+    homeRecord,
+  );
+  check(
+    "and makes no record in that repository",
+    fs.readdirSync(path.join(secondRepository, ".claude", "state")).length,
+    0,
+  );
+  check(
+    "and loads nothing from the other repository's record",
+    contextOf(movedReply).includes("worker_threads pool for row formatting"),
+    false,
+  );
+  check(
+    "and says where the window's record lives",
+    contextOf(movedReply).includes(homeRecord),
+    true,
+    contextOf(movedReply).slice(0, 300),
+  );
+
+  // Review Focus 2: the lookup is deleted while sessions are open.
+  fs.rmSync(path.join(restoreHome, "cache", "state-records"), {
+    recursive: true,
+    force: true,
+  });
+  const wiped = startAs("startup", "restore-5", "fifth-window");
+  check(
+    "wiped lookup: the old record comes back as unclaimed",
+    contextOf(wiped).includes("\n- 1013-1126-9c: "),
+    true,
+    contextOf(wiped).slice(0, 400),
+  );
+
+  // Review Focus 1: a client with no recognisable window process.
+  fs.rmSync(path.join(restoreHome, "cache", "state-records"), {
+    recursive: true,
+    force: true,
+  });
+  const unrecognised = contextOf(startAs("clear", "restore-6", null));
+  check(
+    "clear without a recognisable window loads the newest unheld record",
+    unrecognised.includes("worker_threads pool for row formatting"),
+    true,
+    unrecognised.slice(0, 200),
+  );
+
+  const plainRepository = makeRepository("state-restore-plain-");
+  check(
+    "a repository without the folder is told how to turn records on",
+    contextOf(
+      startAs("clear", "restore-7", "sixth-window", plainRepository),
+    ).includes("ccfg state migrate"),
+    true,
+  );
+  check(
+    "and nothing is created in it",
+    fs.existsSync(path.join(plainRepository, ".claude")),
+    false,
+  );
+  fs.rmSync(plainRepository, { recursive: true, force: true });
 
   const outsideRepository = fs.mkdtempSync(
     path.join(os.tmpdir(), "state-restore-bare-"),
@@ -4052,8 +4437,16 @@ header(
     bare.slice(0, 400),
   );
 
-  fs.mkdirSync(path.join(restoreHome, ".claude"), { recursive: true });
-  const configRecord = path.join(restoreHome, ".claude", "state.md");
+  // The configuration directory stands in for the configuration repository:
+  // its records live under its own .claude/state/, which its .gitignore covers.
+  fs.mkdirSync(path.join(restoreHome, ".claude", "state"), { recursive: true });
+  fs.writeFileSync(path.join(restoreHome, ".gitignore"), ".claude/state/\n");
+  const configRecord = path.join(
+    restoreHome,
+    ".claude",
+    "state",
+    "1013-0900-c0.md",
+  );
   fs.writeFileSync(configRecord, carryover.STATE_FILE);
   const pointed = contextOf(start("clear", outsideRepository));
   check(
@@ -4108,7 +4501,22 @@ header(
     contextOf(start("clear", outsideRepository)).slice(0, 400),
   );
 
-  fs.rmSync(configRecord);
+  // The probe builds its arms from this hook's real output, so its scratch
+  // repository has to hold a record the hook finds.
+  const probeClearArm = carryover.hookOutput("clear", carryover.STATE_FILE);
+  check(
+    "the probe's clear arm opens with the preamble for its record",
+    probeClearArm.startsWith(carryover.clearPreamble(recordName)),
+    true,
+    probeClearArm.slice(0, 200),
+  );
+  check(
+    "the probe's clear arm carries the record",
+    probeClearArm.includes("worker_threads pool for row formatting"),
+    true,
+    probeClearArm.slice(0, 200),
+  );
+
   fs.rmSync(outsideRepository, { recursive: true, force: true });
   fs.rmSync(restoreRoot, { recursive: true, force: true });
   fs.rmSync(restoreHome, { recursive: true, force: true });
@@ -4125,9 +4533,15 @@ header("UserPromptSubmit: context-gauge zones and staleness");
   const gaugeHome = fs.mkdtempSync(
     path.join(os.tmpdir(), "context-gauge-home-"),
   );
-  fs.mkdirSync(path.join(gaugeRoot, ".claude"));
-  const statePath = path.join(gaugeRoot, ".claude", "state.md");
-  fs.writeFileSync(statePath, carryover.STATE_FILE);
+  const statePath = seedRecord(
+    gaugeRoot,
+    gaugeHome,
+    "zone-green",
+    carryover.STATE_FILE,
+  );
+  joinRecord(gaugeHome, "zone-amber", statePath);
+  joinRecord(gaugeHome, "zone-red", statePath);
+  joinRecord(gaugeHome, "stale-1", statePath);
 
   let transcriptCount = 0;
   const transcriptAt = (tokens) => {
@@ -4191,6 +4605,14 @@ header("UserPromptSubmit: context-gauge zones and staleness");
     true,
     amber.reason,
   );
+  check(
+    "the amber line names this window's record and the command that shows it",
+    String(amber.reason).includes(
+      ".claude/state/1013-1126-9c.md (this window's working record, `ccfg state`)",
+    ),
+    true,
+    amber.reason,
+  );
   const red = prompt("zone-red", 250000);
   check(
     "red zone at 250K says compaction is near",
@@ -4214,6 +4636,14 @@ header("UserPromptSubmit: context-gauge zones and staleness");
     true,
     staleReplies[8].reason,
   );
+  check(
+    "the staleness line names this window's record",
+    String(staleReplies[8].reason).startsWith(
+      ".claude/state/1013-1126-9c.md has not changed",
+    ),
+    true,
+    staleReplies[8].reason,
+  );
   fs.appendFileSync(statePath, "\n- Recorded mid-test.\n");
   check(
     "editing the file resets the count",
@@ -4226,6 +4656,15 @@ header("UserPromptSubmit: context-gauge zones and staleness");
   check(
     "silent with no state file, even at 150K",
     prompt("no-state", 150000, emptyRoot).verdict,
+    "allow",
+    "",
+  );
+
+  // Review Focus 3. At 150K the gauge would warn about this session's record,
+  // so silence here means the record outside the repository was not read.
+  check(
+    "gauge: a session whose record is in another repository is left alone",
+    prompt("zone-amber", 150000, emptyRoot).verdict,
     "allow",
     "",
   );
@@ -4278,9 +4717,12 @@ header(
   const noStateRoot = makeRepository("clear-gate-empty-");
   const gateHome = fs.mkdtempSync(path.join(os.tmpdir(), "clear-gate-home-"));
   const environment = { CLAUDE_CONFIG_DIR: gateHome };
-  fs.mkdirSync(path.join(gateRoot, ".claude"));
-  const statePath = path.join(gateRoot, ".claude", "state.md");
-  fs.writeFileSync(statePath, carryover.STATE_FILE);
+  const statePath = seedRecord(
+    gateRoot,
+    gateHome,
+    "gate-seed",
+    carryover.STATE_FILE,
+  );
   const suggestion = "Tests pass. good point to clear: `/clear`, then `go`";
 
   let transcriptCount = 0;
@@ -4306,8 +4748,10 @@ header(
     );
     return file;
   };
-  const startTurn = (sessionIdentifier, tokens) =>
-    run(
+  // Every session here starts in the window that holds the seeded record.
+  const startTurn = (sessionIdentifier, tokens) => {
+    joinRecord(gateHome, sessionIdentifier, statePath);
+    return run(
       gaugeHook,
       {
         hook_event_name: "UserPromptSubmit",
@@ -4318,6 +4762,7 @@ header(
       },
       environment,
     );
+  };
   const stop = (sessionIdentifier, tokens, overrides = {}) =>
     run(
       gateHook,
@@ -4344,7 +4789,7 @@ header(
   check(
     "the hold says what to do",
     String(held.reason).includes(
-      "update .claude/state.md before suggesting a clear",
+      "update .claude/state/1013-1126-9c.md before suggesting a clear",
     ),
     true,
     held.reason,
@@ -4428,7 +4873,9 @@ header(
   );
   check(
     "the oversize hold says where finished entries go",
-    String(heldOversized.reason).includes(".claude/state.archive.md"),
+    String(heldOversized.reason).includes(
+      ".claude/state/1013-1126-9c.archive.md",
+    ),
     true,
     heldOversized.reason,
   );
@@ -4442,8 +4889,8 @@ header(
   const heldBoth = String(stop("gate-oversized-unchanged", 150000).reason);
   check(
     "one hold asks for both the update and the trim",
-    heldBoth.includes("update .claude/state.md") &&
-      heldBoth.includes(".claude/state.archive.md"),
+    heldBoth.includes("update .claude/state/1013-1126-9c.md") &&
+      heldBoth.includes(".claude/state/1013-1126-9c.archive.md"),
     true,
     heldBoth,
   );
@@ -4653,12 +5100,28 @@ header(
     check(degradeCase, degraded.verdict, "allow", degraded.reason);
   }
 
+  // Review Focus 3: this session's record and the gauge's note both exist, so
+  // only the record sitting in another repository lets the reply through.
+  startTurn("gate-other-repository", 150000);
   check(
-    "lets it through where there is no state file",
-    stop("gate-unchanged", 150000, { cwd: noStateRoot }).verdict,
+    "gate: a session whose record is in another repository is left alone",
+    stop("gate-other-repository", 150000, { cwd: noStateRoot }).verdict,
     "allow",
     "",
   );
+  zones.writeGaugeState(gateHome, "gate-no-record", {
+    turn: 1,
+    stateDigest: require(path.join(HOOKS, "lib", "state-file.js")).stateDigest(
+      fs.readFileSync(statePath, "utf8"),
+    ),
+  });
+  check(
+    "lets it through where the session has no record",
+    stop("gate-no-record", 150000).verdict,
+    "allow",
+    "",
+  );
+  joinRecord(gateHome, "gate-never-started", statePath);
   check(
     "lets it through when the gauge never saw the turn start",
     stop("gate-never-started", 150000).verdict,
@@ -4692,8 +5155,9 @@ header(
     fs.writeFileSync(file, assistantEntry([{ type: "text", text: "ok" }]));
     return file;
   };
-  const promptArrives = (sessionIdentifier, transcript) =>
-    run(
+  const promptArrives = (sessionIdentifier, transcript) => {
+    joinRecord(gateHome, sessionIdentifier, statePath);
+    return run(
       gaugeHook,
       {
         hook_event_name: "UserPromptSubmit",
@@ -4704,6 +5168,7 @@ header(
       },
       environment,
     );
+  };
   const replyEnds = (sessionIdentifier, transcript) =>
     run(
       gateHook,
@@ -4736,7 +5201,7 @@ header(
   );
   check(
     "the edit hold asks for the record, not for a clear",
-    String(editHold.reason).includes(".claude/state.md") &&
+    String(editHold.reason).includes(".claude/state/1013-1126-9c.md") &&
       !String(editHold.reason).includes("suggest the clear"),
     true,
     editHold.reason,
@@ -4804,7 +5269,7 @@ header(
   fs.appendFileSync(recordOnlyTranscript, editOf(statePath));
   fs.appendFileSync(
     recordOnlyTranscript,
-    editOf(path.join(gateRoot, ".claude", "state.archive.md")),
+    editOf(path.join(gateRoot, ".claude", "state", "1013-1126-9c.archive.md")),
   );
   check(
     "an edit to the record or its archive is not work to record",
@@ -4827,6 +5292,7 @@ header(
   );
 
   const unmarkedTranscript = newTranscript("edit-unmarked");
+  joinRecord(gateHome, "edit-unmarked", statePath);
   fs.appendFileSync(unmarkedTranscript, editOf(editedFile));
   zones.writeGaugeState(gateHome, "edit-unmarked", {
     turn: 1,
@@ -4883,11 +5349,24 @@ header(
     "",
   );
   check(
-    "the status line is empty where there is no state file",
+    "status: a session whose record is in another repository is left alone",
     standing("standing-behind", noStateRoot),
     "",
     "",
   );
+  zones.writeGaugeState(gateHome, "standing-no-record", {
+    turn: 1,
+    stateDigest: require(path.join(HOOKS, "lib", "state-file.js")).stateDigest(
+      fs.readFileSync(statePath, "utf8"),
+    ),
+  });
+  check(
+    "the status line is empty where the session has no record",
+    standing("standing-no-record"),
+    "",
+    "",
+  );
+  joinRecord(gateHome, "standing-never-started", statePath);
   check(
     "the status line is empty before the gauge has seen a prompt",
     standing("standing-never-started"),
@@ -5028,9 +5507,10 @@ header("SessionStart: graph-refresh rebuilds a stale graph in the background");
     );
     const gateRoot = committedRepository("refresh-gate-");
     writeGraph(gateRoot, 3600000);
-    fs.mkdirSync(path.join(gateRoot, ".claude"));
-    fs.writeFileSync(
-      path.join(gateRoot, ".claude", "state.md"),
+    const gateRecord = seedRecord(
+      gateRoot,
+      refreshHome,
+      "refresh-gate-1",
       carryover.STATE_FILE,
     );
     const transcript = path.join(refreshHome, "gate-transcript.jsonl");
@@ -5063,10 +5543,7 @@ header("SessionStart: graph-refresh rebuilds a stale graph in the background");
       encoding: "utf8",
       env: environmentFor(true),
     });
-    fs.appendFileSync(
-      path.join(gateRoot, ".claude", "state.md"),
-      "\n- Recorded before the clear.\n",
-    );
+    fs.appendFileSync(gateRecord, "\n- Recorded before the clear.\n");
     const gateReply = spawnSync(
       process.execPath,
       [path.join(HOOKS, "clear-gate.js")],
@@ -9132,7 +9609,10 @@ header("mode hooks: gates and rules follow the repository's own mode");
     process.execPath,
     [path.join(HOOKS, "mode-status.js")],
     {
-      input: JSON.stringify({ session_id: "scope-2", cwd: outsideAnyRepository }),
+      input: JSON.stringify({
+        session_id: "scope-2",
+        cwd: outsideAnyRepository,
+      }),
       encoding: "utf8",
       env: { ...process.env, ...environment, NO_COLOR: "1" },
     },
@@ -9256,7 +9736,9 @@ header("mode-session: a repository's own rules are sent at session start");
 {
   const modeLock = require(path.join(HOOKS, "lib", "mode-lock.js"));
   const MODE_SESSION = path.join(HOOKS, "mode-session.js");
-  const sessionConfig = fs.mkdtempSync(path.join(os.tmpdir(), "modesession-config-"));
+  const sessionConfig = fs.mkdtempSync(
+    path.join(os.tmpdir(), "modesession-config-"),
+  );
   const ownRepository = makeRepository("modesession-own-");
   const plainRepository = makeRepository("modesession-plain-");
   const environment = { CLAUDE_CONFIG_DIR: sessionConfig };
@@ -9269,7 +9751,11 @@ header("mode-session: a repository's own rules are sent at session start");
   fs.writeFileSync(path.join(sessionConfig, "settings.json"), "{}\n");
   fs.writeFileSync(
     path.join(sessionConfig, "mode.lock"),
-    JSON.stringify({ mode: "build", codename: "RUNNER", hardHash: "machinehash" }),
+    JSON.stringify({
+      mode: "build",
+      codename: "RUNNER",
+      hardHash: "machinehash",
+    }),
   );
   const ownDirectory = modeLock.repoDirectory(sessionConfig, ownRepository);
   fs.mkdirSync(ownDirectory, { recursive: true });
@@ -9288,15 +9774,30 @@ header("mode-session: a repository's own rules are sent at session start");
   const start = (sessionId, cwd) =>
     runJson(
       MODE_SESSION,
-      { session_id: sessionId, cwd, hook_event_name: "SessionStart", source: "startup" },
+      {
+        session_id: sessionId,
+        cwd,
+        hook_event_name: "SessionStart",
+        source: "startup",
+      },
       environment,
     );
   const contextOf = (reply) =>
     String((reply.hookSpecificOutput || {}).additionalContext || "");
 
   const inOwn = contextOf(start("own-1", ownRepository));
-  check("the repository's mode is the one announced", inOwn.includes("RECON"), true, inOwn);
-  check("the repository's rules are sent", inOwn.includes("REPO-RULES-MARK"), true, inOwn);
+  check(
+    "the repository's mode is the one announced",
+    inOwn.includes("RECON"),
+    true,
+    inOwn,
+  );
+  check(
+    "the repository's rules are sent",
+    inOwn.includes("REPO-RULES-MARK"),
+    true,
+    inOwn,
+  );
   check(
     "under a sentence saying they replace the machine-wide mode rules",
     inOwn.includes("replace the mode rules loaded from the machine-wide file"),
@@ -9315,7 +9816,12 @@ header("mode-session: a repository's own rules are sent at session start");
   );
 
   const inPlain = contextOf(start("plain-1", plainRepository));
-  check("a repository on the machine mode is told the machine mode", inPlain.includes("RUNNER"), true, inPlain);
+  check(
+    "a repository on the machine mode is told the machine mode",
+    inPlain.includes("RUNNER"),
+    true,
+    inPlain,
+  );
   check(
     "and is sent nothing extra",
     inPlain.includes("replace the mode rules"),
@@ -9332,8 +9838,17 @@ header("mode-session: a repository's own rules are sent at session start");
 
   fs.writeFileSync(rulesFile, "R".repeat(9000));
   const capped = contextOf(start("own-3", ownRepository));
-  check("oversized rules are cut at the cap", capped.includes("[rules truncated]"), true);
-  check("and the cut text is no longer than the cap allows", capped.length < 8600, true, capped.length);
+  check(
+    "oversized rules are cut at the cap",
+    capped.includes("[rules truncated]"),
+    true,
+  );
+  check(
+    "and the cut text is no longer than the cap allows",
+    capped.length < 8600,
+    true,
+    capped.length,
+  );
 
   fs.rmSync(rulesFile);
   check(
@@ -9355,9 +9870,33 @@ header("state-records: each window keeps its own working record");
     path.join(os.tmpdir(), "state-records-home-"),
   );
   const processTable = new Map([
-    [300, { processId: 300, parentProcessId: 200, started: "Tue Oct 13 11:33:29 2026", command: "/bin/zsh" }],
-    [200, { processId: 200, parentProcessId: 100, started: "Tue Oct 13 11:26:22 2026", command: "claude" }],
-    [100, { processId: 100, parentProcessId: 1, started: "Tue Oct 13 11:26:19 2026", command: "-/bin/zsh" }],
+    [
+      300,
+      {
+        processId: 300,
+        parentProcessId: 200,
+        started: "Tue Oct 13 11:33:29 2026",
+        command: "/bin/zsh",
+      },
+    ],
+    [
+      200,
+      {
+        processId: 200,
+        parentProcessId: 100,
+        started: "Tue Oct 13 11:26:22 2026",
+        command: "claude",
+      },
+    ],
+    [
+      100,
+      {
+        processId: 100,
+        parentProcessId: 1,
+        started: "Tue Oct 13 11:26:19 2026",
+        command: "-/bin/zsh",
+      },
+    ],
   ]);
 
   const windowIdentity = records.findWindow(processTable, 300, {});
@@ -9383,11 +9922,23 @@ header("state-records: each window keeps its own working record");
   );
   check(
     "windows named as live count as open",
-    records.liveWindows(new Map(), { CLAUDE_STATE_LIVE_WINDOWS: "window-a, window-b" }).has("window-b"),
+    records
+      .liveWindows(new Map(), {
+        CLAUDE_STATE_LIVE_WINDOWS: "window-a, window-b",
+      })
+      .has("window-b"),
     true,
   );
   const reusedTable = new Map([
-    [200, { processId: 200, parentProcessId: 1, started: "Wed Oct 14 09:00:00 2026", command: "claude" }],
+    [
+      200,
+      {
+        processId: 200,
+        parentProcessId: 1,
+        started: "Wed Oct 14 09:00:00 2026",
+        command: "claude",
+      },
+    ],
   ]);
   check(
     "a reused process id with another start time is another window",
@@ -9401,16 +9952,40 @@ header("state-records: each window keeps its own working record");
     "1013-1126-9c",
   );
 
-  check("a repository without the folder is not enabled", records.enabled(recordsRoot), false);
+  check(
+    "a repository without the folder is not enabled",
+    records.enabled(recordsRoot),
+    false,
+  );
   fs.mkdirSync(records.recordsDirectory(recordsRoot), { recursive: true });
-  check("a folder git does not ignore is not enabled", records.enabled(recordsRoot), false);
+  check(
+    "a folder git does not ignore is not enabled",
+    records.enabled(recordsRoot),
+    false,
+  );
   fs.writeFileSync(path.join(recordsRoot, ".gitignore"), ".claude/state/\n");
-  check("the folder with its ignore line is enabled", records.enabled(recordsRoot), true);
+  check(
+    "the folder with its ignore line is enabled",
+    records.enabled(recordsRoot),
+    true,
+  );
 
-  const firstRecord = records.createRecord(recordsRoot, "# Working state\n", "1013-1126-9c");
-  const secondRecord = records.createRecord(recordsRoot, "# Working state\n", "1013-1126-9c");
+  const firstRecord = records.createRecord(
+    recordsRoot,
+    "# Working state\n",
+    "1013-1126-9c",
+  );
+  const secondRecord = records.createRecord(
+    recordsRoot,
+    "# Working state\n",
+    "1013-1126-9c",
+  );
   check("a taken key gets another suffix", firstRecord === secondRecord, false);
-  check("and both records exist", fs.existsSync(firstRecord) && fs.existsSync(secondRecord), true);
+  check(
+    "and both records exist",
+    fs.existsSync(firstRecord) && fs.existsSync(secondRecord),
+    true,
+  );
 
   const live = records.liveWindows(processTable, {});
   records.claim(recordsHome, {
@@ -9439,8 +10014,16 @@ header("state-records: each window keeps its own working record");
     }),
     null,
   );
-  check("a live window holds its record", records.holderOf(recordsHome, firstRecord, live), windowIdentity);
-  check("nobody holds the other record", records.holderOf(recordsHome, secondRecord, live), null);
+  check(
+    "a live window holds its record",
+    records.holderOf(recordsHome, firstRecord, live),
+    windowIdentity,
+  );
+  check(
+    "nobody holds the other record",
+    records.holderOf(recordsHome, secondRecord, live),
+    null,
+  );
 
   recordContents.writeRecord(
     firstRecord,
@@ -9453,7 +10036,11 @@ header("state-records: each window keeps its own working record");
   check("and who holds it", listedFirst.heldBy, windowIdentity);
 
   records.removeAbandonedTemplates(recordsRoot, recordsHome, live);
-  check("an untouched template nobody holds is removed", fs.existsSync(secondRecord), false);
+  check(
+    "an untouched template nobody holds is removed",
+    fs.existsSync(secondRecord),
+    false,
+  );
   check("a record with content is kept", fs.existsSync(firstRecord), true);
 
   records.pruneDeadWindows(recordsHome, new Set());
@@ -9476,7 +10063,8 @@ header("state-records: each window keeps its own working record");
   );
   check(
     "inside its repository the record is read with its relative name",
-    records.readForSession(recordsHome, "session-before-clear", recordsRoot).name,
+    records.readForSession(recordsHome, "session-before-clear", recordsRoot)
+      .name,
     [".claude", "state", "1013-1126-9c.md"].join("/"),
   );
 
@@ -9490,7 +10078,11 @@ header("state-records: each window keeps its own working record");
   check(
     "an over-long record names itself in the cut note",
     recordContents
-      .loadedText("x".repeat(9000), ".claude/state/1013-1126-9c.md", ".claude/state/1013-1126-9c.archive.md")
+      .loadedText(
+        "x".repeat(9000),
+        ".claude/state/1013-1126-9c.md",
+        ".claude/state/1013-1126-9c.archive.md",
+      )
       .includes(".claude/state/1013-1126-9c.archive.md"),
     true,
   );

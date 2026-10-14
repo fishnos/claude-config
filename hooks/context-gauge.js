@@ -1,14 +1,15 @@
 "use strict";
 
 // UserPromptSubmit: tell Claude how large the context is once that matters, and
-// when .claude/state.md has gone stale.
+// when this window's working record has gone stale.
 //
 // A number delivered each turn rather than a standing rule, because of the
 // measurement recorded in mode-inject.js: a rule buried behind ~6,600 tokens was
 // followed 0 times in 36, while new information on the user's message won 12 in
 // 12. A size that changes every turn is new information.
 //
-// Silent in a repository with no state file, where the setup banner speaks.
+// Silent for a session with no working record, where the session-start hook
+// has already said why.
 //
 // The clear suggestion names the repository it read, because a session's working
 // directory can move during the session while /clear returns it to wherever the
@@ -16,6 +17,7 @@
 // from one directory that the restart then looks for in another.
 
 const repoAudit = require("./lib/repo-audit");
+const records = require("./lib/state-records");
 const stateFile = require("./lib/state-file");
 const transcriptTail = require("./lib/transcript-tail");
 const zones = require("./lib/context-zones");
@@ -27,7 +29,11 @@ io.run(() => {
   const payload = io.readPayload();
   const root = repoAudit.findRepositoryRoot(payload.cwd || process.cwd());
   if (root === null) return;
-  const state = stateFile.readStateFile(root);
+  const state = records.readForSession(
+    io.configDir(),
+    payload.session_id,
+    root,
+  );
   if (state === null) return;
 
   const previous = zones.readGaugeState(io.configDir(), payload.session_id) || {
@@ -55,7 +61,8 @@ io.run(() => {
       `Context is ${Math.round(tokens / 1000)}K tokens (${zone} zone` +
         (zone === "red" ? ", automatic compaction is near" : "") +
         "). At your next natural stopping point, never mid-task: bring " +
-        ".claude/state.md up to date, then end the reply with " +
+        `${state.name} (this window's working record, \`ccfg state\`) ` +
+        "up to date, then end the reply with " +
         '"good point to clear: run `/clear` from `' +
         root +
         '`, then `go`".',
@@ -67,7 +74,7 @@ io.run(() => {
   if (unchangedTurns >= zones.STALE_TURNS) {
     io.warn(
       EVENT,
-      `.claude/state.md has not changed in ${unchangedTurns} turns. If a ` +
+      `${state.name} has not changed in ${unchangedTurns} turns. If a ` +
         "decision, a rejected approach or a finished phase has happened " +
         "since, record it.",
     );

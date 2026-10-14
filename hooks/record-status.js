@@ -1,18 +1,21 @@
 "use strict";
 
-// statusLine: say whether .claude/state.md has caught up with this session.
+// statusLine: say whether this window's working record has caught up with this
+// session.
 //
 // A /clear the operator types cannot be held by any hook, so the place to
 // answer "is it safe to clear?" is before the key is pressed. The clear gate
 // keeps the count this reads: turns that edited files and ended with the record
 // unchanged.
 //
-// Silent where there is no record to stand behind: a repository with no state
-// file, and a session whose first prompt the gauge has not yet seen.
+// Silent where there is no record to stand behind: a session with no working
+// record in this repository, and a session whose first prompt the gauge has not
+// yet seen.
 
 const path = require("path");
 
 const repoAudit = require("./lib/repo-audit");
+const records = require("./lib/state-records");
 const stateFile = require("./lib/state-file");
 const zones = require("./lib/context-zones");
 const io = require("./lib/hook-io");
@@ -26,7 +29,11 @@ io.run(() => {
     payload.cwd || workspace.current_dir || process.cwd(),
   );
   if (root === null) return;
-  const state = stateFile.readStateFile(root);
+  const state = records.readForSession(
+    io.configDir(),
+    payload.session_id,
+    root,
+  );
   if (state === null) return;
   const record = zones.readGaugeState(io.configDir(), payload.session_id);
   if (record === null) return;

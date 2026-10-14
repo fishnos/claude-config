@@ -1,7 +1,8 @@
 "use strict";
 
-// The per-repository working record, .claude/state.md: where it lives and
-// whether the repository's .gitignore keeps it out of version control.
+// What is inside one working record: its sections, how much of it a session
+// loads, the digest the clear gate compares, and reading and writing it whole.
+// Where records live and which window holds which is lib/state-records.
 //
 // Filesystem-only, like lib/repo-audit, because SessionStart hooks read it.
 
@@ -9,11 +10,10 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
+// The single fixed record the per-window ones replaced, and its archive. Kept
+// only for lib/repo-audit and skills/repo-setup/audit.js until they read the
+// per-window layout; no hook reads or writes either path.
 const STATE_FILE_RELATIVE = path.join(".claude", "state.md");
-
-// Where finished entries go when the working record outgrows the load cap:
-// beside it, git-ignored the same way, and never loaded, so trimming the record
-// loses nothing and costs no context.
 const ARCHIVE_FILE_RELATIVE = path.join(".claude", "state.archive.md");
 
 // The four spellings the design names. Anything subtler is for the skill, which
@@ -73,18 +73,6 @@ const LOAD_PRIORITY = [
 // Lines the template itself carries, so a file holding only these is empty.
 const TEMPLATE_SCAFFOLD =
   /^(# Working state|## .*|- (Done|In progress|Next):)$/;
-
-function readStateFile(root) {
-  const file = stateFilePath(root);
-  try {
-    return {
-      text: fs.readFileSync(file, "utf8"),
-      modifiedMs: fs.statSync(file).mtimeMs,
-    };
-  } catch {
-    return null;
-  }
-}
 
 function withoutComments(text) {
   return text.replace(/<!--[\s\S]*?-->/g, "");
@@ -205,9 +193,7 @@ function loadedText(
       );
       remaining -= head.length + 2;
     } else {
-      omitted.push(
-        `${section.heading} (${formatCount(section.text.length)})`,
-      );
+      omitted.push(`${section.heading} (${formatCount(section.text.length)})`);
     }
   }
 
@@ -307,13 +293,6 @@ function writeRecord(file, text) {
   fs.renameSync(temporary, file);
 }
 
-function writeStateFile(root, text) {
-  const file = stateFilePath(root);
-  const temporary = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, text, "utf8");
-  fs.renameSync(temporary, file);
-}
-
 module.exports = {
   STATE_FILE_RELATIVE,
   ARCHIVE_FILE_RELATIVE,
@@ -321,7 +300,6 @@ module.exports = {
   ignoreListed,
   stateFileIgnoreListed,
   MAX_LOADED_CHARACTERS,
-  readStateFile,
   sectionBody,
   goalLine,
   nextStep,
@@ -331,7 +309,6 @@ module.exports = {
   formatCount,
   stateDigest,
   withUnconfirmed,
-  writeStateFile,
   readRecord,
   writeRecord,
 };

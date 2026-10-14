@@ -3,11 +3,11 @@
 // UserPromptSubmit: copy sentences that scope an instruction beyond this turn
 // out of the transcript, where a clear or a compaction cannot lose them.
 //
-// With a .claude/state.md they go under its Unconfirmed section, which survives
-// a clear; Claude moves each into Instructions or deletes it at the next
-// checkpoint. Without one nothing is captured: the state file is the only thing
-// that reads them, and the cache file the retired pre-compact hook copied from
-// has no reader left.
+// With a working record for this window they go under its Unconfirmed section,
+// which survives a clear; Claude moves each into Instructions or deletes it at
+// the next checkpoint. Without one nothing is captured: the record is the only
+// thing that reads them, and the cache file the retired pre-compact hook copied
+// from has no reader left.
 //
 // Says nothing to the model: the instruction is already in front of it on the
 // turn it was given, and re-stating a rule already present measured 0/36 (see
@@ -19,6 +19,7 @@
 
 const io = require("./lib/hook-io");
 const repoAudit = require("./lib/repo-audit");
+const records = require("./lib/state-records");
 const stateFile = require("./lib/state-file");
 
 // Background task notifications, slash-command echoes and bash blocks all arrive
@@ -123,10 +124,13 @@ io.run(() => {
   if (newLines.length === 0) return;
 
   const root = repoAudit.findRepositoryRoot(payload.cwd || process.cwd());
-  const state = root === null ? null : stateFile.readStateFile(root);
+  const record =
+    root === null
+      ? null
+      : records.readForSession(io.configDir(), payload.session_id, root);
   // Nothing outside the working record survives a clear, so there is nowhere else
   // worth writing.
-  if (state === null) return;
-  const updated = stateFile.withUnconfirmed(state.text, newLines);
-  if (updated !== state.text) stateFile.writeStateFile(root, updated);
+  if (record === null) return;
+  const updated = stateFile.withUnconfirmed(record.text, newLines);
+  if (updated !== record.text) stateFile.writeRecord(record.file, updated);
 });

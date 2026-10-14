@@ -1,8 +1,9 @@
 "use strict";
 
-// Stop: hold a reply that leaves .claude/state.md behind the session. Two
-// replies do that: one that ends a turn of edits with the file unchanged, and
-// one that suggests /clear with the file unchanged or larger than a clear loads.
+// Stop: hold a reply that leaves this window's working record behind the
+// session. Two replies do that: one that ends a turn of edits with the file
+// unchanged, and one that suggests /clear with the file unchanged or larger
+// than a clear loads.
 //
 // A clear taken with an out-of-date file is the one way the context design loses
 // work outright, and whether the file changed this turn is machine-checkable, so
@@ -27,6 +28,7 @@
 const path = require("path");
 
 const repoAudit = require("./lib/repo-audit");
+const records = require("./lib/state-records");
 const stateFile = require("./lib/state-file");
 const transcriptTail = require("./lib/transcript-tail");
 const zones = require("./lib/context-zones");
@@ -70,11 +72,8 @@ const NAMED_FILES = 3;
  * Edit tools only. A file changed through the shell or by a subagent is not
  * seen, so a turn that worked only that way is not held.
  */
-function editedThisTurn(transcriptPath, turnStartBytes, root) {
-  const recordFiles = [
-    stateFile.stateFilePath(root),
-    path.join(root, stateFile.ARCHIVE_FILE_RELATIVE),
-  ];
+function editedThisTurn(transcriptPath, turnStartBytes, root, recordFile) {
+  const recordFiles = [recordFile, records.archivePathOf(recordFile)];
   return transcriptTail
     .editedFilesSince(transcriptPath, turnStartBytes)
     .filter(
@@ -106,7 +105,11 @@ io.run(() => {
 
   const root = repoAudit.findRepositoryRoot(payload.cwd || process.cwd());
   if (root === null) return;
-  const state = stateFile.readStateFile(root);
+  const state = records.readForSession(
+    io.configDir(),
+    payload.session_id,
+    root,
+  );
   if (state === null) return;
 
   // Claude Code 2.1.270 sends the final message on the payload; the transcript
@@ -137,16 +140,17 @@ io.run(() => {
         payload.transcript_path,
         record.turnStartBytes,
         root,
+        state.file,
       );
     }
     if (unchanged && suggestsClear) {
       asks.push(
-        "update .claude/state.md before suggesting a clear: record " +
+        `update ${state.name} before suggesting a clear: record ` +
           "progress, decisions, rejected approaches and the next step.",
       );
     } else if (editedFiles.length > 0) {
       asks.push(
-        `This turn edited ${namesOf(editedFiles)} and .claude/state.md did ` +
+        `This turn edited ${namesOf(editedFiles)} and ${state.name} did ` +
           "not change. Bring it up to date now: progress, decisions, " +
           "rejected approaches and the next step, so that a clear typed at " +
           "any moment loses nothing. This holds once a turn.",
@@ -156,13 +160,13 @@ io.run(() => {
     // session after it would start from part of the record.
     if (suggestsClear && state.text.length > stateFile.MAX_LOADED_CHARACTERS) {
       asks.push(
-        `.claude/state.md is ${stateFile.formatCount(state.text.length)} ` +
+        `${state.name} is ${stateFile.formatCount(state.text.length)} ` +
           "characters, and a clear loads only " +
           `${stateFile.formatCount(stateFile.MAX_LOADED_CHARACTERS)}. ` +
           "Move finished Progress entries, settled Decisions and old " +
           "Rejected approaches word for word to the end of " +
-          ".claude/state.archive.md, keeping the newest entries at the top " +
-          "of each section.",
+          `${state.name.replace(/\.md$/, ".archive.md")}, keeping the newest ` +
+          "entries at the top of each section.",
       );
     }
   }

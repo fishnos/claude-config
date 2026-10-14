@@ -337,12 +337,22 @@ function templateText() {
  */
 function readForSession(configDir, sessionIdentifier, root) {
   const file = recordForSession(configDir, sessionIdentifier);
-  if (file === null) return null;
-  const relative = path.relative(root, file);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  if (file === null || !isInsideRepository(root, file)) return null;
   const state = stateFile.readRecord(file);
   if (state === null) return null;
-  return { file, name: relative.split(path.sep).join("/"), ...state };
+  const name = path.relative(root, file).split(path.sep).join("/");
+  return { file, name, ...state };
+}
+
+// Compared by path segment, so a folder whose name merely starts with ".."
+// still counts as inside.
+function isInsideRepository(root, file) {
+  const relative = path.relative(root, file);
+  return (
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }
 
 module.exports = {
@@ -369,4 +379,5 @@ module.exports = {
   removeAbandonedTemplates,
   templateText,
   readForSession,
+  isInsideRepository,
 };
