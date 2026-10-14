@@ -10,6 +10,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { spawnSync } = require("child_process");
 
 const repoAudit = require("../../hooks/lib/repo-audit.js");
 const stateFile = require("../../hooks/lib/state-file.js");
@@ -47,6 +48,14 @@ function ownRecord(context) {
         "`ccfg state new` starts one.",
     );
   }
+  // A shell that moved into another repository still finds this window's
+  // record, and acting on it from there would remove work belonging elsewhere.
+  if (!records.isInsideRepository(context.root, record)) {
+    throw new Error(
+      `this window's working record is ${record}, outside ${context.root}. ` +
+        "Run `ccfg state` from that record's repository.",
+    );
+  }
   return record;
 }
 
@@ -60,7 +69,8 @@ function requireWindow(context) {
 
 function describe(entry, now) {
   const age = stateFile.formatAge(now - entry.modifiedMs);
-  const holder = entry.heldBy === null ? "unclaimed" : `held by ${entry.heldBy}`;
+  const holder =
+    entry.heldBy === null ? "unclaimed" : `held by ${entry.heldBy}`;
   const goal = entry.goal || "(no goal recorded)";
   return `${entry.key}  ${holder}  ${goal}  (updated ${age} ago)`;
 }
@@ -71,13 +81,21 @@ function show(context, print) {
   if (state === null) throw new Error(`cannot read ${record}`);
   print(`record: ${record}`);
   print(`goal:   ${stateFile.goalLine(state.text) || "(no goal recorded)"}`);
-  print(`next:   ${stateFile.nextStep(state.text) || "(no next step recorded)"}`);
-  print(`age:    updated ${stateFile.formatAge(Date.now() - state.modifiedMs)} ago`);
+  print(
+    `next:   ${stateFile.nextStep(state.text) || "(no next step recorded)"}`,
+  );
+  print(
+    `age:    updated ${stateFile.formatAge(Date.now() - state.modifiedMs)} ago`,
+  );
 }
 
 function list(context, print) {
   requireEnabled(context);
-  const entries = records.listRecords(context.root, context.configDir, context.live);
+  const entries = records.listRecords(
+    context.root,
+    context.configDir,
+    context.live,
+  );
   if (entries.length === 0) {
     print("no working records in this repository");
     return;
@@ -132,20 +150,43 @@ function done(context, print, confirmed) {
   print(`removed ${record}. \`ccfg state new\` starts the next one.`);
 }
 
+// False when git cannot run, so a repository without git migrates as before.
+function trackedByGit(root, relativePath) {
+  try {
+    const result = spawnSync("git", ["ls-files", "--", relativePath], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 10000,
+      windowsHide: true,
+    });
+    return result.status === 0 && (result.stdout || "").trim() !== "";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Turn records on for a repository: create the folder, move the old single
- * record into it if there is one, and make the ignore file cover the folder.
+ * record into it if there is one and git does not track it, and make the
+ * ignore file cover the folder. The moved record is keyed by when the old file
+ * was last written.
  */
-function migrate(root, now = new Date()) {
+function migrate(root) {
   const oldRecord = path.join(root, OLD_RECORD);
   const oldArchive = path.join(root, OLD_ARCHIVE);
   fs.mkdirSync(records.recordsDirectory(root), { recursive: true });
 
   let moved = null;
-  if (fs.existsSync(oldRecord)) {
-    let key = records.newKey(now, "00");
+  // A tracked record is part of the repository: moving it would delete a
+  // committed file and hide it in an ignored folder, past the loader's refusal
+  // to load tracked records.
+  const leftTracked =
+    fs.existsSync(oldRecord) && trackedByGit(root, ".claude/state.md");
+  if (fs.existsSync(oldRecord) && !leftTracked) {
+    const written = fs.statSync(oldRecord).mtime;
+    let key = records.newKey(written, "00");
     while (fs.existsSync(records.recordPath(root, key))) {
-      key = records.newKey(now, crypto.randomBytes(2).toString("hex"));
+      key = records.newKey(written, crypto.randomBytes(2).toString("hex"));
     }
     moved = records.recordPath(root, key);
     fs.renameSync(oldRecord, moved);
@@ -171,17 +212,25 @@ function migrate(root, now = new Date()) {
   const updated = `${kept.join("\n")}\n`;
   const ignoreChanged = updated !== ignoreText;
   if (ignoreChanged) fs.writeFileSync(ignoreFile, updated);
-  return { moved, ignoreChanged };
+  return { moved, leftTracked, ignoreChanged };
 }
 
 function runMigrate(context, print) {
   const result = migrate(context.root);
-  print(
-    result.moved === null
-      ? "no old .claude/state.md to move"
-      : `moved the old record to ${result.moved} (unclaimed: adopt it with ` +
-          `\`ccfg state use ${records.keyOf(result.moved)}\`)`,
-  );
+  if (result.leftTracked) {
+    print(
+      ".claude/state.md is tracked by git, so it was not moved. If it is " +
+        "yours, untrack it (`git rm --cached .claude/state.md`) and rerun " +
+        "`ccfg state migrate`.",
+    );
+  } else if (result.moved === null) {
+    print("no old .claude/state.md to move");
+  } else {
+    print(
+      `moved the old record to ${result.moved} (unclaimed: adopt it with ` +
+        `\`ccfg state use ${records.keyOf(result.moved)}\`)`,
+    );
+  }
   print(
     result.ignoreChanged
       ? ".gitignore now covers .claude/state/"
@@ -217,7 +266,9 @@ function commandState(argv, io) {
   try {
     const root = repoAudit.findRepositoryRoot(process.cwd());
     if (root === null) {
-      throw new Error("not inside a git repository, so there are no working records here");
+      throw new Error(
+        "not inside a git repository, so there are no working records here",
+      );
     }
     const processTable = records.readProcessTable();
     runState(

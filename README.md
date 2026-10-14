@@ -102,7 +102,7 @@ Everything else is ignored via allowlist `.gitignore` (`*` first, then explicit 
 Two commands, both of which should pass before anything is committed:
 
 ```sh
-node ~/.claude/tools/test-hooks.js       # 974 cases across the thirteen hooks
+node ~/.claude/tools/test-hooks.js       # 1041 cases across the thirteen hooks
 node ~/.claude/hooks/validate-config.js  # the config as a whole
 ```
 

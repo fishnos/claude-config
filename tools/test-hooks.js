@@ -4400,6 +4400,63 @@ header(
     contextOf(movedReply).slice(0, 300),
   );
 
+  // A process listing that fails says nothing about which windows are open.
+  // PATH points at an empty folder so the real `ps` cannot be found.
+  const blindRoot = makeRepository("state-restore-blind-");
+  const blindHome = fs.mkdtempSync(
+    path.join(os.tmpdir(), "state-restore-blind-home-"),
+  );
+  const emptySearchPath = fs.mkdtempSync(
+    path.join(os.tmpdir(), "state-restore-blind-path-"),
+  );
+  const otherWindowRecord = seedRecord(
+    blindRoot,
+    blindHome,
+    "other-session",
+    carryover.STATE_FILE,
+    "1013-0900-c1",
+  );
+  const thirdWindowRecord = recordsLibrary.recordPath(
+    blindRoot,
+    "1013-1000-d1",
+  );
+  fs.writeFileSync(thirdWindowRecord, recordsLibrary.templateText());
+  recordsLibrary.claim(blindHome, {
+    windowIdentity: "third-window",
+    sessionIdentifier: "third-session",
+    record: thirdWindowRecord,
+  });
+  runJson(
+    restoreHook,
+    {
+      hook_event_name: "SessionStart",
+      source: "clear",
+      session_id: "blind-1",
+      cwd: blindRoot,
+    },
+    {
+      CLAUDE_CONFIG_DIR: blindHome,
+      CLAUDE_STATE_WINDOW: "none",
+      CLAUDE_STATE_LIVE_WINDOWS: "",
+      PATH: emptySearchPath,
+    },
+  );
+  check(
+    "a failed process listing leaves other windows' entries alone",
+    recordsLibrary.recordForWindow(blindHome, "window-under-test"),
+    otherWindowRecord,
+  );
+  check(
+    "and hands no other window's record to an unrecognised one",
+    recordsLibrary.recordForSession(blindHome, "blind-1") === otherWindowRecord,
+    false,
+  );
+  check(
+    "and keeps another window's fresh, still-empty record",
+    fs.existsSync(thirdWindowRecord),
+    true,
+  );
+
   // Review Focus 2: the lookup is deleted while sessions are open.
   fs.rmSync(path.join(restoreHome, "cache", "state-records"), {
     recursive: true,

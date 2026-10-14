@@ -1425,8 +1425,15 @@ console.log("\nccfg state\n--------------------");
     true,
   );
 
-  const migrated = stateCommand.migrate(stateRoot, new Date(2026, 9, 13, 11, 26));
+  const oldRecordWritten = new Date(2026, 9, 13, 11, 26);
+  fs.utimesSync(path.join(stateRoot, ".claude", "state.md"), oldRecordWritten, oldRecordWritten);
+  const migrated = stateCommand.migrate(stateRoot);
   check("migrate moves the old record into the folder", fs.existsSync(migrated.moved), true);
+  check(
+    "the moved record is keyed by when the old file was last written",
+    stateRecords.keyOf(migrated.moved),
+    "1013-1126-00",
+  );
   check("the old file is gone", fs.existsSync(path.join(stateRoot, ".claude", "state.md")), false);
   check(
     "the ignore file covers the folder and drops the old lines",
@@ -1470,6 +1477,19 @@ console.log("\nccfg state\n--------------------");
   check("new starts the window on another record", freshPath === migrated.moved, false);
   check("and the fresh record exists", fs.existsSync(freshPath), true);
 
+  const otherRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-state-other-repo-"));
+  fs.mkdirSync(path.join(otherRoot, ".git"));
+  fs.mkdirSync(path.join(otherRoot, ".claude", "state"), { recursive: true });
+  fs.writeFileSync(path.join(otherRoot, ".gitignore"), ".claude/state/\n");
+  const fromOtherRepository = { ...contextFor("window-b", "session-b"), root: otherRoot };
+  check(
+    "done --yes from another repository names where the record lives",
+    failureOf(["done", "--yes"], fromOtherRepository).includes(freshPath),
+    true,
+  );
+  check("and removes nothing", fs.existsSync(freshPath), true);
+  fs.rmSync(otherRoot, { recursive: true, force: true });
+
   check(
     "state shows the goal of the window's record",
     outputOf([], contextFor("window-a", "session-a")).includes("Old single record"),
@@ -1499,7 +1519,8 @@ console.log("\nccfg state\n--------------------");
     path.join(stateRoot, ".claude", "state.md"),
     "# Working state\n\n## Goal\n\nSecond old record.\n",
   );
-  const collided = stateCommand.migrate(stateRoot, new Date(2026, 9, 13, 11, 26));
+  fs.utimesSync(path.join(stateRoot, ".claude", "state.md"), oldRecordWritten, oldRecordWritten);
+  const collided = stateCommand.migrate(stateRoot);
   check(
     "migrate keeps a record already at the key it would use",
     fs.readFileSync(collidingKeyPath, "utf8").includes("Already here"),
@@ -1513,6 +1534,26 @@ console.log("\nccfg state\n--------------------");
 
   for (const directory of [stateRoot, stateHome])
     fs.rmSync(directory, { recursive: true, force: true });
+}
+
+{
+  const trackedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-state-tracked-"));
+  gitIn(trackedRoot, ["init", "-q", "."]);
+  fs.mkdirSync(path.join(trackedRoot, ".claude"));
+  const trackedRecord = path.join(trackedRoot, ".claude", "state.md");
+  fs.writeFileSync(trackedRecord, "# Working state\n\n## Goal\n\nCommitted record.\n");
+  gitIn(trackedRoot, ["add", ".claude/state.md"]);
+  gitIn(trackedRoot, ["-c", "user.email=t@t.t", "-c", "user.name=T", "commit", "-q", "-m", "seed"]);
+  const lines = [];
+  stateCommand.runState(
+    ["migrate"],
+    { root: trackedRoot, configDir: trackedRoot, live: new Set(), windowIdentity: "", sessionIdentifier: "" },
+    (line) => lines.push(line),
+  );
+  check("migrate leaves a tracked state.md in place", fs.existsSync(trackedRecord), true);
+  check("and says it was tracked and not moved", lines.join("\n").includes("tracked by git"), true);
+  check("and still turns the records folder on", stateRecords.enabled(trackedRoot), true);
+  fs.rmSync(trackedRoot, { recursive: true, force: true });
 }
 
 fs.rmSync(sandbox, { recursive: true, force: true });

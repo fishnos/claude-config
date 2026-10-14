@@ -122,7 +122,12 @@ io.run(() => {
   const live = records.liveWindows(processTable);
   const windowIdentity = records.findWindow(processTable, process.ppid);
   const sessionIdentifier = payload.session_id || "";
-  records.pruneDeadWindows(configDir, live);
+  // A listing always includes at least this hook's own process, so an empty
+  // one means `ps` failed and says nothing about which windows are open.
+  // Pruning, template cleanup and the fallback adoption all read "not live" as
+  // "closed", and would take records from windows that are still open.
+  const windowsKnown = processTable.size > 0;
+  if (windowsKnown) records.pruneDeadWindows(configDir, live);
 
   // A resume can switch conversations inside a window that already holds a
   // record, and the conversation it brings back is the one whose record wins.
@@ -149,14 +154,19 @@ io.run(() => {
   // A client whose process cannot be recognised has nothing that survives a
   // clear. The newest record no live window holds is what the single file
   // gave it, and is better than starting empty without saying so.
-  if (record === null && windowIdentity === null && source !== "startup") {
+  if (
+    record === null &&
+    windowIdentity === null &&
+    windowsKnown &&
+    source !== "startup"
+  ) {
     const newest = records
       .listRecords(root, configDir, live)
       .find((entry) => entry.heldBy === null && !entry.untouched);
     if (newest !== undefined) record = newest.path;
   }
 
-  records.removeAbandonedTemplates(root, configDir, live);
+  if (windowsKnown) records.removeAbandonedTemplates(root, configDir, live);
   if (record !== null && !fs.existsSync(record)) record = null;
 
   const isNew = record === null;
