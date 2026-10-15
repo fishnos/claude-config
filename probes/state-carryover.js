@@ -48,6 +48,11 @@
 // clear-forgotten 0/6 (p=0.0005), clear-captured 0/6 (p=0.0005). Every hit was
 // again the drain check; no cell proposed worker_threads or abbreviated a name.
 //
+// Third run, 2026-10-15, after the record moved to one file per window under
+// .claude/state/: the same counts and p-values as the second run, and every hit
+// was again the drain check. Records kept per window carry the next step as the
+// single file did.
+//
 // Half the acceptance test holds and half is undecided. clear-state beats a bare
 // clear outright. clear-state against compact is p=1 at 0/6 each: every arm that
 // carries any context at all sits on the floor of this task, so 6 trials cannot
