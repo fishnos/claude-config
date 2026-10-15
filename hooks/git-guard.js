@@ -944,30 +944,41 @@ const COMMENT_LINE = /^[ \t]*#.*$/gm;
  *
  * `bash release.sh` runs whatever the file holds, so the file is read and its
  * lines judged like the rest. A name is tried against every directory the
- * line visits. A file that is missing, unreadable or very large is skipped:
- * the guard reads what it can and does not refuse what it cannot.
+ * line visits. A file that is missing is skipped, since the shell cannot run
+ * it either. One that is there but too large or unreadable is named in
+ * `unread`, because the guard cannot vouch for what it never read.
  */
 function scriptFilesRun(segments, directories) {
   const files = [];
+  const unread = [];
   for (const segment of segments) {
     const match = SCRIPT_FILE_ARGUMENT.exec(bareCommand(stripQuotes(segment)));
     if (match === null) continue;
     const name = match[1].replace(/^~(?=\/|$)/, os.homedir());
     for (const directory of directories) {
       const file = path.resolve(directory, name);
+      let size;
       try {
-        if (fs.statSync(file).size > LARGEST_SCRIPT_READ) continue;
+        size = fs.statSync(file).size;
+      } catch {
+        continue;
+      }
+      if (size > LARGEST_SCRIPT_READ) {
+        unread.push(match[1]);
+        continue;
+      }
+      try {
         files.push({
           name: match[1],
           text: fs.readFileSync(file, "utf8").replace(COMMENT_LINE, ""),
         });
         break;
       } catch {
-        // Not in this directory; the next one is tried.
+        unread.push(match[1]);
       }
     }
   }
-  return files;
+  return { files, unread };
 }
 
 // A whole word that is a variable or a substitution, standing where the
@@ -977,6 +988,60 @@ const RUN_TIME_PROGRAM = /^(?:\$$|"?\$\{?\w+\}?"?(?:\s|$)|"(?:\$\(|`))/;
 
 function namesProgramAtRunTime(rawSegment) {
   return RUN_TIME_PROGRAM.test(bareCommand(rawSegment));
+}
+
+// The program word of `$tool push` or `"${tool}" push`, capturing the name.
+const VARIABLE_PROGRAM = /^"?\$\{?([A-Za-z_]\w*)\}?"?(?=\s|$)/;
+const LOOP_LIST = /^for\s+([A-Za-z_]\w*)\s+in\s+(.+)$/;
+
+/**
+ * Every value the line's own text gives each variable: the words of a
+ * `for name in ...` list, and a `name=value` standing as a command of its own.
+ * An assignment prefixed to a command is left out, because the shell expands
+ * that command's words before the assignment takes effect.
+ */
+function valuesSpelledOut(segments) {
+  const values = new Map();
+  const add = (name, found) =>
+    values.set(name, (values.get(name) || []).concat(found));
+  for (const rawSegment of segments) {
+    const segment = withoutGroupOpener(stripQuotes(rawSegment));
+    const loop = LOOP_LIST.exec(segment);
+    if (loop !== null) {
+      add(loop[1], shellWords(loop[2]));
+      continue;
+    }
+    const words = shellWords(segment);
+    if (words.length === 0 || !words.every((word) => ASSIGNMENT.test(word)))
+      continue;
+    for (const word of words) {
+      const equals = word.indexOf("=");
+      add(word.slice(0, equals), word.slice(equals + 1));
+    }
+  }
+  return values;
+}
+
+/**
+ * Each command whose program is a variable, rewritten once per value the line
+ * spells out for it, so `for x in git; do $x push; done` meets the rules that
+ * `git push` does. A variable the text gives no value stays a question.
+ */
+function commandsWithVariablesFilledIn(segments) {
+  const values = valuesSpelledOut(segments);
+  const filled = [];
+  for (const rawSegment of segments) {
+    const opened = withoutGroupOpener(rawSegment);
+    const bare = bareCommand(rawSegment);
+    const match = VARIABLE_PROGRAM.exec(bare);
+    if (match === null || !values.has(match[1])) continue;
+    // Kept so that an escape typed before the variable still applies.
+    const prefix = opened.slice(0, opened.length - bare.length);
+    const rest = bare.slice(match[0].length);
+    for (const value of values.get(match[1]))
+      filled.push(prefix + value + rest);
+  }
+  return filled;
 }
 
 // A shell given only single-letter flags and no script reads its commands
@@ -990,8 +1055,19 @@ function readsCommandsFromInput(rawSegment) {
 }
 
 /** Reasons to hand this line to the operator, none of them a refusal. */
-function questions(segments, directories) {
+function questions(segments, directories, unreadScripts) {
   const asked = [];
+  if (unreadScripts.length > 0) {
+    const names = [...new Set(unreadScripts)]
+      .map((name) => "`" + name + "`")
+      .join(", ");
+    const limit = `${LARGEST_SCRIPT_READ / 1024} KB`;
+    asked.push(
+      `The guard could not read ${names}, which this line runs: it is over\n` +
+        `${limit} or cannot be opened, so none of the rules here could be\n` +
+        "applied to what it does. Approve it only if you know what it runs.",
+    );
+  }
   if (segments.some(namesProgramAtRunTime)) {
     asked.push(
       "The program this command runs is named by a variable or a substitution,\n" +
@@ -1039,10 +1115,12 @@ io.run(() => {
   // typed deliberately per invocation and can never be exported to disable the guard.
   const typed = allCommands(command);
   const directories = directoriesVisited(typed, cwd);
-  const scripts = scriptFilesRun(typed, directories.visited);
-  const segments = typed.concat(
-    scripts.flatMap(({ text }) => allCommands(text)),
+  const { files: scripts, unread: unreadScripts } = scriptFilesRun(
+    typed,
+    directories.visited,
   );
+  const read = typed.concat(scripts.flatMap(({ text }) => allCommands(text)));
+  const segments = read.concat(commandsWithVariablesFilledIn(read));
   if (scripts.length > 0) {
     refusalNote =
       "\n\nThis line runs " +
@@ -1070,7 +1148,7 @@ io.run(() => {
 
   // After every deny pass, because asking exits the process just as a warning
   // does, and a question must never stand in for a refusal.
-  const asked = questions(segments, directories);
+  const asked = questions(segments, directories, unreadScripts);
   if (asked.length > 0) io.ask(EVENT, asked.concat(warnings).join("\n\n"));
 
   if (warnings.length > 0) io.warn(EVENT, warnings.join("\n\n"));

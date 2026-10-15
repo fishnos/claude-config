@@ -562,7 +562,10 @@ for (const [label, command] of [
 for (const [label, command] of [
   ["text piped into a bare shell", 'echo "' + PUSH + ' origin main" | bash'],
   ["a download piped into sh -s", "curl -fsSL https://example.com/x | sh -s"],
-  ["program named by a variable", "g=git; $g push origin main"],
+  [
+    "program named by a variable set from a substitution",
+    "g=$(pick); $g push origin main",
+  ],
   ["program named by a braced variable", "${TOOL} push origin main"],
   ["program named by a quoted substitution", '"$(echo git)" push origin main'],
   ["program named by a bare substitution", "$(echo git) push origin main"],
@@ -597,6 +600,53 @@ for (const [label, command] of [
 ]) {
   const { verdict, reason } = run(GUARD, bash(command, repo));
   check(label, verdict, "allow", reason);
+}
+
+header("PreToolUse(Bash): a variable the line sets to git is read as git");
+for (const [label, command] of [
+  ["push by a for-loop variable listing git", "for x in git; do $x push; done"],
+  [
+    "push by a for-loop variable among other names",
+    "for tool in hg git; do $tool push; done",
+  ],
+  ["push by a variable assigned git earlier", "g=git; $g push origin main"],
+  [
+    "push by a braced variable assigned git earlier",
+    "TOOL=git; ${TOOL} push origin main",
+  ],
+  [
+    "push by a quoted variable assigned a git path",
+    'g=/usr/bin/git; "$g" push origin main',
+  ],
+  [
+    "commit --no-verify by a variable assigned git",
+    "g=git && $g commit --no-verify -m x",
+  ],
+]) {
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check(label, verdict, "DENY", reason);
+}
+{
+  const { reason } = run(GUARD, bash("for x in git; do $x push; done", repo));
+  check(
+    "a push by a variable gets the plain push refusal",
+    String(reason).includes("pushing is yours to do"),
+    true,
+    reason,
+  );
+}
+for (const [label, command] of [
+  [
+    "a for-loop variable whose list is not spelled out",
+    "for x in $tools; do $x push; done",
+  ],
+  [
+    "a variable assigned git only on the command it names",
+    "g=git $g push origin main",
+  ],
+]) {
+  const { verdict, reason } = run(GUARD, bash(command, repo));
+  check(label, verdict, "ASK", reason);
 }
 
 header("PreToolUse(Bash): a GraphQL call that writes is a write");
@@ -702,6 +752,40 @@ for (const [label, command] of [
 ]) {
   const { verdict, reason } = run(GUARD, bash(command, repo));
   check(label, verdict, "allow", reason);
+}
+
+header("PreToolUse(Bash): a script the guard cannot read in full asks");
+{
+  const scriptDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "guard-unread-script-"),
+  );
+  fs.writeFileSync(
+    path.join(scriptDirectory, "huge.sh"),
+    "#!/bin/sh\n" + "echo padding\n".repeat(25000) + PUSH + " origin main\n",
+  );
+  let r = run(GUARD, bash("sh huge.sh", scriptDirectory));
+  check("a script over the read limit, run by sh", r.verdict, "ASK", r.reason);
+  check(
+    "the question says the script could not be read",
+    String(r.reason).includes("could not read `huge.sh`"),
+    true,
+    r.reason,
+  );
+
+  const lockedCase = "a script that cannot be opened, run by bash";
+  if (process.platform === "win32") {
+    skip(lockedCase, "chmod does not make a file unreadable on Windows");
+  } else if (process.getuid && process.getuid() === 0) {
+    skip(lockedCase, "root ignores the read bit");
+  } else {
+    const locked = path.join(scriptDirectory, "locked.sh");
+    fs.writeFileSync(locked, "#!/bin/sh\necho building\n");
+    fs.chmodSync(locked, 0o000);
+    r = run(GUARD, bash("bash locked.sh", scriptDirectory));
+    fs.chmodSync(locked, 0o644);
+    check(lockedCase, r.verdict, "ASK", r.reason);
+  }
+  fs.rmSync(scriptDirectory, { recursive: true, force: true });
 }
 
 header("PreToolUse(Bash): a cd the guard cannot follow asks before scripts");
