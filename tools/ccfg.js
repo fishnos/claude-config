@@ -1263,6 +1263,18 @@ function commandBackup() {
   console.log(`backed up to ${directory}`);
 }
 
+// Whichever node is on PATH first, so a node version manager switching or
+// removing the installing version does not break the command. The installing
+// node stays as the fallback for shells whose PATH has no node at all, such as
+// one started by a GUI app.
+function launcherText(fallbackNode, script) {
+  return (
+    "#!/bin/sh\n" +
+    `if command -v node >/dev/null 2>&1; then exec node "${script}" "$@"; fi\n` +
+    `exec "${fallbackNode}" "${script}" "$@"\n`
+  );
+}
+
 /** Put a `ccfg` shim on PATH so the tool is usable by name. */
 function commandInstall(argv = []) {
   heading("Installing ccfg");
@@ -1270,11 +1282,9 @@ function commandInstall(argv = []) {
   const target = path.join(os.homedir(), ".local", "bin");
   fs.mkdirSync(target, { recursive: true });
   const shim = path.join(target, "ccfg");
-  fs.writeFileSync(
-    shim,
-    `#!/bin/sh\nexec "${process.execPath}" "${__filename}" "$@"\n`,
-    { mode: 0o755 },
-  );
+  fs.writeFileSync(shim, launcherText(process.execPath, __filename), {
+    mode: 0o755,
+  });
   ok(`installed ${shim}`);
   if (!(process.env.PATH || "").split(path.delimiter).includes(target))
     warn(`${target} is not on PATH`, `add: export PATH="${target}:$PATH"`);
@@ -1432,6 +1442,7 @@ if (require.main !== module) {
     wireProfile,
     shellProfileTargets,
     PROFILE_OPEN,
+    launcherText,
   };
 } else {
   const [command, ...argv] = process.argv.slice(2);

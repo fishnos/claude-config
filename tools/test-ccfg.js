@@ -32,6 +32,7 @@ const {
   wireProfile,
   shellProfileTargets,
   PROFILE_OPEN,
+  launcherText,
 } = require("./ccfg.js");
 const voiceRegistry = require("./voice/registry.js");
 const voiceScope = require("./voice/scope.js");
@@ -1570,6 +1571,33 @@ console.log("\nccfg state\n--------------------");
   check("and says it was tracked and not moved", lines.join("\n").includes("tracked by git"), true);
   check("and still turns the records folder on", stateRecords.enabled(trackedRoot), true);
   fs.rmSync(trackedRoot, { recursive: true, force: true });
+}
+
+console.log("\nccfg launcher\n--------------------");
+{
+  const launcherRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ccfg-launcher-"));
+  const script = path.join(launcherRoot, "say.js");
+  fs.writeFileSync(script, 'console.log("ran", process.argv[2]);\n');
+  const runLauncher = (fallbackNode, searchPath) => {
+    const launcher = path.join(launcherRoot, "ccfg");
+    fs.writeFileSync(launcher, launcherText(fallbackNode, script), { mode: 0o755 });
+    return spawnSync(launcher, ["hello"], {
+      encoding: "utf8",
+      env: { ...process.env, PATH: searchPath },
+    }).stdout;
+  };
+  const pathWithNode = `${path.dirname(process.execPath)}:/usr/bin:/bin`;
+  check(
+    "the launcher runs when the node it was installed with is gone",
+    runLauncher(path.join(launcherRoot, "removed", "node"), pathWithNode),
+    "ran hello\n",
+  );
+  check(
+    "the launcher falls back to the installing node when PATH has none",
+    runLauncher(process.execPath, "/usr/bin:/bin"),
+    "ran hello\n",
+  );
+  fs.rmSync(launcherRoot, { recursive: true, force: true });
 }
 
 fs.rmSync(sandbox, { recursive: true, force: true });
