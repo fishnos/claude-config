@@ -1466,6 +1466,22 @@ console.log("\nccfg state\n--------------------");
     failureOf(["use", oldKey], contextFor("window-b", "session-b")).includes("held by window-a"),
     true,
   );
+  const windowsUnknown = { ...contextFor("window-b", "session-b"), live: null };
+  check(
+    "use refuses to adopt a record when the open windows could not be listed",
+    failureOf(["use", oldKey], windowsUnknown).includes("could not list"),
+    true,
+  );
+  check(
+    "and leaves the record with the window that holds it",
+    outputOf(["path"], contextFor("window-a", "session-a")),
+    migrated.moved,
+  );
+  check(
+    "list says the holder is unknown when the open windows could not be listed",
+    outputOf(["list"], windowsUnknown).includes(`${oldKey}  holder unknown`),
+    true,
+  );
   check(
     "use refuses a key that does not exist",
     failureOf(["use", "0101-0000-zz"], contextFor("window-b", "session-b")).includes("no record"),

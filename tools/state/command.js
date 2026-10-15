@@ -59,6 +59,10 @@ function ownRecord(context) {
   return record;
 }
 
+const WINDOWS_UNKNOWN =
+  "could not list the running processes (`ps` failed), so which open " +
+  "window holds each record is unknown.";
+
 function requireWindow(context) {
   if (context.windowIdentity || context.sessionIdentifier) return;
   throw new Error(
@@ -67,10 +71,10 @@ function requireWindow(context) {
   );
 }
 
-function describe(entry, now) {
+function describe(entry, now, windowsKnown) {
   const age = stateFile.formatAge(now - entry.modifiedMs);
-  const holder =
-    entry.heldBy === null ? "unclaimed" : `held by ${entry.heldBy}`;
+  let holder = entry.heldBy === null ? "unclaimed" : `held by ${entry.heldBy}`;
+  if (!windowsKnown) holder = "holder unknown";
   const goal = entry.goal || "(no goal recorded)";
   return `${entry.key}  ${holder}  ${goal}  (updated ${age} ago)`;
 }
@@ -91,16 +95,18 @@ function show(context, print) {
 
 function list(context, print) {
   requireEnabled(context);
+  const windowsKnown = context.live !== null;
   const entries = records.listRecords(
     context.root,
     context.configDir,
-    context.live,
+    context.live || new Set(),
   );
   if (entries.length === 0) {
     print("no working records in this repository");
     return;
   }
-  for (const entry of entries) print(describe(entry, Date.now()));
+  if (!windowsKnown) print(WINDOWS_UNKNOWN);
+  for (const entry of entries) print(describe(entry, Date.now(), windowsKnown));
 }
 
 function use(context, print, key) {
@@ -115,6 +121,11 @@ function use(context, print, key) {
   const record = records.recordPath(context.root, key);
   if (!fs.existsSync(record)) {
     throw new Error(`no record named ${key}. \`ccfg state list\` shows them.`);
+  }
+  // An open window that the listing missed would read as closed, and this
+  // window would take its record from under it.
+  if (context.live === null) {
+    throw new Error(`${WINDOWS_UNKNOWN} Nothing changed; try again.`);
   }
   const holder = records.holderOf(context.configDir, record, context.live);
   if (holder !== null && holder !== context.windowIdentity) {
@@ -271,12 +282,15 @@ function commandState(argv, io) {
       );
     }
     const processTable = records.readProcessTable();
+    // The listing always includes this process, so an empty one means `ps`
+    // failed, the same test the session-start hook makes.
+    const windowsKnown = processTable.size > 0;
     runState(
       argv,
       {
         root,
         configDir: io.CONFIG_DIR,
-        live: records.liveWindows(processTable),
+        live: windowsKnown ? records.liveWindows(processTable) : null,
         windowIdentity: records.findWindow(processTable, process.ppid),
         sessionIdentifier: process.env.CLAUDE_CODE_SESSION_ID || "",
       },
