@@ -145,3 +145,5 @@ skills/*-voice/references/samples/
 # daniel-voice writing samples, which the rule above does not reach.
 skills/synced/
 .claude/state/
+plugins/installed_plugins.json
+plugins/known_marketplaces.json
