@@ -285,6 +285,12 @@ check(
   1,
 );
 
+check(
+  "probe results are kept under records/, which nothing prunes",
+  runner.resultsDir("/config", "mode-divergence"),
+  path.join("/config", "records", "probe", "mode-divergence"),
+);
+
 fs.rmSync(SANDBOX_CONFIG, { recursive: true, force: true });
 
 console.log(`\nPASS ${passed}  FAIL ${failed}`);

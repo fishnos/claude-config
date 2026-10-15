@@ -48,7 +48,7 @@ function checkFixtures(probe) {
 }
 
 function resultsDir(configDir, probeName) {
-  return path.join(configDir, "cache", "probe", probeName);
+  return path.join(configDir, "records", "probe", probeName);
 }
 
 /** One file per cell, so an interrupted run resumes instead of restarting. */

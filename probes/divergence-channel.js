@@ -15,6 +15,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { discriminate } = require("../tools/probe/discriminate.js");
+const { resultsDir } = require("../tools/probe/runner.js");
 
 const SPIKE_BRIEF = "rough code is fine, skip the process, move fast, no tests needed";
 const SHIP_BRIEF = "polished code, full process, tests required, every claim sourced";
@@ -42,7 +43,7 @@ const CHANNELS = {
 };
 
 function cellsFor(configDir, arm) {
-  const directory = path.join(configDir, "cache", "probe", "mode-divergence");
+  const directory = resultsDir(configDir, "mode-divergence");
   return fs
     .readdirSync(directory)
     .filter((entry) => entry.startsWith(arm + "--") && entry.endsWith(".txt"))
