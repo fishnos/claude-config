@@ -54,7 +54,7 @@ Twelve of the suite's cases cover the installer's own logic (the tamper check, r
 
 The failure this guards against: an unmeasured claim gets stated, repeated, summarised into a compaction, and read back afterwards as established fact, carrying whoever framed it rather than any evidence. Prose cannot be audited; a list of commands that really ran can be.
 
-`hooks/evidence-log.js` records every shell command to `cache/evidence/<session>.jsonl`. `ccfg evidence` prints it, and the `Stop` hook names the count in its self-review reminder, so a report claiming more than the session observed is visibly doing so.
+`hooks/evidence-log.js` records every shell command to `records/evidence/<session>.jsonl`. `ccfg evidence` prints it, and the `Stop` hook names the count in its self-review reminder, so a report claiming more than the session observed is visibly doing so.
 
 ```sh
 ccfg evidence              # most recent session

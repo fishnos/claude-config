@@ -117,6 +117,8 @@ plugins/plugin-catalog-cache.json
 # swallowed modes/commands/debug/, and so TRACE shipped declaring a command
 # whose file was never committed, and applying it on a fresh clone would throw.
 /cache/
+# Probe results and the evidence log: kept forever, never committed.
+/records/
 /debug/
 /telemetry/
 /tasks/

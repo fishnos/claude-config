@@ -167,7 +167,7 @@ function configDir() {
 function evidenceDir() {
   return (
     process.env.CLAUDE_EVIDENCE_DIR ||
-    path.join(configDir(), "cache", "evidence")
+    path.join(configDir(), "records", "evidence")
   );
 }
 

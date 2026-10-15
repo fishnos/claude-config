@@ -3,7 +3,7 @@
 // PreToolUse(every tool): keep a worker out of the records that judge it.
 //
 // The finish gates compare what a worker claims against two files it never
-// wrote: the evidence log (cache/evidence/, tool calls that really happened)
+// wrote: the evidence log (records/evidence/, tool calls that really happened)
 // and the run record (cache/crew/, what the dispatch asked for and what the
 // worker touched). If a worker can write either one, both gates are theatre.
 //
@@ -41,7 +41,7 @@ const READ_ONLY_TOOLS = ["Read", "Grep", "Glob", "NotebookRead", "LS"];
  * one to trust.
  */
 const SHELL_FRAGMENTS = [
-  path.join("cache", "evidence"),
+  path.join("records", "evidence"),
   path.join("cache", "crew"),
 ];
 
@@ -70,7 +70,7 @@ function insideDirectory(target, directory) {
 
 const DENIAL =
   "This call targets a record your work is judged against, and a worker may " +
-  "not write one. The evidence log (cache/evidence/) is written by a hook from " +
+  "not write one. The evidence log (records/evidence/) is written by a hook from " +
   "tool calls that really ran, and the run record (cache/crew/) is written by " +
   "the dispatch and trace hooks. A claim checked against a file the claimant " +
   "wrote proves nothing, which is why this is refused rather than reviewed. " +

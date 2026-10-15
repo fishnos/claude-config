@@ -6302,10 +6302,15 @@ header("PreToolUse(any tool): the worker guard");
   // The evidence gate is only worth having if a worker cannot author the
   // evidence. The `implementer` role carries Bash and Write, so a tool
   // allowlist cannot deliver that: a redirect, a heredoc or a node one-liner
-  // all reach cache/evidence/. The guard keys on agent_id, which a worker's
+  // all reach records/evidence/. The guard keys on agent_id, which a worker's
   // payload carries and the main session's does not.
   const AGENT_GUARD = path.join(HOOKS, "agent-guard.js");
-  const evidenceFile = path.join(testedConfig, "cache", "evidence", "s1.jsonl");
+  const evidenceFile = path.join(
+    testedConfig,
+    "records",
+    "evidence",
+    "s1.jsonl",
+  );
   const recordFile = path.join(testedConfig, "cache", "crew", "s1.jsonl");
 
   const asWorker = (payload) => ({
@@ -6345,6 +6350,18 @@ header("PreToolUse(any tool): the worker guard");
     run(
       AGENT_GUARD,
       asWorker(bash(`echo x > ${evidenceFile}`, repo)),
+      workerEnv,
+    ).verdict,
+    "DENY",
+  );
+  // The text match is what stands between a relative shell path and the log.
+  check(
+    "a worker redirecting into records/evidence by a relative path is denied",
+    run(
+      AGENT_GUARD,
+      asWorker(
+        bash(`echo x > ${path.join("records", "evidence", "s1.jsonl")}`, repo),
+      ),
       workerEnv,
     ).verdict,
     "DENY",
@@ -8169,7 +8186,12 @@ header("The evidence gate: a claim of done against the commands that ran");
   wroteAt("ev-last-line", "2026-09-18T11:59:00.000Z");
   wroteAt("ev-stale", "2026-09-18T12:05:00.000Z");
 
-  const sourcedLog = path.join(sourcedConfig, "cache", "evidence", "s6.jsonl");
+  const sourcedLog = path.join(
+    sourcedConfig,
+    "records",
+    "evidence",
+    "s6.jsonl",
+  );
   fs.mkdirSync(path.dirname(sourcedLog), { recursive: true });
   for (const entry of [
     {
