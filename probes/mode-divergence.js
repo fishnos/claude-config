@@ -98,7 +98,7 @@ module.exports = {
   name: "mode-divergence",
   kind: "model",
   question: "Do spike and ship produce measurably different work on the same task?",
-  why: "The ten modes are assumed to differ. Nothing has measured whether they do. If the extremes tie, the postures are decoration.",
+  why: "The eleven modes are assumed to differ. Nothing has measured whether they do. If the extremes tie, the postures are decoration.",
 
   control: "none",
   reps: 6,

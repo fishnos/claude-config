@@ -642,7 +642,7 @@ const unreachable = realCorpus.rules.filter(
     ),
 );
 check(
-  `no rule is unreachable in all ten modes (${unreachable.map((r) => r.id).join(", ")})`,
+  `no rule is unreachable in every mode (${unreachable.map((r) => r.id).join(", ")})`,
   unreachable.length,
   0,
 );

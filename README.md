@@ -1,6 +1,6 @@
 # claude-config
 
-A version-controlled `~/.claude`: global instructions, 126 skills, thirteen hooks that
+A version-controlled `~/.claude`: global instructions, 130 skills, twenty-four hooks that
 enforce an engineering standard, and a zero-dependency CLI to set it all up on a
 machine that has nothing installed yet.
 
@@ -16,13 +16,13 @@ adopt-in-place path and the Windows equivalents.
 
 ## Documentation
 
-| Page                         | What is in it                                                         |
-| ---------------------------- | --------------------------------------------------------------------- |
-| [Install](docs/install.md)   | New machine, prerequisites, `claude-sol`, avoiding merge conflicts    |
-| [Hooks](docs/hooks.md)       | All thirteen hooks, what the git guard blocks, portability, the suite |
-| [Security](docs/security.md) | Where keys live, the credential broker, the evidence log              |
-| [ccfg](docs/ccfg.md)         | Command reference for the config CLI                                  |
-| [Skills](docs/skills.md)     | The engineering standards, and sharing skills via `~/.agents`         |
+| Page                         | What is in it                                                            |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| [Install](docs/install.md)   | New machine, prerequisites, `claude-sol`, avoiding merge conflicts       |
+| [Hooks](docs/hooks.md)       | All twenty-four hooks, what the git guard blocks, portability, the suite |
+| [Security](docs/security.md) | Where keys live, the credential broker, the evidence log                 |
+| [ccfg](docs/ccfg.md)         | Command reference for the config CLI                                     |
+| [Skills](docs/skills.md)     | The engineering standards, and sharing skills via `~/.agents`            |
 
 ## Modes, the crew and probes
 
@@ -65,7 +65,7 @@ you want without adopting anyone else's `CLAUDE.md`:
 Each plugin under `marketplace/` is a self-contained root carrying its own copy
 of the skills it advertises. That is not redundancy: Claude Code always scans a
 plugin's own `skills/` directory and a manifest path can only widen that scan, so
-a plugin rooted at this repository would publish all 126 skills no matter what it
+a plugin rooted at this repository would publish all 130 skills no matter what it
 claimed. Isolated roots are what make the advertised contents and the installed
 contents the same thing.
 
@@ -102,7 +102,7 @@ Everything else is ignored via allowlist `.gitignore` (`*` first, then explicit 
 Two commands, both of which should pass before anything is committed:
 
 ```sh
-node ~/.claude/tools/test-hooks.js       # 1041 cases across the thirteen hooks
+node ~/.claude/tools/test-hooks.js       # 1041 cases across the twenty-four hooks
 node ~/.claude/hooks/validate-config.js  # the config as a whole
 ```
 
