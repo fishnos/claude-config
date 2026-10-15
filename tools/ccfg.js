@@ -1109,6 +1109,48 @@ function commandClean(argv) {
     }
   }
 
+  // Files, not folders: each cache/ subfolder belongs to one hook, and its
+  // mtime moves whenever any session writes there. The window bindings stay
+  // because their mtime is not refreshed on use, so a window open past the
+  // cutoff would lose its record.
+  const cacheRoot = path.join(CONFIG_DIR, "cache");
+  const keptInCache = new Set([path.join(cacheRoot, "state-records")]);
+  let cacheRemoved = 0;
+  let cacheBytes = 0;
+  const pruneCacheFiles = (directory) => {
+    let entries;
+    try {
+      entries = fs.readdirSync(directory, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(directory, entry.name);
+      if (keptInCache.has(full)) continue;
+      if (entry.isDirectory()) {
+        pruneCacheFiles(full);
+        continue;
+      }
+      let stats;
+      try {
+        stats = fs.statSync(full);
+      } catch {
+        continue;
+      }
+      if (stats.mtimeMs >= cutoff) continue;
+      cacheBytes += stats.size;
+      cacheRemoved += 1;
+      if (!dryRun) fs.rmSync(full, { force: true });
+    }
+  };
+  pruneCacheFiles(cacheRoot);
+  if (cacheRemoved > 0) {
+    reclaimed += cacheBytes;
+    console.log(
+      `  prune cache/ ${cacheRemoved} files older than ${ageLimitDays}d ${dim(bytesToHuman(cacheBytes))}`,
+    );
+  }
+
   console.log(
     `\n  ${dryRun ? "would reclaim" : "reclaimed"} ${bold(bytesToHuman(reclaimed))}`,
   );
@@ -1116,6 +1158,11 @@ function commandClean(argv) {
   console.log(
     dim(
       "  projects/ holds session transcripts and is never touched automatically",
+    ),
+  );
+  console.log(
+    dim(
+      "  records/ holds probe results and the evidence log and is never touched",
     ),
   );
 }

@@ -11,7 +11,7 @@
 | `ccfg keys migrate`         | Replaces plaintext keys in `~/.claude.json` with `${VAR}`, saving the values first.                 |
 | `ccfg keys scrub`           | Finds managed secrets sitting in plaintext under `backups/`. Dry run unless `--yes`.                |
 | `ccfg shell-init`           | Prints the profile line; `--write` adds it to your profile for you (idempotent).                    |
-| `ccfg clean`                | Gzips idle logs, prunes caches older than 30 days. Dry run unless `--yes`.                          |
+| `ccfg clean`                | Gzips idle logs, prunes caches older than 30 days (never `records/` or the window bindings). Dry run unless `--yes`. |
 | `ccfg test`                 | Runs the hook, ccfg and broker regression suites.                                                   |
 | `ccfg validate`             | Runs the full config validator.                                                                     |
 | `ccfg backup`               | Snapshots `settings.json`, `CLAUDE.md`, `hooks/`, and `~/.claude.json`.                             |
