@@ -59,7 +59,10 @@
       "Bash(gh auth status)",
       "Bash(vercel env ls:*)",
       "Bash(vercel whoami)",
-      "Bash(supabase migration list:*)"
+      "Bash(supabase migration list:*)",
+      "Bash(ccfg state)",
+      "Bash(ccfg state path)",
+      "Bash(ccfg state list)"
     ],
     "deny": [
       "Bash(git commit *)",
