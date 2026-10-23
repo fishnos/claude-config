@@ -3,7 +3,7 @@
 Generated. Do not edit by hand. Rerun `node ~/.claude/scripts/build-skill-index.js`,
 or start a session and the SessionStart hook rebuilds it when it goes stale.
 
-Every skill on this machine and whether Claude can see it: 215 in all,
+Every skill on this machine and whether Claude can see it: 216 in all,
 85 of them from enabled plugins, named the way they are invoked
 (`plugin:skill`). 75 of these
 are invisible in the session listing but run right now when invoked by name. Only the
@@ -468,7 +468,7 @@ Activates on: `**/*.urdf,**/*.xacro`
 
 Create robot models using URDF with proper links, joints, visual geometry, collision shapes, and physical properties
 
-## Always listed (98)
+## Always listed (99)
 
 Already in the session listing with descriptions.
 
@@ -520,13 +520,17 @@ Use when the user wants to design, redesign, shape, critique, audit, polish, cla
 
 Testing React with Testing Library the way it's meant to be used — query priority, user-event, integration over unit, testing custom hooks, and mocking the network with MSW instead of fetch. Use when writing or reviewing React/Next.js tests, testing a component, custom hook, form, or async data flow, choosing between unit/integration/E2E for a frontend change, or fixing tests that break on every refactor.
 
+### `/revamp`
+
+Rebuilds an existing club or personal website so it looks hand-crafted rather than AI-generated, running the whole process end to end (read the site, set a direction, source library components, build, review its own screenshots until clean, prepare the commit). Use when the user runs /revamp with a repo, or asks to revamp, redesign or rebuild a GNS club site or similar small site.
+
 ### `/tool-search`
 
 Finds the specific components, libraries, and services from a curated list of web resources (React Bits, Aceternity UI, 21st, Bklit, Motion, vgpu, Supabase, Vercel and others) that fit a website or app being planned, and returns checked links with install commands. Use when the user asks which components, tools, or technology to use for a site, wants links to UI components for a page, or runs /tool-search with a description of what they are building.
 
 ### `/superpowers:brainstorming`
 
-You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation.
+You MUST use this before any creative work - creating features, building components, adding functionality, modifying behavior, or planning anything new, in software or out of it (a talk, a business, a renovation).
 
 ### `/superpowers:diagnosing-superpowers`
 
