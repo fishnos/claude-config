@@ -56,15 +56,19 @@ Source code shows what the software does; it rarely shows why it exists. Without
 
 **First line**: a short summary of specifically what the change does, written as a complete imperative sentence, followed by a blank line. "**Delete** the FizzBuzz RPC and **replace** it with the new system." — not "Deleting… and replacing…". It must stand alone, because that's what shows in history.
 
-**Body**: fill in the details — the problem, why this approach, any shortcomings of the approach, relevant bug numbers, benchmark results, design doc links. Include enough context inline that a link rotting doesn't erase the reasoning. Even small changes deserve this.
+**Body**: two short paragraphs, one to three sentences each. First what was wrong before ("Previously, ..."), then what this change does, with the concrete values a reader needs ("This change ..."). Add a bug number or benchmark result only when it is the reason for the change. Include enough context inline that a link rotting doesn't erase the reasoning. Even small changes deserve a body; none deserve more than about six lines.
 
 Inadequate: "Fix bug." "Fix build." "Add patch." "Moving code from A to B." "Phase 1." "Add convenience functions."
 
 Good:
 
-> RPC: Remove size limit on RPC server message freelist.
+> Add exponential backoff to user profile fetch retries
 >
-> Servers like FizzBuzz have very large messages and would benefit from reuse. Make the freelist larger, and add a goroutine that frees the freelist entries slowly over time, so that idle servers eventually release all freelist entries.
+> Previously, failed profile fetches retried immediately in a tight loop,
+> causing cascading timeouts during downstream auth service spikes.
+>
+> This change introduces jittered exponential backoff starting at 100ms up
+> to a maximum of 5 seconds, capping attempts at 4 retries.
 
 Tags (`[tag]`, `#tag`, `tag:`) are optional. Keep them short if they're on the first line, or move them to the body — long tags bury the content.
 

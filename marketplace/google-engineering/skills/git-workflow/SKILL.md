@@ -34,13 +34,24 @@ The near-universal convention, from the Linux kernel through GitHub tooling:
 
 **Subject line.** Imperative mood — "Add retry to the upload client", not "Added" / "Adding" / "Adds". The test: the subject should complete the sentence _"If applied, this commit will \___."_ Capitalize the first word, no period. 50 characters is the target so it isn't truncated in `git log --oneline`, GitHub UI, or `git shortlog`; 72 is a hard ceiling.
 
-**Body.** Explains **why** the change exists and what it does at a level the diff can't show: the problem, the approach, the alternatives rejected, the known shortcomings. The diff already says what changed line by line — don't restate it. Wrap at 72 characters, because git indents log output by 4 and terminals are 80. Omit the body only when the subject genuinely says everything.
+**Body.** Explains **why** the change exists and what it does at a level the diff can't show: the problem, then the approach. The diff already says what changed line by line — don't restate it. Wrap at 72 characters, because git indents log output by 4 and terminals are 80. Omit the body only when the subject genuinely says everything.
 
-**A body earns its length by answering three questions, then stopping:**
+**A body is two short paragraphs, one to three sentences each, then it stops:**
 
-1. **Why was this needed?** The problem, not the solution.
-2. **Why this approach?** Including the obvious alternative you rejected, and why.
-3. **What is the one thing you did not check?** One sentence, and only when a reader would otherwise assume it was covered. Omit it when you checked everything — most commits should. Not an inventory of caveats: a list of loose ends is a to-do note left where it can never be updated.
+1. **What was wrong before?** The old behavior and what it cost. "Previously, ..." fits.
+2. **What does this change do?** The mechanism, with the concrete values a reader needs (limits, defaults, counts). "This change ..." fits.
+
+A third one-sentence paragraph is allowed only when a reader would otherwise be misled: the obvious alternative and why it lost, or the one thing you did not check. Most commits have neither. Not an inventory of caveats: a list of loose ends is a to-do note left where it can never be updated.
+
+```
+Add exponential backoff to user profile fetch retries
+
+Previously, failed profile fetches retried immediately in a tight loop,
+causing cascading timeouts during downstream auth service spikes.
+
+This change introduces jittered exponential backoff starting at 100ms up
+to a maximum of 5 seconds, capping attempts at 4 retries.
+```
 
 Claim only what the session establishes. Never assert a state you cannot observe — whether a page was opened in a browser, a deploy went out, someone checked it by hand. Ask when it matters to the message, and otherwise say nothing about it.
 
@@ -48,7 +59,7 @@ Everything else belongs somewhere that stays current when the code changes — h
 
 The failure mode to watch for is a body that reads as a changelog of your own debugging session: every defect found, every dead end. That is interesting to the author on the day and noise to everyone after. If a reader would have to skim it to find the decision, it is too long.
 
-Length is a symptom, not the rule — a genuinely intricate change can justify thirty lines. But past that, check that you are still answering the three questions rather than narrating.
+A body past about six lines is narrating. Cut it back to the two paragraphs.
 
 **Never** use `-m` for a commit that needs a body. Write it in the editor.
 

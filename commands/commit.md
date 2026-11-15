@@ -103,18 +103,33 @@ awk '{n=length($0); split($0,w," "); v=tolower(w[1]); bad=""
 
 ## Step 4: write the body
 
-Wrapped at 72 columns. Prose in two to four short paragraphs. **Never
-bullets**, because a list of what changed only duplicates the diff.
+Wrapped at 72 columns. **Two short paragraphs**, one to three sentences
+each, then stop. **Never bullets**, because a list of what changed only
+duplicates the diff.
 
-Answer exactly three questions, then stop:
+1. **What was wrong before**: the old behavior and what it cost.
+   Google's opener "Previously, ..." fits.
+2. **What this change does**: the mechanism, with the concrete values a
+   reader needs (limits, defaults, counts). "This change ..." fits.
 
-1. **Why the change was needed**: the pressure that produced it
-2. **Why this approach over the obvious alternative**: name the alternative
-3. **What is still wrong or unverified**: state it explicitly
+A third paragraph, one sentence, is allowed only when a reader would
+otherwise be misled: the obvious alternative and why it was rejected, or the
+single most important thing not verified. Most commits have neither.
 
-That third one is not optional. A body with no stated limits reads as
-unexamined. If a suite was not run, say so. If a failure is pre-existing, say
-that and say why it is unrelated.
+The target shape for the body (this subject opens with `Add`, which Step 3
+rejects; copy the body, not the subject):
+
+```
+Add exponential backoff to user profile fetch retries
+
+Previously, failed profile fetches retried immediately in a tight loop,
+causing cascading timeouts during downstream auth service spikes.
+
+This change introduces jittered exponential backoff starting at 100ms up
+to a maximum of 5 seconds, capping attempts at 4 retries.
+```
+
+If the body runs past about six lines, it is narrating; cut it back.
 
 Load the active voice skill (the `*-voice` skill in your listing) before
 drafting the body and write every sentence under it, as a constraint rather
@@ -125,8 +140,7 @@ The subject stays under Step 3's rules alone.
 
 Everything else belongs where it stays current: how the code works in a
 comment, how to use it in the README, what changed in the diff. A commit
-message is the only one of those that can never be updated. A body that reads
-as a changelog of your own debugging is too long.
+message is the only one of those that can never be updated.
 
 ## Step 5: no trailers, ever
 

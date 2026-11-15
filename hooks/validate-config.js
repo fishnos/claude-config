@@ -252,14 +252,12 @@ check(
   /Never commit, never push/.test(claudeMd),
 );
 check(
-  "CLAUDE.md carries the three-questions rule",
-  /answers three questions/.test(claudeMd),
+  "CLAUDE.md carries the two-paragraph body rule",
+  /A body is two short paragraphs/.test(claudeMd),
 );
 check(
-  "git-workflow carries the three-questions rule",
-  /earns its length by answering three questions/.test(
-    read("skills/git-workflow/SKILL.md"),
-  ),
+  "git-workflow carries the two-paragraph body rule",
+  /A body is two short paragraphs/.test(read("skills/git-workflow/SKILL.md")),
 );
 
 section("Skills resolve from both paths");
