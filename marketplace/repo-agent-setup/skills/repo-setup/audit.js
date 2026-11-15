@@ -247,7 +247,135 @@ function deepAudit(root) {
             .join(", ")}}} to .claude/settings.local.json`,
   });
 
+  const formatHooksUsed = repoAudit.usesFormatHooks(root);
+  rows.push({
+    id: "format-hooks",
+    status: formatHooksUsed ? "ok" : "missing",
+    detail: formatHooksUsed
+      ? ".pre-commit-config.yaml pulls in format-hooks"
+      : "no format-hooks in .pre-commit-config.yaml, so commits skip the shared formatters",
+    fix: formatHooksUsed
+      ? undefined
+      : "audit.js format writes the config and installs the hooks",
+  });
+
   return rows;
+}
+
+// Used when the tag lookup cannot reach GitHub; bump it when format-hooks tags a release.
+const FORMAT_HOOKS_FALLBACK_REV = "v0.2.0";
+
+const FORMAT_HOOK_IDS = [
+  "ruff-check",
+  "ruff-format",
+  "python-spacing",
+  "comment-pronouns",
+  "comment-density",
+  "clang-format",
+  "prettier",
+  "shfmt",
+  "config-drift",
+  "sync-config",
+];
+
+/**
+ * The newest `vX.Y.Z` tag of format-hooks, or the fallback when offline.
+ * `FORMAT_HOOKS_REV` overrides both, so tests never touch the network.
+ */
+function newestFormatHooksRev() {
+  if (process.env.FORMAT_HOOKS_REV) {
+    return { rev: process.env.FORMAT_HOOKS_REV, usedFallback: false };
+  }
+  const listing = io.git(
+    ["ls-remote", "--tags", "--refs", repoAudit.FORMAT_HOOKS_URL],
+    process.cwd(),
+  );
+  const versions = [...listing.matchAll(/refs\/tags\/v(\d+)\.(\d+)\.(\d+)$/gm)]
+    .map((match) => match.slice(1, 4).map(Number))
+    .sort((left, right) =>
+      left[0] !== right[0]
+        ? left[0] - right[0]
+        : left[1] !== right[1]
+          ? left[1] - right[1]
+          : left[2] - right[2],
+    );
+  if (versions.length === 0) {
+    return { rev: FORMAT_HOOKS_FALLBACK_REV, usedFallback: true };
+  }
+  return {
+    rev: `v${versions[versions.length - 1].join(".")}`,
+    usedFallback: false,
+  };
+}
+
+function formatHooksEntry(rev) {
+  return [
+    `  - repo: ${repoAudit.FORMAT_HOOKS_URL}`,
+    `    rev: ${rev}`,
+    "    hooks:",
+    ...FORMAT_HOOK_IDS.map((hookId) => `      - id: ${hookId}`),
+  ].join("\n");
+}
+
+/**
+ * Writes the pre-commit config and installs the hooks. An existing config is
+ * never edited, since merging YAML by hand risks breaking the reader's hooks;
+ * the block to paste is printed instead.
+ */
+function runFormat(root) {
+  if (repoAudit.usesFormatHooks(root)) {
+    console.log(
+      "kept      .pre-commit-config.yaml (already uses format-hooks)",
+    );
+    return;
+  }
+  const { rev, usedFallback } = newestFormatHooksRev();
+  const entry = formatHooksEntry(rev);
+  const configPath = path.join(root, ".pre-commit-config.yaml");
+
+  if (fs.existsSync(configPath)) {
+    console.log(
+      "kept      .pre-commit-config.yaml (it exists; nothing was edited)\n\n" +
+        "Paste this under its repos: list, then run pre-commit install and\n" +
+        "pre-commit run sync-config --hook-stage manual:\n\n" +
+        entry,
+    );
+    return;
+  }
+
+  fs.writeFileSync(configPath, `repos:\n${entry}\n`);
+  console.log(
+    `wrote     .pre-commit-config.yaml (format-hooks ${rev}` +
+      (usedFallback
+        ? ", the fallback: GitHub was unreachable)"
+        : ")"),
+  );
+
+  for (const preCommitArgs of [
+    ["install"],
+    ["run", "sync-config", "--hook-stage", "manual"],
+  ]) {
+    const run = spawnSync("pre-commit", preCommitArgs, {
+      cwd: root,
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    if (run.error && run.error.code === "ENOENT") {
+      console.log(
+        "skipped   pre-commit is not on PATH; install it, then run " +
+          "pre-commit install and pre-commit run sync-config --hook-stage manual",
+      );
+      return;
+    }
+    console.log(
+      `ran       pre-commit ${preCommitArgs.join(" ")} (exit ${run.status})`,
+    );
+  }
+
+  console.log(
+    "\nNot run: pre-commit run --all-files rewrites every file in the repo. " +
+      "Offer it; run it only on a yes.",
+  );
 }
 
 const STATUS_GLYPH = {
@@ -292,7 +420,7 @@ function main() {
   const args = process.argv.slice(2);
   const asJson = args.includes("--json");
   const positional = args.filter((value) => !value.startsWith("--"));
-  const command = ["snooze", "dismiss", "reset", "context"].includes(
+  const command = ["snooze", "dismiss", "reset", "context", "format"].includes(
     positional[0],
   )
     ? positional.shift()
@@ -302,7 +430,7 @@ function main() {
   // whatever follows it. Relative paths resolve against the caller's directory
   // rather than being ignored, which would silently audit the wrong repository.
   const pathArgument =
-    command === "report" || command === "context"
+    command === "report" || command === "context" || command === "format"
       ? positional[0]
       : positional[1];
   const root = repoAudit.findRepositoryRoot(
@@ -315,6 +443,11 @@ function main() {
 
   if (command === "context") {
     runContext(root);
+    return;
+  }
+
+  if (command === "format") {
+    runFormat(root);
     return;
   }
 

@@ -3924,6 +3924,170 @@ header("/repo-setup context: one-step records folder, ignore line and graph");
   }
 }
 
+header("Repo setup: format-hooks finding and the format action");
+{
+  const repoAudit = require(path.join(HOOKS, "lib", "repo-audit.js"));
+  const findingIds = (root) =>
+    repoAudit.audit(root).map((finding) => finding.id);
+  const formatHooksBlock =
+    "repos:\n  - repo: https://github.com/fishnos/format-hooks\n    rev: v0.2.0\n    hooks:\n      - id: ruff-check\n";
+
+  const noConfig = makeRepository("format-none-");
+  check(
+    "a repository with no pre-commit config raises format-hooks",
+    findingIds(noConfig).includes("format-hooks"),
+    true,
+    findingIds(noConfig),
+  );
+  check(
+    "format-hooks is a routine finding, not an urgent one",
+    repoAudit.audit(noConfig).find((finding) => finding.id === "format-hooks")
+      .urgent,
+    undefined,
+    "",
+  );
+
+  const otherConfig = makeRepository("format-other-");
+  fs.writeFileSync(
+    path.join(otherConfig, ".pre-commit-config.yaml"),
+    "repos:\n  - repo: https://github.com/psf/black\n    rev: 24.1.0\n",
+  );
+  check(
+    "a pre-commit config without format-hooks still raises format-hooks",
+    findingIds(otherConfig).includes("format-hooks"),
+    true,
+    findingIds(otherConfig),
+  );
+
+  const adopted = makeRepository("format-adopted-");
+  fs.writeFileSync(
+    path.join(adopted, ".pre-commit-config.yaml"),
+    formatHooksBlock,
+  );
+  check(
+    "a pre-commit config pinning format-hooks clears format-hooks",
+    findingIds(adopted).includes("format-hooks"),
+    false,
+    findingIds(adopted),
+  );
+
+  const auditScript = path.join(
+    __dirname,
+    "..",
+    "skills",
+    "repo-setup",
+    "audit.js",
+  );
+  const formatCases = [
+    "format writes a pre-commit config pinned to the newest tag",
+    "format runs pre-commit install, then the shared-settings sync",
+    "the deep audit reports format-hooks ok after format",
+    "format leaves an existing pre-commit config untouched",
+    "format prints the block to paste into an existing config",
+    "format without pre-commit still exits 0",
+    "format without pre-commit says so",
+  ];
+  if (process.platform === "win32") {
+    for (const label of formatCases)
+      skip(label, "the fake pre-commit is a POSIX shebang script");
+  } else {
+    const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), "fake-pre-commit-"));
+    const fakeLog = path.join(fakeBin, "calls.jsonl");
+    fs.writeFileSync(
+      path.join(fakeBin, "pre-commit"),
+      `#!${process.execPath}\nrequire("fs").appendFileSync(process.env.FAKE_PRE_COMMIT_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");\n`,
+      { mode: 0o755 },
+    );
+    const pathWithoutPreCommit = String(process.env.PATH)
+      .split(path.delimiter)
+      .filter((directory) => !fs.existsSync(path.join(directory, "pre-commit")))
+      .join(path.delimiter);
+    const runFormat = (root, withPreCommit) =>
+      spawnSync(process.execPath, [auditScript, "format", root], {
+        encoding: "utf8",
+        windowsHide: true,
+        env: {
+          ...process.env,
+          FAKE_PRE_COMMIT_LOG: fakeLog,
+          FORMAT_HOOKS_REV: "v9.9.9",
+          PATH: withPreCommit
+            ? fakeBin + path.delimiter + pathWithoutPreCommit
+            : pathWithoutPreCommit,
+        },
+      });
+
+    const firstRun = runFormat(noConfig, true);
+    const written = readTextOrEmpty(
+      path.join(noConfig, ".pre-commit-config.yaml"),
+    );
+    check(
+      formatCases[0],
+      written.includes("repo: https://github.com/fishnos/format-hooks") &&
+        written.includes("rev: v9.9.9"),
+      true,
+      firstRun.stdout + firstRun.stderr,
+    );
+    check(
+      formatCases[1],
+      readTextOrEmpty(fakeLog).trim(),
+      [
+        JSON.stringify(["install"]),
+        JSON.stringify(["run", "sync-config", "--hook-stage", "manual"]),
+      ].join("\n"),
+      firstRun.stdout,
+    );
+    const deepReport = spawnSync(
+      process.execPath,
+      [auditScript, "--json", noConfig],
+      { encoding: "utf8", windowsHide: true },
+    );
+    let formatStatus = "unparsed";
+    try {
+      formatStatus = JSON.parse(deepReport.stdout).checks.find(
+        (row) => row.id === "format-hooks",
+      ).status;
+    } catch {
+      // Left as "unparsed" so the check below reports it.
+    }
+    check(formatCases[2], formatStatus, "ok", deepReport.stdout.slice(0, 200));
+
+    const otherConfigText = readTextOrEmpty(
+      path.join(otherConfig, ".pre-commit-config.yaml"),
+    );
+    const existingRun = runFormat(otherConfig, true);
+    check(
+      formatCases[3],
+      readTextOrEmpty(path.join(otherConfig, ".pre-commit-config.yaml")),
+      otherConfigText,
+      existingRun.stdout,
+    );
+    check(
+      formatCases[4],
+      existingRun.stdout.includes(
+        "- repo: https://github.com/fishnos/format-hooks",
+      ),
+      true,
+      existingRun.stdout,
+    );
+
+    const noPreCommitRoot = makeRepository("format-no-pre-commit-");
+    const withoutPreCommit = runFormat(noPreCommitRoot, false);
+    check(formatCases[5], withoutPreCommit.status, 0, withoutPreCommit.stderr);
+    check(
+      formatCases[6],
+      withoutPreCommit.stdout.includes("pre-commit is not on PATH"),
+      true,
+      withoutPreCommit.stdout,
+    );
+
+    for (const directory of [fakeBin, noPreCommitRoot])
+      fs.rmSync(directory, { recursive: true, force: true });
+  }
+
+  for (const directory of [noConfig, otherConfig, adopted])
+    fs.rmSync(directory, { recursive: true, force: true });
+}
+
 header(
   "/repo-setup audit: with git unavailable, each file keeps its own approximation",
 );

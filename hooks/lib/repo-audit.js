@@ -127,6 +127,16 @@ function unpromotedSkills(root) {
   return [...wanted];
 }
 
+const FORMAT_HOOKS_URL = "https://github.com/fishnos/format-hooks";
+
+/** Whether the repo's pre-commit config pulls in the shared format-hooks package. */
+function usesFormatHooks(root) {
+  const config = readText(root, ".pre-commit-config.yaml");
+  // Matched without the scheme, so an ssh or http remote counts too.
+  const hostAndPath = FORMAT_HOOKS_URL.replace(/^https:\/\//, "");
+  return config !== null && config.includes(hostAndPath);
+}
+
 function declaredRoutines(root) {
   try {
     return fs
@@ -216,6 +226,14 @@ function audit(root) {
     });
   }
 
+  if (!usesFormatHooks(root)) {
+    findings.push({
+      id: "format-hooks",
+      message: "no format-hooks in .pre-commit-config.yaml",
+      fix: "/repo-setup format",
+    });
+  }
+
   return findings;
 }
 
@@ -265,6 +283,7 @@ function activeFindings(findings, state) {
 }
 
 module.exports = {
+  FORMAT_HOOKS_URL,
   audit,
   activeFindings,
   daysBetween,
@@ -275,5 +294,6 @@ module.exports = {
   stateFile,
   today,
   unpromotedSkills,
+  usesFormatHooks,
   writeState,
 };

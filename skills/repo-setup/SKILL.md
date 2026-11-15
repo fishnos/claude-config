@@ -6,8 +6,8 @@ description: Audit and fix a repository's agent infrastructure — CLAUDE.md pre
 # Repo setup
 
 Reports what a repository is missing for agent work, then hands each fix to the
-skill that owns it. This skill diagnoses and delegates. Only the context action
-writes to the repository, and only when the reader asks for it.
+skill that owns it. This skill diagnoses and delegates. Only the context and
+format actions write to the repository, and only when the reader asks for them.
 
 ## Run the audit
 
@@ -22,17 +22,18 @@ they act on.
 
 ## What each finding means, and who fixes it
 
-| Check                  | Meaning                                                              | Hand off to                                            |
-| ---------------------- | -------------------------------------------------------------------- | ------------------------------------------------------ |
-| `instructions`         | No `CLAUDE.md` or `AGENTS.md` at the root                            | `/init`                                                |
-| `instructions-ignored` | The file exists but git ignores it                                   | see below — fix here                                   |
-| `graph`                | No `graphify-out/graph.json`, or it predates the newest commit       | `audit.js context`, or `/graphify --update` when stale |
+| Check                  | Meaning                                                                | Hand off to                                                  |
+| ---------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `instructions`         | No `CLAUDE.md` or `AGENTS.md` at the root                              | `/init`                                                      |
+| `instructions-ignored` | The file exists but git ignores it                                     | see below — fix here                                         |
+| `graph`                | No `graphify-out/graph.json`, or it predates the newest commit         | `audit.js context`, or `/graphify --update` when stale       |
 | `state-file`           | No `.claude/state/` folder, or still the old single `.claude/state.md` | `audit.js context`, or `ccfg state migrate` for the old file |
-| `state-file-tracked`   | Git would track `.claude/state/`                                     | `ccfg state migrate`                                   |
-| `remote`               | No `origin`, so no cloud routine can clone the repo                  | the reader adds a remote                               |
-| `routines`             | What `.claude/routines/` declares                                    | `/repo-schedule`                                       |
-| `routine-mcp`          | Routines declared with no `.mcp.json`                                | `/repo-schedule`                                       |
-| `skill-overrides`      | The stack needs a skill no `paths:` rule can reach                   | see below — fix here                                   |
+| `state-file-tracked`   | Git would track `.claude/state/`                                       | `ccfg state migrate`                                         |
+| `remote`               | No `origin`, so no cloud routine can clone the repo                    | the reader adds a remote                                     |
+| `routines`             | What `.claude/routines/` declares                                      | `/repo-schedule`                                             |
+| `routine-mcp`          | Routines declared with no `.mcp.json`                                  | `/repo-schedule`                                             |
+| `skill-overrides`      | The stack needs a skill no `paths:` rule can reach                     | see below — fix here                                         |
+| `format-hooks`         | `.pre-commit-config.yaml` does not use the shared formatters           | `audit.js format`                                            |
 
 Two findings are resolved here because no other skill owns them.
 
@@ -64,6 +65,20 @@ which spends model tokens: offer that, and run `/graphify` only on a yes.
 The SessionStart banner raises `graph`, `state-file` and `state-file-tracked` on
 every start until they are fixed or dismissed, because without them a `/clear`
 loses the work.
+
+## The format action
+
+    node ~/.claude/skills/repo-setup/audit.js format [<repo-path>]
+
+Sets a repository up with format-hooks (github.com/fishnos/format-hooks), the
+pre-commit package that pins ruff, clang-format, Prettier and shfmt to shared
+settings and adds comment checks. With no `.pre-commit-config.yaml`, it writes
+one listing every hook, pinned to the newest tag (`v0.2.0` when the tag lookup
+cannot reach GitHub), then runs `pre-commit install` and the `sync-config`
+hook, which writes the four shared settings files. With a config that already
+exists, it edits nothing and prints the block to paste in. It never runs
+`pre-commit run --all-files`, because that rewrites every file in the
+repository: offer it, and run it only on a yes.
 
 ## Silencing a finding
 
